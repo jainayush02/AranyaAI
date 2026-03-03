@@ -53,7 +53,7 @@ export default function UserProfileMenu({ user, onLogout }) {
         if (onLogout) onLogout();
     };
 
-    const apiBase = 'http://127.0.0.1:5000';
+    const apiBase = import.meta.env.VITE_API_URL || '';
     const profilePicSrc = user?.profilePic?.startsWith('/uploads') ? `${apiBase}${user.profilePic}` : user?.profilePic;
 
     return (

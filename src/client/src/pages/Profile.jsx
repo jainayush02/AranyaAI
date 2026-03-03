@@ -135,7 +135,7 @@ export default function Profile() {
                                 <img src={previewUrl} alt="Preview" className={styles.avatarImage} />
                             ) : (user.profilePic && !imgError) ? (
                                 <img
-                                    src={user.profilePic.startsWith('/uploads') ? `http://127.0.0.1:5000${user.profilePic}` : user.profilePic}
+                                    src={user.profilePic.startsWith('/uploads') ? `${import.meta.env.VITE_API_URL || ''}${user.profilePic}` : user.profilePic}
                                     alt="Profile"
                                     className={styles.avatarImage}
                                     onError={() => setImgError(true)}

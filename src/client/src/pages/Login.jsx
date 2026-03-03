@@ -77,7 +77,7 @@ const COUNTRY_CODES = [
 const CAROUSEL_INTERVAL = 4200;
 
 // Dynamic API URL for mobile/network testing
-const API_BASE_URL = `http://${window.location.hostname}:5000/api/auth`;
+const API_BASE_URL = `/api/auth`;
 
 export default function Login() {
     const [isSignUp, setIsSignUp] = useState(false);
@@ -211,7 +211,7 @@ export default function Login() {
                 window.location.href = '/';
             }
         } catch (err) {
-            setError(!err.response ? 'Cannot connect to server on port 5000.' : err.response?.data?.message || 'Something went wrong.');
+            setError(!err.response ? 'Cannot connect to server.' : err.response?.data?.message || 'Something went wrong.');
         } finally { setIsLoading(false); }
     };
 
