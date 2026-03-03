@@ -1,0 +1,161 @@
+.layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 0;
+    box-shadow: var(--shadow-sm);
+}
+
+.headerContainer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logoArea {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--primary);
+    font-weight: 800;
+    font-size: 1.5rem;
+    text-decoration: none;
+}
+
+.logoImage {
+    height: 40px;
+    width: auto;
+    border-radius: 8px;
+    /* If it's a square logo */
+}
+
+.nav {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.navLink {
+    color: var(--text-secondary);
+    font-weight: 500;
+    transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.navLink:hover {
+    color: var(--primary);
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+@media (max-width: 992px) {
+    .header {
+        padding: 0.5rem 0;
+    }
+
+    .headerContainer {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .logoArea {
+        font-size: 1.25rem;
+        margin-right: auto;
+    }
+
+    .nav {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        gap: 1.5rem;
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        /* Hide scrollbar Firefox */
+    }
+
+    .nav::-webkit-scrollbar {
+        display: none;
+        /* Hide scrollbar WebKit */
+    }
+
+    .navLink {
+        white-space: nowrap;
+        font-size: 0.9rem;
+    }
+
+    .actions {
+        position: absolute;
+        top: 0.75rem;
+        right: 1.5rem;
+    }
+}
+
+.main {
+    flex: 1;
+    padding: 2rem 0;
+    position: relative;
+}
+
+.fakeUserMenu {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--info));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.roleToggle {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.roleToggle:hover {
+    background: var(--background-start);
+}
+
+.footer {
+    padding: 1.5rem 0;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    background: white;
+}
+
+.copyright {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.825rem;
+    font-weight: 500;
+}

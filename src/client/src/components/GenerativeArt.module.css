@@ -1,0 +1,76 @@
+.minimalWrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #f8faf9;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.glowGroup {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    filter: blur(80px);
+    opacity: 0.4;
+    z-index: 0;
+}
+
+.softGlow1 {
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, #dcfce7 0%, transparent 70%);
+    top: 10%;
+    left: 20%;
+}
+
+.softGlow2 {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    background: radial-gradient(circle, #f0fdf4 0%, transparent 70%);
+    bottom: 10%;
+    right: 15%;
+}
+
+.lineArtContainer {
+    position: relative;
+    width: 100%;
+    max-width: 450px;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.morphSvg {
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+}
+
+.particleField {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.sparseParticle {
+    position: absolute;
+    background: #22c55e;
+    border-radius: 50%;
+    opacity: 0.1;
+}
+
+@media (max-width: 768px) {
+    .lineArtContainer {
+        max-width: 300px;
+    }
+}

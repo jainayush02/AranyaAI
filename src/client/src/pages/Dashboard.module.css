@@ -1,0 +1,563 @@
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--text-primary), var(--primary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+}
+
+.statCard {
+    background: var(--surface);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.statCard:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+.statIcon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(45, 95, 63, 0.1);
+    color: var(--primary);
+}
+
+.statInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.statLabel {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.statValue {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.animalsSection {
+    margin-top: 1rem;
+}
+
+.animalsHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.animalsTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.animalGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.animalCard {
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.animalCard:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-4px);
+}
+
+.animalCardSelected {
+    border-color: var(--primary) !important;
+    background: rgba(34, 197, 94, 0.02) !important;
+}
+
+.cardSelectOverlay {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 10;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.checkIcon {
+    color: var(--primary);
+}
+
+.squareIcon {
+    color: #e2e8f0;
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.animalCard:hover .squareIcon {
+    opacity: 1;
+}
+
+.cardDeleteBtn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #fee2e2;
+    color: #ef4444;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s;
+    opacity: 0;
+}
+
+.animalCard:hover .cardDeleteBtn {
+    opacity: 1;
+}
+
+.cardDeleteBtn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+.selectAllBtn {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.selectAllBtn:hover {
+    background: #f8fafc;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.bulkActionBar {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 100px;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+.bulkActionInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    padding-right: 1.5rem;
+}
+
+.selectionCount {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.clearSelection {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.clearSelection:hover {
+    color: white;
+}
+
+.bulkActions {
+    display: flex;
+    gap: 1rem;
+}
+
+.bulkDeleteBtn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 100px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+
+.bulkDeleteBtn:hover {
+    background: #dc2626;
+}
+
+.animalContent {
+    padding: 3.5rem 1.5rem 1.5rem;
+}
+
+.animalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.animalName {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.animalBreed {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.vitalGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+}
+
+.vital {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.vitalValue {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.adminBanner {
+    background: linear-gradient(135deg, var(--info), #2563eb);
+    color: white;
+    padding: 1.5rem;
+    border-radius: var(--radius-xl);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--shadow-md);
+}
+
+.adminText h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.adminText p {
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.adminDashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.adminTablePlaceholder {
+    background: white;
+    padding: 3rem;
+    border-radius: var(--radius-xl);
+    border: 1px dashed var(--border);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.insightBanner {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    position: relative;
+    overflow: hidden;
+}
+
+.aiScanner {
+    position: absolute;
+    bottom: -20px;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    display: flex;
+    justify-content: space-around;
+    filter: blur(15px);
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.aiMistParticle {
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, currentColor 0%, transparent 70%);
+    border-radius: 50%;
+    animation: mistDrift 8s ease-in-out infinite;
+}
+
+@keyframes mistDrift {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.3;
+    }
+
+    33% {
+        transform: translate(40px, -15px) scale(1.4);
+        opacity: 0.7;
+    }
+
+    66% {
+        transform: translate(-30px, -5px) scale(0.9);
+        opacity: 0.5;
+    }
+}
+
+.insightIconWrapper {
+    background: rgba(255, 255, 255, 0.6);
+    padding: 12px;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.insightTitle {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.insightBadge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    color: white;
+    border-radius: 12px;
+    font-weight: 800;
+}
+
+.insightText {
+    margin: 0.25rem 0 0 0;
+    opacity: 0.9;
+    font-size: 0.95rem;
+}
+
+.searchContainer {
+    position: relative;
+    min-width: 250px;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.searchInput {
+    width: 100%;
+    padding: 10px 12px 10px 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    outline: none;
+    background: white;
+    transition: all 0.2s;
+}
+
+.searchInput:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+.emptyText {
+    color: var(--text-secondary);
+    padding: 2rem 0;
+}
+
+.activityList {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+}
+
+.activityItem {
+    display: flex;
+    gap: 1.25rem;
+    position: relative;
+}
+
+.activityDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+
+.activityMain {
+    flex: 1;
+}
+
+.activityHeader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.activityHeader strong {
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.activityTime {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.activityDetail {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+    }
+
+    .title {
+        font-size: 1.75rem;
+    }
+
+    .animalsHeader {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .searchContainer {
+        width: 100%;
+    }
+
+    .statsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .animalGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .bulkActionBar {
+        width: 90%;
+        padding: 0.75rem 1.25rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        border-radius: 1rem;
+    }
+
+    .bulkActionInfo {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-right: 0;
+        padding-bottom: 0.5rem;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .insightBanner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

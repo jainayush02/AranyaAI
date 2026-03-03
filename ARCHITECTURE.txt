@@ -1,0 +1,217 @@
+# 🐄 Aranya AI — Core Architecture & IoT Vision
+
+## The Core Idea
+
+Aranya AI is a **real-time cattle health anomaly detection system** powered by an **LSTM Autoencoder** — a deep learning model that learns what "normal" looks like over time, and flags anything that deviates from that pattern.
+
+> [!IMPORTANT]
+> The key insight: We don't teach the model what "sick" looks like. We teach it what **"healthy" looks like**, and anything that doesn't match is an anomaly.
+
+---
+
+## How the LSTM Autoencoder Works
+
+```mermaid
+graph LR
+    A["📊 24 Time Steps<br/>(temp, activity, appetite, HR)"] --> B["🔒 Encoder<br/>LSTM(128)"]
+    B --> C["🔁 Bottleneck<br/>RepeatVector(24)"]
+    C --> D["🔓 Decoder<br/>LSTM(128)"]
+    D --> E["📊 Reconstructed<br/>24 Time Steps"]
+    A -.->|"Compare"| E
+    E --> F{"Reconstruction<br/>Error"}
+    F -->|"Low Error"| G["✅ Healthy"]
+    F -->|"High Error"| H["⚠️ Warning / 🔴 Critical"]
+```
+
+### The Logic:
+1. **Training Phase (Kaggle):** The model was trained on **thousands of healthy cattle time-series** data (24 sequential readings of temperature, activity, appetite, heart rate)
+2. **Encoding:** The encoder LSTM compresses 24 timesteps × 4 features into a **128-dimensional latent representation** — the "essence" of that cow's pattern
+3. **Decoding:** The decoder tries to **reconstruct** the original 24 timesteps from the compressed representation
+4. **Error Calculation:** If the cow is healthy, the model reconstructs the data with **low error** (< 0.35). If something is wrong, the pattern doesn't match what the model learned, causing **high reconstruction error**
+
+---
+
+## Current System (Manual Entry — Phase 1)
+
+```mermaid
+flowchart TD
+    subgraph Frontend["🌐 React Frontend (Port 5173)"]
+        A[User opens Dashboard] --> B[Clicks on Animal Card]
+        B --> C[AnimalProfile Page]
+        C --> D[Fills Health Log Form]
+        D --> E["Submit: temp, HR, activity, appetite"]
+    end
+
+    subgraph Backend["🔧 Node.js Backend (Port 5000)"]
+        E --> F[POST /api/animals/:id/logs]
+        F --> G[Save to MongoDB]
+        G --> H[Fetch last 24 logs]
+        H --> I[Send to AI Microservice]
+    end
+
+    subgraph AI["🧠 Python AI Service (Port 8000)"]
+        I --> J{Logs >= 10?}
+        J -->|"Yes"| K["LSTM Autoencoder<br/>Full time-series analysis"]
+        J -->|"No"| L["ML-derived Vital Range Check<br/>Scoring from training data ranges"]
+        K --> M[Return: Healthy / Warning / Critical]
+        L --> M
+    end
+
+    M --> N[Update Animal Status in MongoDB]
+    N --> O[Dashboard shows updated status]
+```
+
+### Current Limitations:
+- ❌ Manual data entry (slow, error-prone, infrequent)
+- ❌ Only get data when farmer remembers to log
+- ❌ Can't detect sudden overnight changes
+- ❌ LSTM needs 10+ data points to work reliably
+
+---
+
+## Future System (IoT Continuous Monitoring — Phase 2)
+
+```mermaid
+flowchart TD
+    subgraph IoT["📡 IoT Wearable Device (on each cow)"]
+        A["🌡️ Temperature Sensor"] --> E[Microcontroller<br/>ESP32 / Arduino]
+        B["💓 Heart Rate Sensor"] --> E
+        C["🏃 Accelerometer<br/>(Activity)"] --> E
+        D["⚖️ Feed Sensor<br/>(Appetite)"] --> E
+        E -->|"Every 30 min<br/>WiFi / LoRa / BLE"| F[IoT Gateway]
+    end
+
+    subgraph Cloud["☁️ Backend + AI"]
+        F -->|"MQTT / HTTP"| G["POST /api/animals/:id/ingest"]
+        G --> H[Save to MongoDB<br/>Time-Series Collection]
+        H --> I["Sliding Window: Last 24 readings"]
+        I --> J["🧠 LSTM Autoencoder<br/>(Always has 24+ data points!)"]
+        J --> K{Anomaly?}
+        K -->|"No"| L["✅ Status: Healthy"]
+        K -->|"Mild"| M["⚠️ Status: Warning"]
+        K -->|"Severe"| N["🔴 Status: Critical"]
+    end
+
+    subgraph Alerts["🔔 Alert System"]
+        M --> O["Push Notification to Farmer App"]
+        N --> P["🚨 SMS + Push + Dashboard Alert"]
+        N --> Q["Auto-schedule Vet Visit"]
+    end
+
+    subgraph Dashboard["📱 Farmer Dashboard"]
+        L --> R["Real-time vital graphs"]
+        M --> R
+        N --> R
+        R --> S["Historical trend analysis"]
+        S --> T["Herd-wide health heatmap"]
+    end
+```
+
+### Why IoT Changes Everything:
+
+| Aspect | Manual (Now) | IoT (Future) |
+|--------|-------------|--------------|
+| **Data frequency** | 1-2x per day | Every 30 minutes (48x/day) |
+| **LSTM accuracy** | Low (needs padding) | **Maximum** (always 24+ real points) |
+| **Detection speed** | Hours to days | **< 30 minutes** |
+| **Human effort** | Farmer logs manually | **Zero effort** — automatic |
+| **Night monitoring** | ❌ None | ✅ 24/7 continuous |
+| **Herd scale** | 5-10 animals practical | **500+ animals** simultaneously |
+
+---
+
+## IoT Data Flow (Technical)
+
+### 1. New API Endpoint: `/api/animals/:id/ingest`
+```
+POST /api/animals/:id/ingest
+Headers: X-Device-Key: <device_api_key>
+Body: {
+    "temperature": 38.6,
+    "heartRate": 63,
+    "activityLevel": 7.2,    // from accelerometer magnitude
+    "appetite": 4.1,         // from feed weight sensor
+    "timestamp": "2026-03-03T02:30:00Z",
+    "battery": 87,           // device battery %
+    "signal": -42            // WiFi/LoRa signal strength
+}
+```
+
+### 2. Sliding Window (Always Full)
+With IoT sending data every 30 minutes, after just **12 hours** you have 24 data points — the LSTM's full window. From that point on:
+- Every new reading slides the window forward
+- The LSTM always operates at **peak accuracy**
+- No more padding, no more approximations
+
+### 3. Continuous Prediction Loop
+```
+Every new IoT reading:
+  1. Save to time-series DB
+  2. Fetch last 24 readings (sliding window)
+  3. Run LSTM autoencoder
+  4. If error > threshold → trigger alert
+  5. Update dashboard in real-time (WebSocket)
+```
+
+---
+
+## The ML Model's True Power with IoT
+
+> [!TIP]
+> The LSTM Autoencoder's real strength is **pattern detection over time** — not just checking if a single reading is "too high" or "too low."
+
+### What simple rules miss but LSTM catches:
+
+| Scenario | Temp | HR | Activity | Simple Rules | LSTM |
+|----------|------|-----|----------|-------------|------|
+| Early fever onset | 38.9→39.0→39.2→39.4 (gradual rise) | 68→70→72→75 | 6→5→4→3 | ✅ "Normal" | 🔴 **"Anomaly — rising trend"** |
+| Lethargy without fever | 38.5 (normal) | 62 (normal) | 8→6→3→1 (dropping) | ✅ "Normal" | ⚠️ **"Warning — activity declining"** |
+| Post-treatment recovery | 39.8→39.4→39.0→38.6 | 85→78→70→65 | 2→4→5→7 | ⚠️ "Warning" | ✅ **"Healthy — recovering"** |
+| Night-time distress | 38.5 (day) → 40.2 (2am) | 65 → 95 | 7 → 1 | ❌ Missed (no one checks) | 🔴 **"Critical — immediate alert"** |
+
+This is why the **time-series approach (LSTM)** is fundamentally superior to simple threshold rules — it understands **patterns and trends**, not just individual numbers.
+
+---
+
+## Recommended IoT Hardware Stack
+
+| Component | Recommended | Purpose |
+|-----------|-------------|---------|
+| **Microcontroller** | ESP32-S3 | WiFi + BLE, low power, cheap (~$3) |
+| **Temperature** | DS18B20 (waterproof probe) | Rumen/ear tag temperature |
+| **Heart Rate** | MAX30102 (optical) | Pulse oximetry through ear |
+| **Accelerometer** | MPU6050 / ADXL345 | Movement = activity level |
+| **Feed Sensor** | HX711 + Load Cell | Weight change = appetite tracking |
+| **Communication** | LoRa SX1276 (rural) / WiFi (indoor) | Long-range for open pastures |
+| **Power** | Solar panel + LiPo battery | Maintenance-free for months |
+| **Form Factor** | Ear tag or neck collar | Non-invasive, cow-friendly |
+
+---
+
+## Architecture Evolution Roadmap
+
+```mermaid
+graph TD
+    A["Phase 1 (NOW)<br/>Manual Entry + Hybrid ML"] -->|"Add IoT devices"| B["Phase 2<br/>IoT + Pure LSTM"]
+    B -->|"Scale herd"| C["Phase 3<br/>Edge Computing on Gateway"]
+    C -->|"Advanced AI"| D["Phase 4<br/>Predictive + Prescriptive"]
+
+    style A fill:#4ade80,color:#000
+    style B fill:#60a5fa,color:#000
+    style C fill:#a78bfa,color:#000
+    style D fill:#f472b6,color:#000
+```
+
+| Phase | What | Key Capability |
+|-------|------|----------------|
+| **Phase 1** (Current) | Manual entry + hybrid ML | Basic anomaly detection with vital range + LSTM |
+| **Phase 2** | IoT sensors streaming data | 24/7 monitoring, pure LSTM, real-time alerts |
+| **Phase 3** | Edge AI on IoT gateway | Predictions run locally, works without internet |
+| **Phase 4** | Predictive analytics | Predict illness 48-72 hours before symptoms, auto-prescribe treatments, breeding optimization |
+
+---
+
+## Summary
+
+> [!NOTE]
+> **Today's manual system is the foundation.** The same LSTM model, the same API structure, and the same dashboard — when IoT devices connect, the only change is the **data source** (sensor → API instead of form → API). The AI engine is already built for continuous time-series data. The architecture is IoT-ready.

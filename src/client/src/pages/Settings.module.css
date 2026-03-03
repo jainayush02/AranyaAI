@@ -1,0 +1,196 @@
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 0 1rem;
+}
+
+.pageHeader {
+    margin-bottom: 0.5rem;
+}
+
+.pageTitle {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.pageSubtitle {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+.card {
+    background: var(--surface-solid);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.cardIcon {
+    color: var(--success);
+}
+
+.cardTitle {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.sectionGroup {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.selectWrapper {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border-focus);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    gap: 0.5rem;
+    background: white;
+    min-width: 200px;
+}
+
+.select {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-weight: 500;
+    width: 100%;
+    cursor: pointer;
+}
+
+.toggleRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.toggleRow:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.toggleInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.toggleLabel {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.toggleDesc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: #111827;
+    /* Dark background as per screenshot */
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px #111827;
+}
+
+input:checked+.slider:before {
+    transform: translateX(20px);
+}
+
+.securityText {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.plainInput {
+    border: none;
+    background: transparent;
+    padding: 10px;
+    width: 100%;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.inputGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.formItem {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.adminSection {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}

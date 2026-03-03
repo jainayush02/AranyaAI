@@ -1,0 +1,170 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal {
+    background: var(--surface-solid);
+    width: 100%;
+    max-width: 450px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.closeButton {
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.closeButton:hover {
+    color: var(--error);
+}
+
+.body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--text-secondary);
+    /* Darker border like in the image */
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.2s;
+    background: var(--surface-solid);
+}
+
+.input:focus {
+    border-color: var(--primary);
+    border-width: 2px;
+    padding: calc(0.75rem - 1px) calc(1rem - 1px);
+}
+
+.input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.selectContainer {
+    position: relative;
+}
+
+.select {
+    appearance: none;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    padding-right: 2.5rem;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    /* Softer border for select */
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    background: var(--surface-solid);
+    cursor: pointer;
+    outline: none;
+}
+
+.select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(45, 95, 63, 0.1);
+}
+
+.selectIcon {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.cancelButton,
+.submitButton {
+    flex: 1;
+    padding: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.cancelButton {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    color: var(--text-primary);
+}
+
+.cancelButton:hover {
+    background: var(--background-start);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.submitButton {
+    background: #15803d;
+    /* match Tailwind green-700 */
+    color: white;
+    border: none;
+}
+
+.submitButton:hover {
+    background: #166534;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(22, 101, 52, 0.3);
+}

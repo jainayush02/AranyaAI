@@ -1,0 +1,27 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "src/client/package.json",
+            "use": "@vercel/vite"
+        },
+        {
+            "src": "src/server/server.js",
+            "use": "@vercel/node"
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "/src/server/server.js"
+        },
+        {
+            "source": "/uploads/(.*)",
+            "destination": "/src/server/server.js"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/src/client/$1"
+        }
+    ]
+}
