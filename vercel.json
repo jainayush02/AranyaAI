@@ -3,7 +3,10 @@
     "builds": [
         {
             "src": "src/client/package.json",
-            "use": "@vercel/vite"
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "dist"
+            }
         },
         {
             "src": "src/server/server.js",
