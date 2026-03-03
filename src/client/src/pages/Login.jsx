@@ -549,7 +549,7 @@ export default function Login() {
                                     )}
 
                                     {/* Send OTP CTA */}
-                                    {(isSignUp || loginType === 'mobile') && !showOTP && (
+                                    {!isAdminPortal && (isSignUp || loginType === 'mobile') && !showOTP && (
                                         <motion.button type="button" className={styles.otpBtn}
                                             onClick={handleRequestOTP} disabled={isLoading}
                                             whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
@@ -590,7 +590,7 @@ export default function Login() {
                                         </span>
                                     )}
                                     <button type="button" className={styles.adminBtn}
-                                        onClick={() => { setIsAdminPortal(!isAdminPortal); resetState(); }}>
+                                        onClick={() => { setIsAdminPortal(!isAdminPortal); setIsSignUp(false); setIsForgotPassword(false); resetState(); }}>
                                         {isAdminPortal ? '← Back to User Login' : 'Admin Portal →'}
                                     </button>
                                 </div>
