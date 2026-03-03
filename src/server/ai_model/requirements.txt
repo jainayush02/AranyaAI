@@ -1,9 +1,9 @@
 Flask
 flask-cors
 pandas
-numpy
+numpy<2.0
 scikit-learn
 joblib
 keras
-tensorflow
+tensorflow-cpu
 gunicorn
