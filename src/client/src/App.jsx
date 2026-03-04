@@ -15,6 +15,24 @@ import axios from 'axios'
 // Prevent infinite loading by setting a global 15-second timeout
 axios.defaults.timeout = 15000;
 
+// Auto-retry: if a request fails due to server/network error, retry once after 2s
+// This handles Vercel cold starts where MongoDB needs a moment to reconnect
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (!config || config._retried) return Promise.reject(error);
+    const status = error.response?.status;
+    // Retry on 500/502/503 (server errors) or no response (network error)
+    if (!error.response || status === 500 || status === 502 || status === 503) {
+      config._retried = true;
+      await new Promise((r) => setTimeout(r, 2000));
+      return axios(config);
+    }
+    return Promise.reject(error);
+  }
+);
+
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   if (!token) {
