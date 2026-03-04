@@ -51,26 +51,29 @@
     display: flex;
     justify-content: center;
     margin-bottom: 2.5rem;
+    position: relative;
 }
 
 .avatar {
-    width: 96px;
-    height: 96px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
-    background: #4f46e5;
+    background: var(--primary-light);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 3rem;
     font-weight: 700;
     overflow: hidden;
+    border: 4px solid white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .avatarWrapper {
     position: relative;
-    width: 96px;
-    height: 96px;
+    width: 120px;
+    height: 120px;
 }
 
 .avatarImage {
@@ -144,14 +147,7 @@
     margin-top: -0.25rem;
 }
 
-.roleBox {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: #fafafa;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    color: var(--text-primary);
-}
+
 
 .actionArea {
     margin-top: 1rem;
@@ -175,60 +171,289 @@
 }
 
 .photoActionsOverlay {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -10px;
     display: flex;
-    gap: 12px;
-    margin-top: 1.25rem;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    border-radius: 40px;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    gap: 6px;
+    padding: 4px;
+    background: white;
+    border-radius: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    z-index: 20;
 }
 
 .confirmPhotoBtn {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    background: #15803d;
+    background: var(--success);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3);
+    transition: all 0.2s ease;
+}
+
+.confirmPhotoBtn span {
+    display: none;
+    /* Icon only for compact look */
 }
 
 .confirmPhotoBtn:hover:not(:disabled) {
-    transform: scale(1.15);
     background: #166534;
-    box-shadow: 0 6px 15px rgba(21, 128, 61, 0.4);
+    transform: translateY(-1px);
 }
 
 .cancelPhotoBtn {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    background: #ef4444;
-    color: white;
+    background: #f1f5f9;
+    color: #ef4444;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    transition: all 0.2s ease;
 }
 
-.cancelPhotoBtn:hover {
-    transform: scale(1.15);
-    background: #dc2626;
-    box-shadow: 0 6px 15px rgba(239, 68, 68, 0.4);
+.cancelPhotoBtn:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0f172a;
+    transform: translateY(-1px);
+}
+
+.cancelPhotoBtn span {
+    display: none;
+    /* Keep it compact */
 }
 
 .confirmPhotoBtn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════
+   VERIFICATION BOX — Premium Animated UI
+   ═══════════════════════════════════════════════════ */
+
+@keyframes shimmerBorder {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(21, 128, 61, 0);
+    }
+}
+
+@keyframes slideInFade {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes iconBounce {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.15);
+    }
+}
+
+.verifyBox {
+    position: relative;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0fdf4 100%);
+    border: 2px solid transparent;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    animation: slideInFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* Animated gradient border */
+    background-clip: padding-box;
+    border-image: linear-gradient(135deg, #22c55e, #15803d, #059669, #22c55e) 1;
+    background-size: 200% 200%;
+}
+
+.verifyBox::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #22c55e, #059669, transparent);
+    animation: shimmerBorder 3s ease-in-out infinite;
+}
+
+.verifyHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #15803d;
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+.verifyHeader svg {
+    animation: iconBounce 2s ease-in-out infinite;
+    filter: drop-shadow(0 2px 4px rgba(21, 128, 61, 0.3));
+}
+
+.verifyText {
+    color: #4b5563;
+    font-size: 0.9rem;
+    margin-bottom: 1.25rem;
+    line-height: 1.6;
+}
+
+.verifyText strong {
+    color: #111827;
+    font-weight: 700;
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.5px;
+}
+
+/* OTP Input — Premium */
+.verifyBox .input {
+    border: 2px solid #d1fae5;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 8px;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+}
+
+.verifyBox .input:focus {
+    border-color: #15803d;
+    box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.1), 0 4px 12px rgba(21, 128, 61, 0.08);
+    transform: scale(1.01);
+}
+
+.verifyBox .input::placeholder {
+    letter-spacing: 2px;
+    font-weight: 400;
+    font-size: 0.9rem;
+    color: #9ca3af;
+}
+
+/* Verify Button — Gradient */
+.verifyBox .saveBtn {
+    background: linear-gradient(135deg, #15803d, #059669);
+    color: white;
+    padding: 0.85rem 2rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(21, 128, 61, 0.25);
+    white-space: nowrap;
+    min-width: 100px;
+}
+
+.verifyBox .saveBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(21, 128, 61, 0.35);
+    background: linear-gradient(135deg, #166534, #047857);
+}
+
+.verifyBox .saveBtn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(21, 128, 61, 0.2);
+}
+
+/* Messages */
+.successMsg {
+    background: linear-gradient(135deg, #dcfce7, #d1fae5);
+    color: #166534;
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #bbf7d0;
+    animation: slideInFade 0.3s ease;
+}
+
+.errorMsg {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    color: #dc2626;
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid #fecaca;
+    animation: slideInFade 0.3s ease;
+}
+
+.linkBtn {
+    background: none;
+    border: none;
+    color: #15803d;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    transition: all 0.25s ease;
+}
+
+.linkBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: #6b7280;
+}
+
+.linkBtn:hover:not(:disabled) {
+    background: rgba(21, 128, 61, 0.08);
+    color: #166534;
 }

@@ -8,8 +8,22 @@ const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
 const nodemailer = require('nodemailer');
+const axios = require('axios');
 const { OAuth2Client } = require('google-auth-library');
 const ActivityLog = require('../models/ActivityLog');
+
+// ── JWT Auth Middleware (for protected routes) ──
+const authMiddleware = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'Authentication required' });
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded.user;
+        next();
+    } catch {
+        return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+};
 
 // Initialize Google OAuth Client
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -113,7 +127,7 @@ router.post('/request-otp', async (req, res) => {
         }
 
         const otp = generateOTP();
-        const otpExpires = new Date(Date.now() + 60 * 1000); // 60 seconds (Matches resend time)
+        const otpExpires = new Date(Date.now() + 90 * 1000); // 90 seconds
 
         let user = await User.findOne({ $or: [{ email: identifier }, { mobile: identifier }] });
 
@@ -157,14 +171,14 @@ router.post('/request-otp', async (req, res) => {
                         from: process.env.TWILIO_PHONE_NUMBER,
                         to: formattedNumber
                     });
-                    console.log(`[OTP] Real SMS sent to ${formattedNumber}`);
+                    console.log(`[OTP] SMS sent to ${formattedNumber}`);
                 } catch (smsErr) {
                     console.error('[OTP] Twilio Error:', smsErr.message);
-                    console.log(`[OTP] Fallback log to ${mobile}: ${otp}`);
+                    console.warn(`[OTP] Failed to send SMS to ${mobile}. User should retry.`);
                 }
             } else {
-                console.warn('[OTP] Twilio not configured. Mobile OTP logged to console.');
-                console.log(`[OTP] Sent to ${mobile}: ${otp}`);
+                console.warn('[OTP] Twilio not configured. SMS delivery unavailable.');
+                console.warn(`[OTP] OTP generated for ${mobile} but could not be delivered.`);
             }
         } else if (email) {
             // Email OTP
@@ -191,7 +205,7 @@ router.post('/request-otp', async (req, res) => {
                 console.log(`[OTP] Email sent to ${email}`);
             } catch (mailErr) {
                 console.error('[OTP] Mail Error:', mailErr.message);
-                console.log(`[OTP] Fallback log to ${email}: ${otp}`);
+                console.warn(`[OTP] Failed to send email to ${email}. User should retry.`);
             }
         }
 
@@ -246,7 +260,8 @@ router.post('/register', async (req, res) => {
         } catch (_) { }
 
         const payload = { user: { id: user.id } };
-        const secret = process.env.JWT_SECRET || 'fallback_secret';
+        const secret = process.env.JWT_SECRET;
+        if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
         jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
             res.status(201).json({
@@ -286,6 +301,11 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
+        // Block admin users from user login — admins must use /admin-login
+        if (user.role === 'admin') {
+            return res.status(403).json({ message: 'Admin accounts must use the Admin Portal to sign in.' });
+        }
+
         // Login via OTP
         if (otp) {
             if (user.otp === otp && user.otpExpires > Date.now()) {
@@ -318,7 +338,8 @@ router.post('/login', async (req, res) => {
         await user.save();
 
         const payload = { user: { id: user.id } };
-        const secret = process.env.JWT_SECRET || 'fallback_secret';
+        const secret = process.env.JWT_SECRET;
+        if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
         jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
             res.status(200).json({
@@ -432,7 +453,7 @@ router.post('/admin-login', async (req, res) => {
 });
 // @route PUT /api/auth/profile
 // @desc  Update user profile (e.g., full name, mobile)
-router.put('/profile', async (req, res) => {
+router.put('/profile', authMiddleware, async (req, res) => {
     try {
         const { email, mobile, new_mobile, full_name } = req.body;
 
@@ -471,7 +492,7 @@ router.put('/profile', async (req, res) => {
 
 // @route POST /api/auth/profile/upload
 // @desc  Upload profile picture
-router.post('/profile/upload', upload.single('profilePic'), async (req, res) => {
+router.post('/profile/upload', authMiddleware, upload.single('profilePic'), async (req, res) => {
     try {
         const { email, mobile } = req.body;
         if (!req.file) {
@@ -511,33 +532,225 @@ router.post('/profile/upload', upload.single('profilePic'), async (req, res) => 
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// FORGOT PASSWORD
+// ═══════════════════════════════════════════════════════
+
+// @route POST /api/auth/forgot-password/request
+// @desc  Send OTP to email for password reset
+router.post('/forgot-password/request', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required.' });
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            // Don't reveal whether user exists
+            return res.status(200).json({ message: 'If an account with this email exists, a reset code has been sent.' });
+        }
+
+        // Block admin from user reset flow
+        if (user.role === 'admin') {
+            return res.status(200).json({ message: 'If an account with this email exists, a reset code has been sent.' });
+        }
+
+        // Rate limit: 60s between requests
+        if (user.lastOtpSentAt) {
+            const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
+            if (timePassed < 60) {
+                return res.status(429).json({ message: `Please wait ${Math.ceil(60 - timePassed)} seconds before requesting again.` });
+            }
+        }
+
+        const otp = generateOTP();
+        user.otp = otp;
+        user.otpExpires = new Date(Date.now() + 90 * 1000); // 90 seconds
+        user.lastOtpSentAt = new Date();
+        await user.save();
+
+        // Send reset email
+        try {
+            const mailOptions = {
+                from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                to: email,
+                subject: 'Password Reset - Aranya AI',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #2D6A4F; text-align: center;">Reset Your Password</h2>
+                        <p>Hello${user.full_name ? ` ${user.full_name}` : ''},</p>
+                        <p>We received a request to reset your password. Use the code below:</p>
+                        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #2D6A4F;">
+                            ${otp}
+                        </div>
+                        <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>. If you didn't request a password reset, please ignore this email.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="text-align: center; color: #888; font-size: 12px;">&copy; 2026 Aranya AI. All rights reserved.</p>
+                    </div>
+                `
+            };
+            await transporter.sendMail(mailOptions);
+            console.log(`[FORGOT-PASSWORD] Reset email sent to ${email}`);
+        } catch (mailErr) {
+            console.error('[FORGOT-PASSWORD] Mail Error:', mailErr.message);
+            return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+        }
+
+        res.status(200).json({ message: 'If an account with this email exists, a reset code has been sent.' });
+    } catch (error) {
+        console.error('[forgot-password/request]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/forgot-password/reset
+// @desc  Verify OTP and set new password
+router.post('/forgot-password/reset', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: 'Email, OTP, and new password are required.' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired reset code.' });
+        }
+
+        if (user.otp !== otp || !user.otpExpires || user.otpExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired reset code.' });
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        console.log(`[FORGOT-PASSWORD] Password reset for ${email}`);
+        res.status(200).json({ message: 'Password reset successful! You can now sign in with your new password.' });
+    } catch (error) {
+        console.error('[forgot-password/reset]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/forgot-password/admin/request
+// @desc  Send OTP to admin email for password reset
+router.post('/forgot-password/admin/request', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required.' });
+
+        const user = await User.findOne({ email });
+        // Only proceed for admin accounts, but don't reveal if user exists
+        if (!user || user.role !== 'admin') {
+            return res.status(200).json({ message: 'If an admin account with this email exists, a reset code has been sent.' });
+        }
+
+        if (user.lastOtpSentAt) {
+            const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
+            if (timePassed < 60) {
+                return res.status(429).json({ message: `Please wait ${Math.ceil(60 - timePassed)} seconds.` });
+            }
+        }
+
+        const otp = generateOTP();
+        user.otp = otp;
+        user.otpExpires = new Date(Date.now() + 90 * 1000);
+        user.lastOtpSentAt = new Date();
+        await user.save();
+
+        try {
+            const mailOptions = {
+                from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                to: email,
+                subject: 'Admin Password Reset - Aranya AI',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #dc2626; text-align: center;">🔐 Admin Password Reset</h2>
+                        <p>Hello ${user.full_name || 'Admin'},</p>
+                        <p>A password reset was requested for your admin account. Use the code below:</p>
+                        <div style="background-color: #fef2f2; padding: 15px; text-align: center; border-radius: 5px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #dc2626;">
+                            ${otp}
+                        </div>
+                        <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>. If you didn't request this, please secure your account immediately.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="text-align: center; color: #888; font-size: 12px;">&copy; 2026 Aranya AI. All rights reserved.</p>
+                    </div>
+                `
+            };
+            await transporter.sendMail(mailOptions);
+            console.log(`[FORGOT-PASSWORD-ADMIN] Reset email sent to ${email}`);
+        } catch (mailErr) {
+            console.error('[FORGOT-PASSWORD-ADMIN] Mail Error:', mailErr.message);
+            return res.status(500).json({ message: 'Failed to send reset email.' });
+        }
+
+        res.status(200).json({ message: 'If an admin account with this email exists, a reset code has been sent.' });
+    } catch (error) {
+        console.error('[forgot-password/admin/request]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/forgot-password/admin/reset
+// @desc  Verify OTP and set new admin password
+router.post('/forgot-password/admin/reset', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: 'Email, OTP, and new password are required.' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user || user.role !== 'admin') {
+            return res.status(400).json({ message: 'Invalid or expired reset code.' });
+        }
+        if (user.otp !== otp || !user.otpExpires || user.otpExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired reset code.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        console.log(`[FORGOT-PASSWORD-ADMIN] Password reset for admin: ${email}`);
+        res.status(200).json({ message: 'Admin password reset successful! You can now sign in.' });
+    } catch (error) {
+        console.error('[forgot-password/admin/reset]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 // @route POST /api/auth/google
-// @desc  Google Login / Register
+
+
+// @desc  Google Login / Register — USER ONLY (blocks admins)
 router.post('/google', async (req, res) => {
     try {
         const { idToken, accessToken } = req.body;
         let userData = null;
 
         if (idToken) {
-            // Verify ID Token
             const ticket = await client.verifyIdToken({
                 idToken,
                 audience: process.env.GOOGLE_CLIENT_ID
             });
             const payload = ticket.getPayload();
-            userData = {
-                email: payload.email,
-                name: payload.name,
-                picture: payload.picture
-            };
+            userData = { email: payload.email, name: payload.name, picture: payload.picture };
         } else if (accessToken) {
-            // Verify Access Token via UserInfo API
             const response = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
-            userData = {
-                email: response.data.email,
-                name: response.data.name,
-                picture: response.data.picture
-            };
+            userData = { email: response.data.email, name: response.data.name, picture: response.data.picture };
         } else {
             return res.status(400).json({ message: 'Google Token is required' });
         }
@@ -545,35 +758,27 @@ router.post('/google', async (req, res) => {
         const { email, name, picture } = userData;
         let user = await User.findOne({ email });
 
-        if (!user) {
-            // Create new user if doesn't exist
-            user = new User({
-                email,
-                full_name: name,
-                profilePic: picture,
-                isVerified: true,
-                role: 'user'
-            });
-            await user.save();
-
-            try {
-                await ActivityLog.create({
-                    type: 'registration',
-                    user: name || email,
-                    detail: `New user joined via Google: ${name} (${email})`
-                });
-            } catch (_) { }
-        } else {
-            if (!user.full_name) user.full_name = name;
-            if (!user.profilePic) user.profilePic = picture;
-            user.isVerified = true;
-            user.lastLoginAt = new Date();
-            user.loginCount = (user.loginCount || 0) + 1;
-            await user.save();
+        // Block admin accounts from user login
+        if (user && user.role === 'admin') {
+            return res.status(403).json({ message: 'Admin accounts must use the Admin Portal to sign in.' });
         }
 
+        // No auto-registration — user must sign up first
+        if (!user) {
+            return res.status(404).json({ message: 'No account found with this email. Please sign up first to create your account.' });
+        }
+
+        // Existing user — update profile info if needed
+        if (!user.full_name) user.full_name = name;
+        if (!user.profilePic) user.profilePic = picture;
+        user.isVerified = true;
+        user.lastLoginAt = new Date();
+        user.loginCount = (user.loginCount || 0) + 1;
+        await user.save();
+
         const payload = { user: { id: user.id } };
-        const secret = process.env.JWT_SECRET || 'fallback_secret';
+        const secret = process.env.JWT_SECRET;
+        if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
 
         jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
@@ -593,6 +798,276 @@ router.post('/google', async (req, res) => {
     } catch (error) {
         console.error('[Google Login] Error:', error.response?.data || error.message);
         res.status(401).json({ message: 'Invalid Google Token' });
+    }
+});
+
+// @route POST /api/auth/google-admin
+// @desc  Google Login — ADMIN ONLY (blocks non-admins)
+router.post('/google-admin', async (req, res) => {
+    try {
+        const { idToken, accessToken } = req.body;
+        let userData = null;
+
+        if (idToken) {
+            const ticket = await client.verifyIdToken({
+                idToken,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            const payload = ticket.getPayload();
+            userData = { email: payload.email, name: payload.name, picture: payload.picture };
+        } else if (accessToken) {
+            const response = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+            userData = { email: response.data.email, name: response.data.name, picture: response.data.picture };
+        } else {
+            return res.status(400).json({ message: 'Google Token is required' });
+        }
+
+        const { email, name, picture } = userData;
+        const user = await User.findOne({ email });
+
+        // Must exist AND must be admin
+        if (!user || user.role !== 'admin') {
+            return res.status(403).json({ message: 'Unauthorized. Only admin accounts can access this portal.' });
+        }
+
+        // Update profile data
+        if (!user.full_name) user.full_name = name;
+        if (!user.profilePic) user.profilePic = picture;
+        user.lastLoginAt = new Date();
+        user.loginCount = (user.loginCount || 0) + 1;
+        await user.save();
+
+        const secret = process.env.JWT_SECRET;
+        if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
+
+        const payload = { user: { id: user.id, role: user.role } };
+        jwt.sign(payload, secret, { expiresIn: '4h' }, (err, token) => {
+            if (err) throw err;
+            console.log(`[AUDIT] Admin Google login: ${user.email} at ${new Date().toISOString()}`);
+            res.status(200).json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                    full_name: user.full_name,
+                    profilePic: user.profilePic
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error('[Google Admin Login] Error:', error.response?.data || error.message);
+        res.status(401).json({ message: 'Google authentication failed.' });
+    }
+});
+
+
+// ═══════════════════════════════════════════════════════
+// MOBILE VERIFICATION (from Profile page)
+// ═══════════════════════════════════════════════════════
+
+// @route POST /api/auth/verify-mobile/request
+// @desc  Send OTP to a new mobile number for verification
+router.post('/verify-mobile/request', authMiddleware, async (req, res) => {
+    try {
+        const { mobile } = req.body;
+        if (!mobile) return res.status(400).json({ message: 'Mobile number is required' });
+
+        // Check if mobile is already in use by another account
+        const existingUser = await User.findOne({ mobile });
+        if (existingUser && existingUser.id !== req.user.id) {
+            return res.status(400).json({ message: 'This mobile number is already linked to another account.' });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Rate limit: 60s between requests
+        if (user.lastOtpSentAt) {
+            const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
+            if (timePassed < 60) {
+                return res.status(429).json({ message: `Please wait ${Math.ceil(60 - timePassed)} seconds.` });
+            }
+        }
+
+        const otp = generateOTP();
+        user.otp = otp;
+        user.otpExpires = new Date(Date.now() + 90 * 1000); // 90 seconds
+        user.lastOtpSentAt = new Date();
+        // Store pending mobile temporarily
+        user._pendingMobile = mobile;
+        await user.save();
+
+        // Send OTP via Twilio
+        if (twilioClient) {
+            try {
+                const formattedNumber = mobile.startsWith('+') ? mobile : `+${mobile.replace(/\D/g, '')}`;
+                await twilioClient.messages.create({
+                    body: `[Aranya AI] Your verification code is: ${otp}. Valid for 90 seconds.`,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to: formattedNumber
+                });
+                console.log(`[MOBILE-VERIFY] SMS sent to ${formattedNumber}`);
+            } catch (smsErr) {
+                console.error('[MOBILE-VERIFY] SMS Error:', smsErr.message);
+            }
+        } else {
+            console.warn('[MOBILE-VERIFY] Twilio not configured.');
+        }
+
+        res.status(200).json({ message: 'Verification code sent to your mobile.' });
+    } catch (error) {
+        console.error('[verify-mobile/request]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/verify-mobile/confirm
+// @desc  Verify OTP and link mobile number to account
+router.post('/verify-mobile/confirm', authMiddleware, async (req, res) => {
+    try {
+        const { mobile, otp } = req.body;
+        if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP are required' });
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (user.otp !== otp || !user.otpExpires || user.otpExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired verification code.' });
+        }
+
+        // Link mobile to account
+        user.mobile = mobile;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        res.status(200).json({
+            message: 'Mobile number verified and linked!',
+            user: {
+                id: user.id,
+                email: user.email,
+                mobile: user.mobile,
+                role: user.role,
+                full_name: user.full_name,
+                profilePic: user.profilePic
+            }
+        });
+    } catch (error) {
+        console.error('[verify-mobile/confirm]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// EMAIL VERIFICATION (from Profile page)
+// ═══════════════════════════════════════════════════════
+
+// @route POST /api/auth/verify-email/request
+// @desc  Send OTP to a new email address for verification
+router.post('/verify-email/request', authMiddleware, async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email address is required' });
+
+        // Basic email format validation
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ message: 'Please enter a valid email address.' });
+        }
+
+        // Check if email is already in use by another account
+        const existingUser = await User.findOne({ email });
+        if (existingUser && existingUser.id !== req.user.id) {
+            return res.status(400).json({ message: 'This email is already linked to another account.' });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Rate limit: 60s between requests
+        if (user.lastOtpSentAt) {
+            const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
+            if (timePassed < 60) {
+                return res.status(429).json({ message: `Please wait ${Math.ceil(60 - timePassed)} seconds.` });
+            }
+        }
+
+        const otp = generateOTP();
+        user.otp = otp;
+        user.otpExpires = new Date(Date.now() + 90 * 1000); // 90 seconds
+        user.lastOtpSentAt = new Date();
+        await user.save();
+
+        // Send OTP via email
+        try {
+            const mailOptions = {
+                from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                to: email,
+                subject: 'Email Verification - Aranya AI',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #2D6A4F; text-align: center;">Verify Your Email</h2>
+                        <p>Hello,</p>
+                        <p>You requested to link this email to your Aranya AI account. Use the code below to verify:</p>
+                        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #2D6A4F;">
+                            ${otp}
+                        </div>
+                        <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for 90 seconds. If you did not request this, please ignore this email.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="text-align: center; color: #888; font-size: 12px;">&copy; 2026 Aranya AI. All rights reserved.</p>
+                    </div>
+                `
+            };
+            await transporter.sendMail(mailOptions);
+            console.log(`[EMAIL-VERIFY] Verification email sent to ${email}`);
+        } catch (mailErr) {
+            console.error('[EMAIL-VERIFY] Mail Error:', mailErr.message);
+            return res.status(500).json({ message: 'Failed to send verification email. Please check email configuration.' });
+        }
+
+        res.status(200).json({ message: 'Verification code sent to your email.' });
+    } catch (error) {
+        console.error('[verify-email/request]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/verify-email/confirm
+// @desc  Verify OTP and link email to account
+router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (user.otp !== otp || !user.otpExpires || user.otpExpires < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired verification code.' });
+        }
+
+        // Link email to account
+        user.email = email;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        user.isVerified = true;
+        await user.save();
+
+        res.status(200).json({
+            message: 'Email verified and linked!',
+            user: {
+                id: user.id,
+                email: user.email,
+                mobile: user.mobile,
+                role: user.role,
+                full_name: user.full_name,
+                profilePic: user.profilePic
+            }
+        });
+    } catch (error) {
+        console.error('[verify-email/confirm]', error);
+        res.status(500).json({ message: 'Server Error' });
     }
 });
 

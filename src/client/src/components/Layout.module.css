@@ -109,8 +109,12 @@
 
 .main {
     flex: 1;
-    padding: 2rem 0;
+    padding: 2rem;
     position: relative;
+    max-width: 1440px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .fakeUserMenu {

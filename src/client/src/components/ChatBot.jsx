@@ -3,7 +3,7 @@ import {
     MessageSquare, X, Send, Bot,
     Camera, Image as ImageIcon,
     Plus, History, Trash2, Edit3,
-    Check, ChevronRight
+    Check, ChevronRight, ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -22,6 +22,7 @@ export default function ChatBot() {
     const [imagePreview, setImagePreview] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
         title: '',
@@ -209,32 +210,48 @@ export default function ChatBot() {
                             exit={{ opacity: 0, scale: 0.9, y: 30 }}
                         >
                             {/* Sidebar */}
-                            <aside className={styles.sidebar}>
-                                <button className={styles.newChatBtn} onClick={handleNewChat}>
-                                    <Plus size={18} /> New Chat
-                                </button>
+                            <motion.aside
+                                className={`${styles.sidebar} ${!isSidebarOpen ? styles.sidebarCollapsed : ''}`}
+                                layout
+                            >
+                                <div className={styles.sidebarHeader}>
+                                    <button
+                                        className={styles.newChatBtn}
+                                        onClick={handleNewChat}
+                                        title="New Chat"
+                                    >
+                                        <Plus size={18} />
+                                        <span className={styles.newChatText}>New Chat</span>
+                                    </button>
+                                </div>
 
                                 <div className={styles.historyLabel}>History</div>
+
                                 <div className={styles.historyList}>
                                     {conversations.map(chat => (
                                         <div
                                             key={chat._id}
-                                            className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''}`}
+                                            className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''} ${!isSidebarOpen ? styles.historyItemCollapsed : ''}`}
                                             onClick={() => setActiveChatId(chat._id)}
+                                            title={!isSidebarOpen ? chat.title : ''}
                                         >
-                                            {editingId === chat._id ? (
-                                                <input
-                                                    autoFocus
-                                                    className={styles.renameInput}
-                                                    value={editTitle}
-                                                    onChange={(e) => setEditTitle(e.target.value)}
-                                                    onBlur={() => handleRename(chat._id)}
-                                                    onKeyPress={(e) => e.key === 'Enter' && handleRename(chat._id)}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                />
-                                            ) : (
-                                                <span className={styles.chatTitle}>{chat.title}</span>
-                                            )}
+                                            <div className={styles.chatItemContent}>
+                                                <MessageSquare size={16} className={styles.chatListIcon} />
+                                                <MessageSquare size={20} className={styles.collapsedChatIcon} />
+                                                {editingId === chat._id ? (
+                                                    <input
+                                                        autoFocus
+                                                        className={styles.renameInput}
+                                                        value={editTitle}
+                                                        onChange={(e) => setEditTitle(e.target.value)}
+                                                        onBlur={() => handleRename(chat._id)}
+                                                        onKeyPress={(e) => e.key === 'Enter' && handleRename(chat._id)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                ) : (
+                                                    <span className={styles.chatTitle}>{chat.title}</span>
+                                                )}
+                                            </div>
 
                                             <div className={styles.chatActions}>
                                                 <button className={styles.actionIcon} onClick={(e) => startRename(e, chat)}>
@@ -247,7 +264,13 @@ export default function ChatBot() {
                                         </div>
                                     ))}
                                 </div>
-                            </aside>
+                                <button
+                                    className={styles.toggleSidebarBtn}
+                                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                >
+                                    {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+                                </button>
+                            </motion.aside>
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>

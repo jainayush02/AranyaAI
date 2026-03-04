@@ -2,6 +2,8 @@
     min-height: calc(100vh - 130px);
     background: #f1f5f9;
     background-image: radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 0.03) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.03) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.03) 0, transparent 50%);
+    margin: -2rem;
+    width: calc(100% + 4rem);
 }
 
 .layout {

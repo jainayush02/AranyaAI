@@ -37,8 +37,7 @@ export default function AnimalProfile() {
                 const token = localStorage.getItem('token');
                 const config = { headers: { Authorization: `Bearer ${token}` } };
 
-                // Show the premium loader for at least 1 second
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Data fetches as fast as the network allows
 
                 const [animalRes, logsRes] = await Promise.all([
                     axios.get(`/api/animals/${id}`, config),

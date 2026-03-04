@@ -101,6 +101,17 @@ export default function Login() {
     const [showStatus, setShowStatus] = useState(false);
     const [statusMsg, setStatusMsg] = useState('');
 
+    // Forgot password states
+    const [resetStep, setResetStep] = useState(1); // 1 = enter email, 2 = enter OTP + new password
+    const [newPassword, setNewPassword] = useState('');
+    const [resetResendTimer, setResetResendTimer] = useState(0);
+    const [resetExpireTimer, setResetExpireTimer] = useState(0);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+
+    // Admin forgot password
+    const [isAdminForgot, setIsAdminForgot] = useState(false);
+    const [adminResetStep, setAdminResetStep] = useState(1);
+
     const navigate = useNavigate();
     const timerRef = useRef(null);
 
@@ -118,9 +129,10 @@ export default function Login() {
     /* Handlers for OTP and Expiry Timers */
     useEffect(() => {
         let interval = null;
-        if (resendTimer > 0 || expireTimer > 0) {
+        if (resendTimer > 0 || expireTimer > 0 || resetResendTimer > 0 || resetExpireTimer > 0) {
             interval = setInterval(() => {
                 if (resendTimer > 0) setResendTimer(prev => prev - 1);
+                if (resetResendTimer > 0) setResetResendTimer(prev => prev - 1);
                 if (expireTimer > 0) {
                     setExpireTimer(prev => {
                         if (prev === 1) {
@@ -131,10 +143,18 @@ export default function Login() {
                         return prev - 1;
                     });
                 }
+                if (resetExpireTimer > 0) {
+                    setResetExpireTimer(prev => {
+                        if (prev === 1) {
+                            setError('Reset code has expired. Please request a new one.');
+                        }
+                        return prev - 1;
+                    });
+                }
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [resendTimer, expireTimer]);
+    }, [resendTimer, expireTimer, resetResendTimer, resetExpireTimer]);
 
     const pickFeature = (i) => {
         clearInterval(timerRef.current);
@@ -142,7 +162,7 @@ export default function Login() {
         startCarousel();
     };
 
-    /* Google Login Handler */
+    /* Google Login Handler — USER portal */
     const handleGoogleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             setIsLoading(true);
@@ -154,7 +174,7 @@ export default function Login() {
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
                 setSuccessMsg('Signed in successfully with Google!');
-                setTimeout(() => navigate('/'), 1000);
+                window.location.href = '/';
             } catch (err) {
                 setError(err.response?.data?.message || 'Google authentication failed. Please try again.');
             } finally {
@@ -164,7 +184,34 @@ export default function Login() {
         onError: () => setError('Google sign-in was unsuccessful. Please try again.')
     });
 
-    const resetState = () => { setError(''); setSuccessMsg(''); setShowOTP(false); setOtp(''); };
+    /* Google Login Handler — ADMIN portal */
+    const handleGoogleAdminLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const res = await axios.post(`${API_BASE_URL}/google-admin`, {
+                    accessToken: tokenResponse.access_token
+                });
+                if (res.data.user?.role !== 'admin') {
+                    setError('Unauthorized. Only admin accounts can access this portal.');
+                    setIsLoading(false);
+                    return;
+                }
+                localStorage.setItem('token', res.data.token);
+                localStorage.setItem('user', JSON.stringify(res.data.user));
+                setSuccessMsg('Admin authenticated via Google!');
+                window.location.href = '/';
+            } catch (err) {
+                setError(err.response?.data?.message || 'Unauthorized. Only admin accounts can access this portal.');
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        onError: () => setError('Google sign-in was unsuccessful. Please try again.')
+    });
+
+    const resetState = () => { setError(''); setSuccessMsg(''); setShowOTP(false); setOtp(''); setResetStep(1); setNewPassword(''); setResetResendTimer(0); setResetExpireTimer(0); setIsAdminForgot(false); setAdminResetStep(1); };
 
     /* OTP request */
     const handleRequestOTP = async () => {
@@ -192,12 +239,72 @@ export default function Login() {
         e.preventDefault(); setIsLoading(true); setError(''); setSuccessMsg('');
 
         if (isForgotPassword) {
-            setTimeout(() => { setSuccessMsg(`Reset link sent to ${email}`); setIsLoading(false); }, 1000);
-            return;
+            if (resetStep === 1) {
+                // Step 1: Request OTP
+                try {
+                    const res = await axios.post(`${API_BASE_URL}/forgot-password/request`, { email });
+                    setSuccessMsg(res.data.message);
+                    setResetStep(2);
+                    setResetResendTimer(60);
+                    setResetExpireTimer(90);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to send reset code.');
+                } finally { setIsLoading(false); }
+                return;
+            } else {
+                // Step 2: Verify OTP + Reset Password
+                try {
+                    const res = await axios.post(`${API_BASE_URL}/forgot-password/reset`, {
+                        email,
+                        otp,
+                        newPassword
+                    });
+                    setSuccessMsg(res.data.message);
+                    // Go back to login after success
+                    setTimeout(() => {
+                        setIsForgotPassword(false);
+                        resetState();
+                    }, 2500);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to reset password.');
+                } finally { setIsLoading(false); }
+                return;
+            }
         }
 
         /* ── Hardened admin endpoint ── */
         if (isAdminPortal) {
+            // Admin Forgot Password flow
+            if (isAdminForgot) {
+                if (adminResetStep === 1) {
+                    try {
+                        const res = await axios.post(`${API_BASE_URL}/forgot-password/admin/request`, { email });
+                        setSuccessMsg(res.data.message);
+                        setAdminResetStep(2);
+                        setResetResendTimer(60);
+                        setResetExpireTimer(90);
+                    } catch (err) {
+                        setError(err.response?.data?.message || 'Failed to send reset code.');
+                    } finally { setIsLoading(false); }
+                    return;
+                } else {
+                    try {
+                        const res = await axios.post(`${API_BASE_URL}/forgot-password/admin/reset`, {
+                            email, otp, newPassword
+                        });
+                        setSuccessMsg(res.data.message);
+                        setTimeout(() => {
+                            setIsAdminForgot(false);
+                            setAdminResetStep(1);
+                            resetState();
+                        }, 2500);
+                    } catch (err) {
+                        setError(err.response?.data?.message || 'Failed to reset password.');
+                    } finally { setIsLoading(false); }
+                    return;
+                }
+            }
+            // Normal admin login
             try {
                 const res = await axios.post(`${API_BASE_URL}/admin-login`, { email, password });
                 if (res.data.user?.role !== 'admin') {
@@ -228,11 +335,7 @@ export default function Login() {
             const res = await axios.post(endpoint, payload);
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.user));
-            if (res.data.user.role === 'admin') {
-                window.location.href = '/admin-portal';
-            } else {
-                window.location.href = '/';
-            }
+            window.location.href = '/';
         } catch (err) {
             setError(!err.response ? 'Cannot connect to server.' : err.response?.data?.message || 'Something went wrong.');
         } finally { setIsLoading(false); }
@@ -385,18 +488,35 @@ export default function Login() {
                                 <div className={styles.formHead}>
                                     <p className={styles.formEyebrow}>
                                         {isAdminPortal
-                                            ? '🔐 RESTRICTED ACCESS'
-                                            : isSignUp ? '✦ FREE · NO CREDIT CARD' : '👋 WELCOME BACK'}
+                                            ? (isAdminForgot ? '🔑 ADMIN RECOVERY' : '🔐 RESTRICTED ACCESS')
+                                            : isForgotPassword ? '🔑 ACCOUNT RECOVERY'
+                                                : isSignUp ? '✦ FREE · NO CREDIT CARD' : '👋 WELCOME BACK'}
                                     </p>
                                     <h2 className={styles.formTitle}>
                                         {isForgotPassword
-                                            ? 'Recover your access.'
+                                            ? (resetStep === 1 ? 'Recover your access.' : 'Set your new password.')
                                             : isAdminPortal
-                                                ? 'Authorize access.'
+                                                ? (isAdminForgot
+                                                    ? (adminResetStep === 1 ? 'Recover admin access.' : 'Set new admin password.')
+                                                    : 'Authorize access.')
                                                 : isSignUp
                                                     ? 'Your herd deserves AI.'
                                                     : 'Good to see you again.'}
                                     </h2>
+                                    {isAdminForgot && (
+                                        <p className={styles.formSub}>
+                                            {adminResetStep === 1
+                                                ? 'Enter admin email to receive a reset code.'
+                                                : 'Check your inbox for the admin reset code.'}
+                                        </p>
+                                    )}
+                                    {isForgotPassword && (
+                                        <p className={styles.formSub}>
+                                            {resetStep === 1
+                                                ? 'Enter your email and we\'ll send you a 6-digit reset code.'
+                                                : 'Check your inbox for the reset code.'}
+                                        </p>
+                                    )}
                                     {!isForgotPassword && !isAdminPortal && (
                                         <p className={styles.formSub}>
                                             {isSignUp
@@ -445,6 +565,25 @@ export default function Login() {
                                             <span>Continue with Google</span>
                                         </motion.button>
                                         <div className={styles.orRow}><span>or continue with email</span></div>
+                                    </>
+                                )}
+
+                                {/* Google SSO — Admin Portal */}
+                                {isAdminPortal && (
+                                    <>
+                                        <motion.button
+                                            type="button"
+                                            className={styles.googleBtn}
+                                            whileHover={{ y: -1 }}
+                                            whileTap={{ scale: 0.99 }}
+                                            onClick={() => handleGoogleAdminLogin()}
+                                            disabled={isLoading}
+                                            style={{ borderColor: '#dc2626' }}
+                                        >
+                                            <GoogleIcon />
+                                            <span>Authorize with Google</span>
+                                        </motion.button>
+                                        <div className={styles.orRow}><span>or authorize with credentials</span></div>
                                     </>
                                 )}
 
@@ -529,8 +668,8 @@ export default function Login() {
                                         />
                                     )}
 
-                                    {/* Password */}
-                                    {!showOTP && !isForgotPassword && loginType === 'email' && (
+                                    {/* Password — shown for email login + admin login (when NOT in forgot password) */}
+                                    {!showOTP && !isForgotPassword && !isAdminForgot && loginType === 'email' && (
                                         <Field icon={<Lock size={16} />} type="password" placeholder="Password"
                                             value={password} onChange={e => setPassword(e.target.value)}
                                             required={!isSignUp} />
@@ -563,7 +702,69 @@ export default function Login() {
                                         </motion.div>
                                     )}
 
-                                    {/* Forgot password link */}
+                                    {/* ── Forgot Password: Step 2 — OTP + New Password ── */}
+                                    {isForgotPassword && resetStep === 2 && (
+                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                            <Field
+                                                icon={<ShieldCheck size={16} />}
+                                                type="text"
+                                                maxLength={6}
+                                                placeholder="6-digit reset code"
+                                                value={otp}
+                                                onChange={e => setOtp(e.target.value)}
+                                                required
+                                                isOTP
+                                                progress={(resetExpireTimer / 90) * 100}
+                                            />
+                                            <div className={styles.otpStatusRow} style={{ justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
+                                                    {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className={styles.resendLink}
+                                                    onClick={async () => {
+                                                        if (resetResendTimer > 0) return;
+                                                        try {
+                                                            setError('');
+                                                            await axios.post(`${API_BASE_URL}/forgot-password/request`, { email });
+                                                            setSuccessMsg('New reset code sent!');
+                                                            setResetResendTimer(60);
+                                                            setResetExpireTimer(90);
+                                                            setOtp('');
+                                                        } catch (err) {
+                                                            setError(err.response?.data?.message || 'Failed to resend.');
+                                                        }
+                                                    }}
+                                                    disabled={resetResendTimer > 0}
+                                                >
+                                                    {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
+                                                </button>
+                                            </div>
+                                            <div style={{ position: 'relative', marginTop: '0.5rem' }}>
+                                                <Field
+                                                    icon={<Lock size={16} />}
+                                                    type={showNewPassword ? 'text' : 'password'}
+                                                    placeholder="New password (min 6 chars)"
+                                                    value={newPassword}
+                                                    onChange={e => setNewPassword(e.target.value)}
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                                    style={{
+                                                        position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+                                                        background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px'
+                                                    }}
+                                                >
+                                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+
+                                    {/* Forgot password link — User */}
                                     {!isSignUp && !isForgotPassword && !isAdminPortal && loginType === 'email' && !showOTP && (
                                         <div className={styles.forgotRow}>
                                             <button type="button" className={styles.forgotLink}
@@ -571,6 +772,78 @@ export default function Login() {
                                                 Forgot password?
                                             </button>
                                         </div>
+                                    )}
+
+                                    {/* Forgot password link — Admin */}
+                                    {isAdminPortal && !isAdminForgot && (
+                                        <div className={styles.forgotRow}>
+                                            <button type="button" className={styles.forgotLink}
+                                                onClick={() => { setIsAdminForgot(true); setAdminResetStep(1); setError(''); setSuccessMsg(''); setOtp(''); setNewPassword(''); }}>
+                                                Forgot password?
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Admin Forgot Password: Step 2 — OTP + New Password */}
+                                    {isAdminForgot && adminResetStep === 2 && (
+                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                            <Field
+                                                icon={<ShieldCheck size={16} />}
+                                                type="text"
+                                                maxLength={6}
+                                                placeholder="6-digit reset code"
+                                                value={otp}
+                                                onChange={e => setOtp(e.target.value)}
+                                                required
+                                                isOTP
+                                                progress={(resetExpireTimer / 90) * 100}
+                                            />
+                                            <div className={styles.otpStatusRow} style={{ justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
+                                                    {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className={styles.resendLink}
+                                                    onClick={async () => {
+                                                        if (resetResendTimer > 0) return;
+                                                        try {
+                                                            setError('');
+                                                            await axios.post(`${API_BASE_URL}/forgot-password/admin/request`, { email });
+                                                            setSuccessMsg('New reset code sent!');
+                                                            setResetResendTimer(60);
+                                                            setResetExpireTimer(90);
+                                                            setOtp('');
+                                                        } catch (err) {
+                                                            setError(err.response?.data?.message || 'Failed to resend.');
+                                                        }
+                                                    }}
+                                                    disabled={resetResendTimer > 0}
+                                                >
+                                                    {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
+                                                </button>
+                                            </div>
+                                            <div style={{ position: 'relative', marginTop: '0.5rem' }}>
+                                                <Field
+                                                    icon={<Lock size={16} />}
+                                                    type={showNewPassword ? 'text' : 'password'}
+                                                    placeholder="New password (min 6 chars)"
+                                                    value={newPassword}
+                                                    onChange={e => setNewPassword(e.target.value)}
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                                    style={{
+                                                        position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+                                                        background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px'
+                                                    }}
+                                                >
+                                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                        </motion.div>
                                     )}
 
                                     {/* Send OTP CTA */}
@@ -591,8 +864,12 @@ export default function Login() {
                                             {isLoading ? <Spinner /> : null}
                                             <span>
                                                 {isLoading ? 'Processing…'
-                                                    : isForgotPassword ? 'Send Reset Link'
-                                                        : isAdminPortal ? 'Authorize Access'
+                                                    : isForgotPassword
+                                                        ? (resetStep === 1 ? 'Send Reset Code' : 'Reset Password')
+                                                        : isAdminPortal
+                                                            ? (isAdminForgot
+                                                                ? (adminResetStep === 1 ? 'Send Reset Code' : 'Reset Password')
+                                                                : 'Authorize Access')
                                                             : isSignUp ? 'Create Account'
                                                                 : 'Sign In'}
                                             </span>
@@ -702,7 +979,7 @@ export default function Login() {
                 </div>
             </footer>
 
-        </div>
+        </div >
     );
 }
 

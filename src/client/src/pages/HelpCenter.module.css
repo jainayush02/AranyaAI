@@ -1,6 +1,8 @@
 .page {
     min-height: calc(100vh - 130px);
     background: #f8fafc;
+    margin: -2rem;
+    width: calc(100% + 4rem);
 }
 
 /* Hero */

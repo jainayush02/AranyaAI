@@ -1,20 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Camera, Loader2, Check, X, Phone } from 'lucide-react';
+import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import styles from './Profile.module.css';
+
+// Helper to get auth headers
+const getAuthHeaders = () => ({
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+});
 
 export default function Profile() {
     const [user, setUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [fullName, setFullName] = useState('');
     const [mobile, setMobile] = useState('');
+    const [email, setEmail] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [pendingImage, setPendingImage] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [imgError, setImgError] = useState(false);
     const fileInputRef = React.useRef(null);
+
+    // Mobile verification state
+    const [mobileOtp, setMobileOtp] = useState('');
+    const [showMobileVerify, setShowMobileVerify] = useState(false);
+    const [pendingMobile, setPendingMobile] = useState('');
+
+    // Email verification state
+    const [emailOtp, setEmailOtp] = useState('');
+    const [showEmailVerify, setShowEmailVerify] = useState(false);
+    const [pendingEmail, setPendingEmail] = useState('');
+
+    // Shared messages
+    const [verifyMsg, setVerifyMsg] = useState('');
+    const [verifyError, setVerifyError] = useState('');
+    const [resendTimer, setResendTimer] = useState(0);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -24,9 +45,17 @@ export default function Profile() {
                 setUser(parsed);
                 setFullName(parsed.full_name || '');
                 setMobile(parsed.mobile || '');
+                setEmail(parsed.email || '');
             } catch (e) { }
         }
     }, []);
+
+    // Resend timer countdown
+    useEffect(() => {
+        if (resendTimer <= 0) return;
+        const interval = setInterval(() => setResendTimer(p => p - 1), 1000);
+        return () => clearInterval(interval);
+    }, [resendTimer]);
 
     const getInitials = (u) => {
         if (!u) return 'U';
@@ -36,6 +65,14 @@ export default function Profile() {
             return u.full_name.substring(0, 2).toUpperCase();
         }
         return u.email?.substring(0, 2).toUpperCase() || u.mobile?.substring(0, 2).toUpperCase() || 'U';
+    };
+
+    const syncUser = (updatedUser) => {
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        setMobile(updatedUser.mobile || '');
+        setEmail(updatedUser.email || '');
+        window.dispatchEvent(new Event('storage'));
     };
 
     const handleImageSelect = (e) => {
@@ -56,17 +93,16 @@ export default function Profile() {
 
         setIsUploading(true);
         try {
+            const token = localStorage.getItem('token');
             const res = await axios.post('/api/auth/profile/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${token}`
+                }
             });
-            const updatedUser = res.data.user;
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            setUser(updatedUser);
+            syncUser(res.data.user);
             setPendingImage(null);
             setPreviewUrl('');
-
-            // Sync header
-            window.location.reload();
         } catch (error) {
             console.error('Upload failed', error);
             alert('Failed to upload image.');
@@ -76,41 +112,149 @@ export default function Profile() {
     };
 
     const handleSave = async () => {
-        if (!fullName.trim() && !mobile.trim()) {
+        if (!fullName.trim() && !mobile.trim() && !email.trim()) {
             setIsEditing(false);
             return;
         }
 
-        if (fullName === user.full_name && mobile === user.mobile) {
-            setIsEditing(false);
-            return;
-        }
+        const mobileChanged = mobile !== (user.mobile || '') && mobile.trim().length > 0;
+        const emailChanged = email !== (user.email || '') && email.trim().length > 0;
+        const nameChanged = fullName !== (user.full_name || '');
 
-        setIsSaving(true);
-        try {
-            // Save to backend
-            const res = await axios.put('/api/auth/profile', {
-                email: user.email,
-                mobile: user.mobile, // Existing identifier
-                new_mobile: mobile,
-                full_name: fullName
-            });
-
-            // Update local state
-            const updatedUser = res.data.user;
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            setUser(updatedUser);
-            setIsEditing(false);
-
-            // Dispatch a storage event so Layout.jsx (the generic Header) can pick it up optionally, 
-            // or just reload to resync the header avatar
-            window.location.reload();
-        } catch (error) {
-            console.error('Failed to save profile', error);
-            alert('Failed to save profile updates.');
-        } finally {
+        // Save name immediately if changed
+        if (nameChanged) {
+            setIsSaving(true);
+            try {
+                const res = await axios.put('/api/auth/profile', {
+                    email: user.email,
+                    mobile: user.mobile,
+                    full_name: fullName
+                }, getAuthHeaders());
+                syncUser(res.data.user);
+            } catch (_) { }
             setIsSaving(false);
         }
+
+        // Mobile changed → start verification
+        if (mobileChanged) {
+            setPendingMobile(mobile);
+            setShowMobileVerify(true);
+            setShowEmailVerify(false);
+            setVerifyError('');
+            setVerifyMsg('');
+            try {
+                const res = await axios.post('/api/auth/verify-mobile/request', { mobile }, getAuthHeaders());
+                setVerifyMsg(res.data.message);
+                setResendTimer(60);
+            } catch (err) {
+                setVerifyError(err.response?.data?.message || 'Failed to send verification code.');
+            }
+            return; // Don't close editing yet
+        }
+
+        // Email changed → start verification
+        if (emailChanged) {
+            setPendingEmail(email);
+            setShowEmailVerify(true);
+            setShowMobileVerify(false);
+            setVerifyError('');
+            setVerifyMsg('');
+            try {
+                const res = await axios.post('/api/auth/verify-email/request', { email }, getAuthHeaders());
+                setVerifyMsg(res.data.message);
+                setResendTimer(60);
+            } catch (err) {
+                setVerifyError(err.response?.data?.message || 'Failed to send verification code.');
+            }
+            return; // Don't close editing yet
+        }
+
+        // No verification needed, just close
+        if (!mobileChanged && !emailChanged) {
+            setIsEditing(false);
+        }
+    };
+
+    // ── Mobile OTP Verify ──
+    const handleVerifyMobileOtp = async () => {
+        if (!mobileOtp || mobileOtp.length !== 6) {
+            setVerifyError('Please enter a 6-digit code.');
+            return;
+        }
+        try {
+            const res = await axios.post('/api/auth/verify-mobile/confirm', {
+                mobile: pendingMobile,
+                otp: mobileOtp
+            }, getAuthHeaders());
+
+            syncUser(res.data.user);
+            setShowMobileVerify(false);
+            setMobileOtp('');
+            setIsEditing(false);
+            setVerifyMsg('✅ Mobile number verified and linked!');
+            setTimeout(() => setVerifyMsg(''), 4000);
+        } catch (err) {
+            setVerifyError(err.response?.data?.message || 'Verification failed.');
+        }
+    };
+
+    // ── Email OTP Verify ──
+    const handleVerifyEmailOtp = async () => {
+        if (!emailOtp || emailOtp.length !== 6) {
+            setVerifyError('Please enter a 6-digit code.');
+            return;
+        }
+        try {
+            const res = await axios.post('/api/auth/verify-email/confirm', {
+                email: pendingEmail,
+                otp: emailOtp
+            }, getAuthHeaders());
+
+            syncUser(res.data.user);
+            setShowEmailVerify(false);
+            setEmailOtp('');
+            setIsEditing(false);
+            setVerifyMsg('✅ Email verified and linked!');
+            setTimeout(() => setVerifyMsg(''), 4000);
+        } catch (err) {
+            setVerifyError(err.response?.data?.message || 'Verification failed.');
+        }
+    };
+
+    // ── Resend handlers ──
+    const handleResendMobileOtp = async () => {
+        if (resendTimer > 0) return;
+        try {
+            const res = await axios.post('/api/auth/verify-mobile/request', { mobile: pendingMobile }, getAuthHeaders());
+            setVerifyMsg(res.data.message);
+            setVerifyError('');
+            setResendTimer(60);
+        } catch (err) {
+            setVerifyError(err.response?.data?.message || 'Failed to resend code.');
+        }
+    };
+
+    const handleResendEmailOtp = async () => {
+        if (resendTimer > 0) return;
+        try {
+            const res = await axios.post('/api/auth/verify-email/request', { email: pendingEmail }, getAuthHeaders());
+            setVerifyMsg(res.data.message);
+            setVerifyError('');
+            setResendTimer(60);
+        } catch (err) {
+            setVerifyError(err.response?.data?.message || 'Failed to resend code.');
+        }
+    };
+
+    const cancelVerification = () => {
+        setShowMobileVerify(false);
+        setShowEmailVerify(false);
+        setMobileOtp('');
+        setEmailOtp('');
+        setVerifyError('');
+        setVerifyMsg('');
+        setMobile(user.mobile || '');
+        setEmail(user.email || '');
     };
 
     if (!user) return <div className="p-8">Loading profile...</div>;
@@ -128,6 +272,7 @@ export default function Profile() {
                     <h2 className={styles.cardTitle}>Personal Information</h2>
                 </div>
 
+                {/* Avatar */}
                 <div className={styles.avatarContainer}>
                     <div className={styles.avatarWrapper}>
                         <div className={styles.avatar}>
@@ -144,13 +289,16 @@ export default function Profile() {
                                 getInitials(user)
                             )}
                         </div>
-                        <button
-                            className={styles.uploadBtn}
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
-                        >
-                            <Camera size={16} />
-                        </button>
+                        {!pendingImage && (
+                            <button
+                                className={styles.uploadBtn}
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                title="Change Photo"
+                            >
+                                <Camera size={18} />
+                            </button>
+                        )}
                     </div>
                     <input
                         type="file"
@@ -160,32 +308,36 @@ export default function Profile() {
                         onChange={handleImageSelect}
                     />
 
-                    {pendingImage && (
-                        <div className={styles.photoActionsOverlay}>
-                            <motion.button
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className={styles.confirmPhotoBtn}
-                                onClick={handlePhotoSave}
-                                disabled={isUploading}
-                                title="Confirm New Photo"
+                    <AnimatePresence>
+                        {pendingImage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className={styles.photoActionsOverlay}
                             >
-                                {isUploading ? <Loader2 className="spin" size={20} /> : <Check size={20} />}
-                            </motion.button>
-                            <motion.button
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ delay: 0.1 }}
-                                className={styles.cancelPhotoBtn}
-                                onClick={() => { setPendingImage(null); setPreviewUrl(''); }}
-                                title="Cancel"
-                            >
-                                <X size={20} />
-                            </motion.button>
-                        </div>
-                    )}
+                                <button
+                                    className={styles.confirmPhotoBtn}
+                                    onClick={handlePhotoSave}
+                                    disabled={isUploading}
+                                >
+                                    {isUploading ? <Loader2 className="spin" size={16} /> : <Check size={18} />}
+                                    <span>Save</span>
+                                </button>
+                                <button
+                                    className={styles.cancelPhotoBtn}
+                                    onClick={() => { setPendingImage(null); setPreviewUrl(''); }}
+                                    disabled={isUploading}
+                                >
+                                    <X size={18} />
+                                    <span>Cancel</span>
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
+                {/* Full Name */}
                 <div className={styles.formGroup}>
                     <label className={styles.label}>Full Name</label>
                     <input
@@ -197,6 +349,7 @@ export default function Profile() {
                     />
                 </div>
 
+                {/* Email */}
                 <div className={styles.formGroup}>
                     <label className={styles.label}>
                         <Mail size={16} /> Email
@@ -204,13 +357,17 @@ export default function Profile() {
                     <input
                         type="email"
                         className={styles.input}
-                        value={user.email || ''}
-                        placeholder="Not set"
-                        disabled
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={!isEditing}
+                        placeholder="Add email address"
                     />
-                    <span className={styles.helpText}>Email cannot be changed</span>
+                    <span className={styles.helpText}>
+                        {user.email ? 'Verified ✓ — Changing requires OTP verification' : 'Add an email to enable email login'}
+                    </span>
                 </div>
 
+                {/* Mobile */}
                 <div className={styles.formGroup}>
                     <label className={styles.label}>
                         <Phone size={16} /> Mobile Number
@@ -221,27 +378,135 @@ export default function Profile() {
                         value={mobile}
                         onChange={(e) => setMobile(e.target.value)}
                         disabled={!isEditing}
-                        placeholder="Not set"
+                        placeholder="+91XXXXXXXXXX"
                     />
-                    <span className={styles.helpText}>Used for secure login</span>
+                    <span className={styles.helpText}>
+                        {user.mobile ? 'Verified ✓ — Changing requires OTP verification' : 'Add a mobile number to enable mobile login'}
+                    </span>
                 </div>
 
-                <div className={styles.formGroup}>
-                    <label className={styles.label}>Role</label>
-                    <div className={styles.roleBox}>
-                        {user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'}
-                    </div>
-                </div>
+                {/* Success / Error Messages */}
+                {verifyMsg && !showMobileVerify && !showEmailVerify && (
+                    <div className={styles.successMsg}>{verifyMsg}</div>
+                )}
 
+                {/* Mobile Verification Box */}
+                <AnimatePresence>
+                    {showMobileVerify && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className={styles.verifyBox}
+                        >
+                            <div className={styles.verifyHeader}>
+                                <ShieldCheck size={20} />
+                                <strong>Verify Mobile Number</strong>
+                            </div>
+                            <p className={styles.verifyText}>
+                                We've sent a 6-digit code to <strong>{pendingMobile}</strong>. Enter it below to link this number.
+                            </p>
+
+                            {verifyMsg && <div className={styles.successMsg}>{verifyMsg}</div>}
+                            {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
+
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    value={mobileOtp}
+                                    onChange={(e) => setMobileOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="6-digit code"
+                                    maxLength={6}
+                                    style={{ flex: 1 }}
+                                />
+                                <button className={styles.saveBtn} onClick={handleVerifyMobileOtp}>
+                                    Verify
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                                <button
+                                    className={styles.linkBtn}
+                                    onClick={handleResendMobileOtp}
+                                    disabled={resendTimer > 0}
+                                >
+                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+                                </button>
+                                <button className={styles.linkBtn} onClick={cancelVerification}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Email Verification Box */}
+                <AnimatePresence>
+                    {showEmailVerify && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className={styles.verifyBox}
+                        >
+                            <div className={styles.verifyHeader}>
+                                <ShieldCheck size={20} />
+                                <strong>Verify Email Address</strong>
+                            </div>
+                            <p className={styles.verifyText}>
+                                We've sent a 6-digit code to <strong>{pendingEmail}</strong>. Enter it below to link this email.
+                            </p>
+
+                            {verifyMsg && <div className={styles.successMsg}>{verifyMsg}</div>}
+                            {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
+
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    value={emailOtp}
+                                    onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="6-digit code"
+                                    maxLength={6}
+                                    style={{ flex: 1 }}
+                                />
+                                <button className={styles.saveBtn} onClick={handleVerifyEmailOtp}>
+                                    Verify
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                                <button
+                                    className={styles.linkBtn}
+                                    onClick={handleResendEmailOtp}
+                                    disabled={resendTimer > 0}
+                                >
+                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+                                </button>
+                                <button className={styles.linkBtn} onClick={cancelVerification}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Action Buttons */}
                 <div className={styles.actionArea}>
                     {isEditing ? (
                         <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button className={styles.saveBtn} onClick={handleSave}>Save Changes</button>
+                            <button className={styles.saveBtn} onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? 'Saving...' : 'Save Changes'}
+                            </button>
                             <button
                                 className="btn-secondary"
                                 onClick={() => {
                                     setIsEditing(false);
                                     setFullName(user.full_name || '');
+                                    setMobile(user.mobile || '');
+                                    setEmail(user.email || '');
+                                    cancelVerification();
                                 }}
                             >
                                 Cancel

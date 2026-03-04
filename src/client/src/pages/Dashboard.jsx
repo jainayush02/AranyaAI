@@ -29,8 +29,7 @@ export default function Dashboard() {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
-            // Artificial delay to show the premium Aranya AI loader
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Data fetches as fast as the network allows
 
             const res = await axios.get('/api/animals', config);
             setAnimals(res.data);
@@ -173,7 +172,7 @@ export default function Dashboard() {
     if (loading) return <AdvancedLoader message="Syncing your herd data with Aranya AI..." />;
 
     return (
-        <div className={`container ${styles.dashboard} animate-fade-in`}>
+        <div className={`${styles.dashboard} animate-fade-in`}>
             <header className={styles.header}>
                 <div className={styles.headerText}>
                     <h1 className={styles.title}>My Cattle Dashboard</h1>

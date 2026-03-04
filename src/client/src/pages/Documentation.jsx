@@ -196,7 +196,7 @@ export default function Documentation() {
     const allDocs = Object.values(grouped).flat();
 
     return (
-        <div className={`container ${styles.pageContainer}`}>
+        <div className={styles.pageContainer}>
             {/* Admin back button */}
             {isAdmin && (
                 <button

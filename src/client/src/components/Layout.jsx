@@ -12,16 +12,22 @@ export default function Layout() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            try {
-                const parsedUser = JSON.parse(storedUser);
-                setUser(parsedUser);
-                if (parsedUser.role) setRole(parsedUser.role);
-            } catch (e) {
-                console.error(e);
+        const syncUser = () => {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                try {
+                    const parsedUser = JSON.parse(storedUser);
+                    setUser(parsedUser);
+                    if (parsedUser.role) setRole(parsedUser.role);
+                } catch (e) {
+                    console.error(e);
+                }
             }
-        }
+        };
+
+        syncUser();
+        window.addEventListener('storage', syncUser);
+        return () => window.removeEventListener('storage', syncUser);
     }, []);
 
     const handleLogout = () => {

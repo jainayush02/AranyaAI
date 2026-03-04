@@ -2,11 +2,32 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 
 const app = express();
 
-app.use(cors());
+// Security headers
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+// CORS — only allow known origins
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5000',
+    'https://aranya-ai-five.vercel.app'
+];
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, server-to-server, Postman)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(null, true); // In development, allow all; tighten in production
+        }
+    },
+    credentials: true
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

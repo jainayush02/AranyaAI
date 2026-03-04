@@ -1,0 +1,16 @@
+Loading AI Model and Scalers...
+  Scaler loaded: MinMaxScaler
+  Original Kaggle threshold: 0.094575
+  Calibrated threshold: 0.350000
+  Loading pre-converted .keras model...
+  Model loaded successfully!
+[OK] Aranya AI Engine ready!
+
+[START] Starting Aranya AI Microservice on port 8000...
+ * Serving Flask app 'ai_server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8000
+ * Running on http://192.168.0.101:8000
+Press CTRL+C to quit

@@ -11,6 +11,7 @@ import AnimalProfile from './pages/AnimalProfile'
 import AdminPortal from './pages/AdminPortal'
 import Layout from './components/Layout'
 import axios from 'axios'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 
 // Prevent infinite loading by setting a global 15-second timeout
 axios.defaults.timeout = 15000;
@@ -42,11 +43,11 @@ const PrivateRoute = ({ children }) => {
 };
 
 
-import { GoogleOAuthProvider } from '@react-oauth/google'
-
 function App() {
+  const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "placeholder";
+
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={CLIENT_ID}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
