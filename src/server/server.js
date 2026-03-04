@@ -26,22 +26,46 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/docs', docsRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Database connection
+// Serverless-safe MongoDB connection caching
+// Persists across warm function invocations on Vercel
+let cached = global._mongooseCache;
+if (!cached) {
+    cached = global._mongooseCache = { conn: null, promise: null };
+}
+
 const connectDB = async () => {
-    try {
-        if (!process.env.MONGO_URI) {
-            console.warn("MONGO_URI not found. Starting server without database connection. Please add it to your .env file.");
-            return;
-        }
-        await mongoose.connect(process.env.MONGO_URI, {
-            serverSelectionTimeoutMS: 5000, // Fail fast if DB unreachable
-            socketTimeoutMS: 45000,         // Close sockets after 45s of inactivity
-        });
-        console.log('MongoDB Connected successfully');
-    } catch (error) {
-        console.error(`Error connecting to MongoDB: ${error.message}`);
-        // Don't exit process, allow the server to run so the user can see the warning
+    if (!process.env.MONGO_URI) {
+        console.warn("MONGO_URI not found. Starting server without database connection.");
+        return;
     }
+
+    // Return existing connection if still alive
+    if (cached.conn && mongoose.connection.readyState === 1) {
+        return cached.conn;
+    }
+
+    // Reuse in-flight connection promise to avoid duplicate connections
+    if (!cached.promise) {
+        cached.promise = mongoose.connect(process.env.MONGO_URI, {
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            bufferCommands: true,
+        }).then((m) => {
+            console.log('MongoDB Connected successfully');
+            return m;
+        }).catch((err) => {
+            console.error(`Error connecting to MongoDB: ${err.message}`);
+            cached.promise = null; // Reset so next request retries
+            throw err;
+        });
+    }
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (err) {
+        cached.conn = null;
+    }
+    return cached.conn;
 };
 
 connectDB();
