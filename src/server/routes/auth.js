@@ -7,7 +7,21 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
+const nodemailer = require('nodemailer');
+const { OAuth2Client } = require('google-auth-library');
 const ActivityLog = require('../models/ActivityLog');
+
+// Initialize Google OAuth Client
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Initialize Nodemailer Transporter
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.GOOGLE_EMAIL_USER,
+        pass: process.env.GOOGLE_EMAIL_PASS
+    }
+});
 
 // Initialize Twilio
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
@@ -137,9 +151,7 @@ router.post('/request-otp', async (req, res) => {
         if (mobile) {
             if (twilioClient) {
                 try {
-                    // Ensure number is in E.164 format (starts with +)
                     const formattedNumber = mobile.startsWith('+') ? mobile : `+${mobile.replace(/\D/g, '')}`;
-
                     await twilioClient.messages.create({
                         body: `[Aranya AI] Your verification code is: ${otp}. Valid for 90 seconds.`,
                         from: process.env.TWILIO_PHONE_NUMBER,
@@ -148,16 +160,39 @@ router.post('/request-otp', async (req, res) => {
                     console.log(`[OTP] Real SMS sent to ${formattedNumber}`);
                 } catch (smsErr) {
                     console.error('[OTP] Twilio Error:', smsErr.message);
-                    // Fallback to console log in development if Twilio fails
                     console.log(`[OTP] Fallback log to ${mobile}: ${otp}`);
                 }
             } else {
                 console.warn('[OTP] Twilio not configured. Mobile OTP logged to console.');
                 console.log(`[OTP] Sent to ${mobile}: ${otp}`);
             }
-        } else {
-            // Email OTP - still logging for now
-            console.log(`[OTP] Email OTP for ${email}: ${otp}`);
+        } else if (email) {
+            // Email OTP
+            try {
+                const mailOptions = {
+                    from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                    to: email,
+                    subject: 'Verification Code - Aranya AI',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                            <h2 style="color: #2D6A4F; text-align: center;">Welcome to Aranya AI</h2>
+                            <p>Hello,</p>
+                            <p>To access your Aranya AI account, please use the verification code below:</p>
+                            <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #2D6A4F;">
+                                ${otp}
+                            </div>
+                            <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for 10 minutes. If you did not request this code, please ignore this email.</p>
+                            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                            <p style="text-align: center; color: #888; font-size: 12px;">&copy; 2024 Aranya AI. All rights reserved.</p>
+                        </div>
+                    `
+                };
+                await transporter.sendMail(mailOptions);
+                console.log(`[OTP] Email sent to ${email}`);
+            } catch (mailErr) {
+                console.error('[OTP] Mail Error:', mailErr.message);
+                console.log(`[OTP] Fallback log to ${email}: ${otp}`);
+            }
         }
 
         res.status(200).json({ message: 'OTP sent successfully', identifier });
@@ -473,6 +508,91 @@ router.post('/profile/upload', upload.single('profilePic'), async (req, res) => 
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/google
+// @desc  Google Login / Register
+router.post('/google', async (req, res) => {
+    try {
+        const { idToken, accessToken } = req.body;
+        let userData = null;
+
+        if (idToken) {
+            // Verify ID Token
+            const ticket = await client.verifyIdToken({
+                idToken,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            const payload = ticket.getPayload();
+            userData = {
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture
+            };
+        } else if (accessToken) {
+            // Verify Access Token via UserInfo API
+            const response = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+            userData = {
+                email: response.data.email,
+                name: response.data.name,
+                picture: response.data.picture
+            };
+        } else {
+            return res.status(400).json({ message: 'Google Token is required' });
+        }
+
+        const { email, name, picture } = userData;
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            // Create new user if doesn't exist
+            user = new User({
+                email,
+                full_name: name,
+                profilePic: picture,
+                isVerified: true,
+                role: 'user'
+            });
+            await user.save();
+
+            try {
+                await ActivityLog.create({
+                    type: 'registration',
+                    user: name || email,
+                    detail: `New user joined via Google: ${name} (${email})`
+                });
+            } catch (_) { }
+        } else {
+            if (!user.full_name) user.full_name = name;
+            if (!user.profilePic) user.profilePic = picture;
+            user.isVerified = true;
+            user.lastLoginAt = new Date();
+            user.loginCount = (user.loginCount || 0) + 1;
+            await user.save();
+        }
+
+        const payload = { user: { id: user.id } };
+        const secret = process.env.JWT_SECRET || 'fallback_secret';
+
+        jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
+            if (err) throw err;
+            res.status(200).json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    mobile: user.mobile,
+                    role: user.role,
+                    full_name: user.full_name,
+                    profilePic: user.profilePic
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error('[Google Login] Error:', error.response?.data || error.message);
+        res.status(401).json({ message: 'Invalid Google Token' });
     }
 });
 

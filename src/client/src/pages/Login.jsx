@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGoogleLogin } from '@react-oauth/google';
 import styles from './Login.module.css';
 
 /* ── Google SVG icon ── */
@@ -140,6 +141,28 @@ export default function Login() {
         setActiveFeature(i);
         startCarousel();
     };
+
+    /* Google Login Handler */
+    const handleGoogleLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const res = await axios.post(`${API_BASE_URL}/google`, {
+                    accessToken: tokenResponse.access_token
+                });
+                localStorage.setItem('token', res.data.token);
+                localStorage.setItem('user', JSON.stringify(res.data.user));
+                setSuccessMsg('Signed in successfully with Google!');
+                setTimeout(() => navigate('/'), 1000);
+            } catch (err) {
+                setError(err.response?.data?.message || 'Google authentication failed. Please try again.');
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        onError: () => setError('Google sign-in was unsuccessful. Please try again.')
+    });
 
     const resetState = () => { setError(''); setSuccessMsg(''); setShowOTP(false); setOtp(''); };
 
@@ -415,6 +438,8 @@ export default function Login() {
                                             className={styles.googleBtn}
                                             whileHover={{ y: -1 }}
                                             whileTap={{ scale: 0.99 }}
+                                            onClick={() => handleGoogleLogin()}
+                                            disabled={isLoading}
                                         >
                                             <GoogleIcon />
                                             <span>Continue with Google</span>

@@ -42,29 +42,33 @@ const PrivateRoute = ({ children }) => {
 };
 
 
+import { GoogleOAuthProvider } from '@react-oauth/google'
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<Navigate to="/admin-portal" replace />} />
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/admin" element={<Navigate to="/admin-portal" replace />} />
 
-        <Route path="/" element={
-          <PrivateRoute>
-            <Layout />
-          </PrivateRoute>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="admin-portal" element={<AdminPortal />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="billing" element={<Billing />} />
-          <Route path="help" element={<HelpCenter />} />
-          <Route path="docs" element={<Documentation />} />
-          <Route path="animal/:id" element={<AnimalProfile />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          <Route path="/" element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="admin-portal" element={<AdminPortal />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="help" element={<HelpCenter />} />
+            <Route path="docs" element={<Documentation />} />
+            <Route path="animal/:id" element={<AnimalProfile />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </GoogleOAuthProvider>
   )
 }
 

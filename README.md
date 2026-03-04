@@ -122,6 +122,19 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
 
 # Gemini AI Chatbot
 GEMINI_API_KEY=your_gemini_api_key
+
+# Google OAuth (for Google Login)
+GOOGLE_CLIENT_ID=your_google_client_id
+
+# Google Mail OTP (for sending codes via Gmail)
+GOOGLE_EMAIL_USER=your-email@gmail.com
+GOOGLE_EMAIL_PASS=your-google-app-password
+```
+
+Create `src/client/.env`:
+
+```env
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
 ### 4. Start All Services (One Command)
