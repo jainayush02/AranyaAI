@@ -115,27 +115,34 @@ export default function UserProfileMenu({ user, onLogout }) {
                                 <Settings size={18} className={styles.menuIcon} />
                                 <span>Settings</span>
                             </button>
-                            <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
-                                <CreditCard size={18} className={styles.menuIcon} />
-                                <span>Billing</span>
-                            </button>
-                            <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/docs'); }}>
-                                <FileText size={18} className={styles.menuIcon} />
-                                <span>Documentation</span>
-                            </button>
-                            <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/help'); }}>
-                                <HelpCircle size={18} className={styles.menuIcon} />
-                                <span>Help Center</span>
-                            </button>
+                            {user?.role !== 'admin' && (
+                                <>
+                                    <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
+                                        <CreditCard size={18} className={styles.menuIcon} />
+                                        <span>Billing</span>
+                                    </button>
+                                    <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/docs'); }}>
+                                        <FileText size={18} className={styles.menuIcon} />
+                                        <span>Documentation</span>
+                                    </button>
+                                    <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/help'); }}>
+                                        <HelpCircle size={18} className={styles.menuIcon} />
+                                        <span>Help Center</span>
+                                    </button>
+                                </>
+                            )}
 
                             <div className={styles.divider}></div>
 
-                            <button className={`${styles.menuItem} ${styles.upgradeItem}`} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
-                                <Zap size={18} className={styles.menuIcon} />
-                                <span>Upgrade Plan</span>
-                            </button>
-
-                            <div className={styles.divider}></div>
+                            {user?.role !== 'admin' && (
+                                <>
+                                    <button className={`${styles.menuItem} ${styles.upgradeItem}`} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
+                                        <Zap size={18} className={styles.menuIcon} />
+                                        <span>Upgrade Plan</span>
+                                    </button>
+                                    <div className={styles.divider}></div>
+                                </>
+                            )}
 
                             <button className={`${styles.menuItem} ${styles.signOutItem}`} onClick={handleSignOut}>
                                 <LogOut size={18} className={styles.menuIcon} />

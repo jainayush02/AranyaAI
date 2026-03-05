@@ -320,6 +320,9 @@ router.post('/login', async (req, res) => {
         }
         // Login via Password
         else if (password) {
+            if (!user.password) {
+                return res.status(400).json({ message: 'No password found. Use OTP or Google to sign in, or reset your password.' });
+            }
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
                 return res.status(400).json({ message: 'Invalid credentials' });
@@ -763,18 +766,29 @@ router.post('/google', async (req, res) => {
             return res.status(403).json({ message: 'Admin accounts must use the Admin Portal to sign in.' });
         }
 
-        // No auto-registration — user must sign up first
+        // Auto-registration — create user if they don't exist
         if (!user) {
-            return res.status(404).json({ message: 'No account found with this email. Please sign up first to create your account.' });
+            user = new User({
+                email,
+                full_name: name || 'New User',
+                profilePic: picture,
+                isVerified: true,
+                role: 'user', // Always default to user for SSO signup
+                plan: 'free',
+                loginCount: 1,
+                lastLoginAt: new Date()
+            });
+            await user.save();
+            console.log(`[AUDIT] New SSO Registration: ${email}`);
+        } else {
+            // Existing user — update profile info if needed
+            if (!user.full_name) user.full_name = name;
+            if (!user.profilePic) user.profilePic = picture;
+            user.isVerified = true;
+            user.lastLoginAt = new Date();
+            user.loginCount = (user.loginCount || 0) + 1;
+            await user.save();
         }
-
-        // Existing user — update profile info if needed
-        if (!user.full_name) user.full_name = name;
-        if (!user.profilePic) user.profilePic = picture;
-        user.isVerified = true;
-        user.lastLoginAt = new Date();
-        user.loginCount = (user.loginCount || 0) + 1;
-        await user.save();
 
         const payload = { user: { id: user.id } };
         const secret = process.env.JWT_SECRET;

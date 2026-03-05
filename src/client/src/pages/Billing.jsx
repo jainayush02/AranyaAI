@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CreditCard, Check, Zap } from 'lucide-react';
 import axios from 'axios';
 import styles from './Billing.module.css';
 
 export default function Billing() {
+    const navigate = useNavigate();
     const [prices, setPrices] = useState({
         proPrice: 499,
         freeLimit: 5,

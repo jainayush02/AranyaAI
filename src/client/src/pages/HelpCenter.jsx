@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, HelpCircle, ChevronDown, MessageCircle, BookOpen, Loader2, ArrowLeft } from 'lucide-react';
+import { Search, HelpCircle, ChevronDown, MessageCircle, BookOpen, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -33,26 +33,6 @@ export default function HelpCenter() {
 
     return (
         <div className={styles.page}>
-            {/* Admin back button */}
-            {isAdmin && (
-                <div style={{ maxWidth: '800px', margin: '0 auto', paddingTop: '1.5rem', paddingLeft: '1.5rem' }}>
-                    <button
-                        onClick={() => navigate('/admin-portal')}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '6px',
-                            padding: '6px 14px', marginBottom: '0',
-                            background: '#fff', border: '1px solid #e2e8f0',
-                            borderRadius: '8px', cursor: 'pointer',
-                            fontSize: '0.84rem', fontWeight: 600, color: '#64748b',
-                            transition: 'all 0.15s'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#0f172a'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
-                    >
-                        <ArrowLeft size={15} /> Back to Admin Console
-                    </button>
-                </div>
-            )}
             {/* Hero */}
             <div className={styles.hero}>
                 <div className={styles.heroIcon}><HelpCircle size={32} color="#fff" /></div>

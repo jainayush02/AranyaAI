@@ -11,9 +11,22 @@ import ReactMarkdown from 'react-markdown';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
 
+const SUGGESTIONS_POOL = [
+    { id: 's1', text: 'Livestock Symptom Checker', query: 'My livestock has been showing symptoms of fever and loss of appetite. What could it be?' },
+    { id: 's2', text: 'Diet Optimization', query: 'Suggest an optimized diet plan for a 3-year-old heifer for better milk yield.' },
+    { id: 's3', text: 'Vaccination Guide', query: 'What are the essential vaccines for livestock in the current tropical season?' },
+    { id: 's4', text: 'Milk Quality Tips', query: 'How can I improve the fat content and quality of the milk produced by my herd?' },
+    { id: 's5', text: 'Calf Care Advice', query: 'Provide a health and nutrition checklist for newborn calves during the first 30 days.' },
+    { id: 's6', text: 'Heat Stress Management', query: 'How should I manage livestock during extreme heat to prevent drop in productivity?' },
+    { id: 's7', text: 'Disease Prevention', query: 'What are the main signs of Foot and Mouth Disease (FMD) I should look for?' },
+    { id: 's8', text: 'Breed Information', query: 'Tell me about the best livestock breeds for high-altitude dairy farming.' }
+];
+
 export default function ChatBot() {
     const [isOpen, setIsOpen] = useState(false);
+    const [randomSuggestions, setRandomSuggestions] = useState([]);
     const [conversations, setConversations] = useState([]);
+
     const [activeChatId, setActiveChatId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -31,6 +44,20 @@ export default function ChatBot() {
         type: 'danger'
     });
 
+    // Header Animation States
+    const [headerVisible, setHeaderVisible] = useState(true);
+    const [lastChatScroll, setLastChatScroll] = useState(0);
+
+    const handleChatScroll = (e) => {
+        const currentScroll = e.target.scrollTop;
+        if (currentScroll > lastChatScroll && currentScroll > 50) {
+            setHeaderVisible(false); // Scrolling down
+        } else {
+            setHeaderVisible(true);  // Scrolling up
+        }
+        setLastChatScroll(currentScroll);
+    };
+
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
 
@@ -41,6 +68,8 @@ export default function ChatBot() {
     useEffect(() => {
         if (isOpen) {
             fetchConversations();
+            const shuffled = [...SUGGESTIONS_POOL].sort(() => 0.5 - Math.random());
+            setRandomSuggestions(shuffled.slice(0, 3));
         }
     }, [isOpen]);
 
@@ -154,8 +183,9 @@ export default function ChatBot() {
         }
     };
 
-    const handleSend = async () => {
-        if (!input.trim() && !imagePreview) return;
+    const handleSend = async (query = null) => {
+        const messageText = query || input;
+        if (!messageText.trim() && !imagePreview) return;
 
         let chatId = activeChatId;
 
@@ -167,7 +197,7 @@ export default function ChatBot() {
 
         const userMsg = {
             role: 'user',
-            content: input || 'Image Analysis',
+            content: messageText || 'Image Analysis',
             image_url: imagePreview,
             createdAt: new Date()
         };
@@ -274,26 +304,45 @@ export default function ChatBot() {
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>
-                                <header className={styles.chatHeader}>
+                                <header
+                                    className={`${styles.chatHeader} ${!headerVisible ? styles.chatHeaderCompact : ''}`}
+                                >
                                     <div className={styles.headerInfo}>
                                         <h2>
                                             {activeChatId
                                                 ? conversations.find(c => c._id === activeChatId)?.title
                                                 : 'Aranya AI Assistant'}
                                         </h2>
-                                        <p>Veterinary AI • Deep Diagnostics Enabled</p>
+                                        <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
                                     </div>
                                     <button className={styles.closeMainBtn} onClick={() => setIsOpen(false)}>
                                         <X size={20} />
                                     </button>
                                 </header>
 
-                                <div className={styles.chatMessages}>
+                                <div className={styles.chatMessages} onScroll={handleChatScroll}>
                                     {messages.length === 0 && (
-                                        <div className={styles.emptyState}>
-                                            <Bot size={48} style={{ margin: '0 auto', display: 'block' }} />
-                                            <h3>Start a new conversation</h3>
-                                            <p>Ask about symptoms, diet, or vital anomalies.</p>
+                                        <div className={styles.emptyContent}>
+                                            <div className={styles.emptyState}>
+                                                <div className={styles.botGlow}>
+                                                    <Bot size={32} />
+                                                </div>
+                                                <h3>How can Aranya AI help today?</h3>
+                                                <p>I can analyze symptoms, predict risks, and optimize livestock health.</p>
+                                            </div>
+                                            <div className={styles.suggestionGrid}>
+                                                {randomSuggestions.map(s => (
+                                                    <motion.div
+                                                        key={s.id}
+                                                        className={styles.suggestionCard}
+                                                        whileHover={{ y: -3 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => setInput(s.query)}
+                                                    >
+                                                        <span>{s.text}</span>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                     {messages.map((msg, i) => (

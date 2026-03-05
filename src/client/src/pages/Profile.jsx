@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +11,7 @@ const getAuthHeaders = () => ({
 });
 
 export default function Profile() {
+    const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [fullName, setFullName] = useState('');

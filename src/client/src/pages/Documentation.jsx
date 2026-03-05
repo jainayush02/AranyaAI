@@ -197,24 +197,6 @@ export default function Documentation() {
 
     return (
         <div className={styles.pageContainer}>
-            {/* Admin back button */}
-            {isAdmin && (
-                <button
-                    onClick={() => navigate('/admin-portal')}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        padding: '6px 14px', marginBottom: '12px',
-                        background: '#f8fafc', border: '1px solid #e2e8f0',
-                        borderRadius: '8px', cursor: 'pointer',
-                        fontSize: '0.84rem', fontWeight: 600, color: '#64748b',
-                        transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#0f172a'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
-                >
-                    <ArrowLeft size={15} /> Back to Admin Console
-                </button>
-            )}
             {/* Toast Notifications */}
             <div className={styles.toastContainer}>
                 <AnimatePresence>

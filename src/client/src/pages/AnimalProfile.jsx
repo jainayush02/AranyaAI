@@ -255,7 +255,7 @@ export default function AnimalProfile() {
                     Animal not found.
                 </div>
                 <button className={styles.backBtn} onClick={handleBack}>
-                    <ArrowLeft size={18} /> Back to My Cattle
+                    <ArrowLeft size={18} /> Back to My Aranya
                 </button>
             </div>
         );
@@ -270,7 +270,7 @@ export default function AnimalProfile() {
                 transition={{ duration: 0.4 }}
             >
                 <button className={styles.backBtn} onClick={handleBack}>
-                    <ArrowLeft size={16} /> Back to My Cattle
+                    <ArrowLeft size={16} /> Back to My Aranya
                 </button>
 
                 {/* Hero Summary Card */}

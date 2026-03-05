@@ -5,20 +5,62 @@
 }
 
 .header {
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 50;
-    background: rgba(255, 255, 255, 0.85);
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
-    padding: 1rem 0;
-    box-shadow: var(--shadow-sm);
+    padding: 0.85rem 0;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
 }
 
 .headerContainer {
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.globalBack {
+    position: fixed;
+    top: 17px;
+    /* Position it 62px left of the 1440px container start, but keep it on screen */
+    left: calc(50vw - 720px - 62px);
+    z-index: 2000;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid rgba(45, 95, 63, 0.1);
+    border-radius: 50%;
+    color: var(--primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ensure it doesn't float too far or cut off on smaller screens */
+@media (min-width: 1560px) {
+    .globalBack {
+        left: calc(50vw - 720px - 62px);
+    }
+}
+
+@media (max-width: 1559px) {
+    .globalBack {
+        left: 20px;
+    }
+}
+
+.globalBack:hover {
+    background: #f0fdf4;
+    border-color: var(--primary);
+    transform: scale(1.1);
 }
 
 .logoArea {
@@ -29,6 +71,32 @@
     font-weight: 800;
     font-size: 1.5rem;
     text-decoration: none;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+.logoArea.hasBack {
+    margin-left: 0;
+    /* Keep logo in original position */
+}
+
+.navGroup {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+@media (max-width: 992px) {
+    .globalBack {
+        top: 10px;
+        left: 1rem;
+        width: 36px;
+        height: 36px;
+    }
+
+    .logoArea.hasBack {
+        margin-left: 45px;
+    }
 }
 
 .logoImage {
@@ -109,10 +177,10 @@
 
 .main {
     flex: 1;
-    padding: 2rem;
+    padding: 0;
     position: relative;
     max-width: 1440px;
-    margin: 0 auto;
+    margin: 72px auto 0 auto;
     width: 100%;
     box-sizing: border-box;
 }

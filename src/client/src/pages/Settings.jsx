@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, ArrowLeft, Plus, Trash2, Mail, Phone } from 'lucide-react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, Plus, Trash2, Mail, Phone, Settings as SettingsIcon, CreditCard, ShieldAlert, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import styles from './Settings.module.css';
 
 export default function Settings() {
     const { role, user: loggedInUser } = useOutletContext();
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const initialTab = queryParams.get('tab') || 'pricing';
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [user, setUser] = useState(loggedInUser);
     const [settings, setSettings] = useState({
         language: 'en',
+        region: 'in',
         emailNotifications: true,
         healthAlerts: true,
         weeklyReports: true,
     });
+    const [isApplying, setIsApplying] = useState(false);
 
     // Admin specific settings (Pricing & Sets)
     const [adminSettings, setAdminSettings] = useState({
@@ -52,6 +59,12 @@ export default function Settings() {
                 if (res.data.plans) setAdminSettings(prev => ({ ...prev, plans: typeof res.data.plans === 'string' ? JSON.parse(res.data.plans) : res.data.plans }));
                 if (res.data.supportEmail) setAdminSettings(prev => ({ ...prev, supportEmail: res.data.supportEmail }));
                 if (res.data.supportPhone) setAdminSettings(prev => ({ ...prev, supportPhone: res.data.supportPhone }));
+
+                // New system toggles
+                if (res.data.idsProtection !== undefined) setAdminSettings(prev => ({ ...prev, idsProtection: res.data.idsProtection === 'true' || res.data.idsProtection === true }));
+                if (res.data.strict2FA !== undefined) setAdminSettings(prev => ({ ...prev, strict2FA: res.data.strict2FA === 'true' || res.data.strict2FA === true }));
+                if (res.data.systemAlerts !== undefined) setAdminSettings(prev => ({ ...prev, systemAlerts: res.data.systemAlerts === 'true' || res.data.systemAlerts === true }));
+                if (res.data.maintenanceMode !== undefined) setAdminSettings(prev => ({ ...prev, maintenanceMode: res.data.maintenanceMode === 'true' || res.data.maintenanceMode === true }));
             } catch (err) {
                 console.error("Failed to fetch current platform sets:", err);
             }
@@ -59,28 +72,39 @@ export default function Settings() {
         fetchGlobalSettings();
     }, [role]);
 
+    useEffect(() => {
+        const tab = queryParams.get('tab');
+        if (tab && (tab === 'pricing' || tab === 'settings' || tab === 'advanced')) {
+            setActiveTab(tab === 'advanced' ? 'settings' : tab);
+        }
+    }, [location.search]);
+
     const handleSaveAdminSettings = async () => {
         setIsSaving(true);
         try {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
-            // Send as numbers
-            await axios.post('/api/settings/update', { key: 'proPrice', value: Number(adminSettings.proPrice) }, config);
-            await axios.post('/api/settings/update', { key: 'freeLimit', value: Number(adminSettings.freeLimit) }, config);
+            const updates = [
+                { key: 'proPrice', value: Number(adminSettings.proPrice) },
+                { key: 'freeLimit', value: Number(adminSettings.freeLimit) },
+                { key: 'plans', value: JSON.stringify(adminSettings.plans) },
+                { key: 'supportEmail', value: adminSettings.supportEmail },
+                { key: 'supportPhone', value: adminSettings.supportPhone },
+                { key: 'idsProtection', value: adminSettings.idsProtection },
+                { key: 'strict2FA', value: adminSettings.strict2FA },
+                { key: 'systemAlerts', value: adminSettings.systemAlerts },
+                { key: 'maintenanceMode', value: adminSettings.maintenanceMode }
+            ];
 
-            // Send plans and support info
-            await axios.post('/api/settings/update', { key: 'plans', value: JSON.stringify(adminSettings.plans) }, config);
-            await axios.post('/api/settings/update', { key: 'supportEmail', value: adminSettings.supportEmail }, config);
-            await axios.post('/api/settings/update', { key: 'supportPhone', value: adminSettings.supportPhone }, config);
+            for (const item of updates) {
+                await axios.post('/api/settings/update', item, config);
+            }
 
-            alert('✨ Pricing and Platform sets updated successfully!');
-
-            // Log activity in background (simulated for now)
-            console.log(`Admin updated pricing to ₹${adminSettings.proPrice}`);
+            alert('✨ System Configuration and Pricing updated successfully!');
         } catch (err) {
             console.error("Save error:", err);
-            alert('❌ Failed to update admin settings. Please check server connection.');
+            alert('❌ Failed to update global settings.');
         } finally {
             setIsSaving(false);
         }
@@ -96,333 +120,407 @@ export default function Settings() {
     };
 
     const handleChangeLang = (e) => {
-        const updated = { ...settings, language: e.target.value };
+        const val = e.target.value;
+        const updated = { ...settings, language: val };
+        setSettings(updated);
+
+        // Visual feedback that it's applying
+        setIsApplying(true);
+        setTimeout(() => setIsApplying(false), 800);
+
+        if (user) {
+            const updatedUser = { ...user, settings: updated };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            window.dispatchEvent(new Event('storage'));
+        }
+    };
+
+    const handleChangeRegion = (e) => {
+        const updated = { ...settings, region: e.target.value };
         setSettings(updated);
         if (user) {
             const updatedUser = { ...user, settings: updated };
             localStorage.setItem('user', JSON.stringify(updatedUser));
+            window.dispatchEvent(new Event('storage'));
         }
     };
 
     return (
         <div className={`container ${styles.pageContainer} animate-fade-in`}>
-            {role === 'admin' && (
-                <button
-                    onClick={() => navigate('/admin-portal')}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        padding: '6px 14px', marginBottom: '16px',
-                        background: '#f8fafc', border: '1px solid #e2e8f0',
-                        borderRadius: '8px', cursor: 'pointer',
-                        fontSize: '0.84rem', fontWeight: 600, color: '#64748b',
-                        transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#0f172a'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
-                >
-                    <ArrowLeft size={15} /> Back to Admin Console
-                </button>
-            )}
-            <div className={styles.pageHeader}>
-                <h1 className={styles.pageTitle}>{role === 'admin' ? 'Pricing & Sets' : 'Settings'}</h1>
-                <p className={styles.pageSubtitle}>
-                    {role === 'admin' ? 'Global platform configuration and pricing sets.' : 'Manage your app preferences and notifications'}
-                </p>
-            </div>
-
-            {role === 'admin' ? (
-                <div className={styles.adminSection}>
-                    {/* Support Config */}
-                    <div className={styles.card}>
-                        <div className={styles.cardHeader}>
-                            <Tag className={styles.cardIcon} size={24} />
-                            <h2 className={styles.cardTitle}>Support Contact Info</h2>
-                        </div>
-                        <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                            Customize where users can contact you when they click "Need More Help?".
-                        </p>
-                        <div className={styles.inputGroup} style={{ gridTemplateColumns: '1fr 1fr' }}>
-                            <div className={styles.formItem}>
-                                <label className={styles.label}>Support Email</label>
-                                <div className={styles.selectWrapper}>
-                                    <Mail size={18} color="var(--text-secondary)" />
-                                    <input
-                                        type="email"
-                                        className={styles.plainInput}
-                                        value={adminSettings.supportEmail}
-                                        onChange={(e) => setAdminSettings({ ...adminSettings, supportEmail: e.target.value })}
-                                        placeholder="support@example.com"
-                                    />
-                                </div>
-                            </div>
-                            <div className={styles.formItem}>
-                                <label className={styles.label}>Contact Phone / Link</label>
-                                <div className={styles.selectWrapper}>
-                                    <Phone size={18} color="var(--text-secondary)" />
-                                    <input
-                                        type="text"
-                                        className={styles.plainInput}
-                                        value={adminSettings.supportPhone}
-                                        onChange={(e) => setAdminSettings({ ...adminSettings, supportPhone: e.target.value })}
-                                        placeholder="+1 800 123 4567 or URL"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Subscription Plans */}
-                    <div className={styles.card} style={{ marginBottom: '1.5rem' }}>
-                        <div className={styles.cardHeader} style={{ justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Database className={styles.cardIcon} size={24} />
-                                <h2 className={styles.cardTitle}>Subscription Plans Configuration</h2>
-                            </div>
+            {/* Top Navigation Bar */}
+            <div className={styles.topActions} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                {role === 'admin' && (
+                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '5px', borderRadius: '18px', gap: '5px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
+                        {[
+                            { id: 'pricing', label: 'Subscription', icon: CreditCard },
+                            { id: 'settings', label: 'System Configuration', icon: SettingsIcon }
+                        ].map(tab => (
                             <button
-                                onClick={() => setAdminSettings({
-                                    ...adminSettings,
-                                    plans: [...adminSettings.plans, { id: Date.now().toString(), name: 'New Plan', price: '0', isRecommended: false, features: '', cta: 'Select Plan' }]
-                                })}
+                                key={tab.id}
+                                onClick={() => { setActiveTab(tab.id); navigate(`/settings?tab=${tab.id}`, { replace: true }); }}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                    background: '#10b981', color: 'white', padding: '6px 14px',
-                                    borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer',
-                                    border: 'none'
+                                    border: 'none', padding: '10px 24px', borderRadius: '14px', fontSize: '0.95rem', fontWeight: 700,
+                                    background: activeTab === tab.id ? '#fff' : 'transparent',
+                                    color: activeTab === tab.id ? 'var(--primary)' : '#64748b',
+                                    boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+                                    cursor: 'pointer', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px'
                                 }}
                             >
-                                <Plus size={14} /> Add Plan
+                                <tab.icon size={18} /> {tab.label}
                             </button>
-                        </div>
-                        <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                            These plans will be displayed directly on the Billing page to all users. Features should be separated by new lines.
-                        </p>
+                        ))}
+                    </div>
+                )}
+            </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {adminSettings.plans.map((plan, index) => (
-                                <div key={plan.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
-                                    <button
-                                        onClick={() => setAdminSettings({ ...adminSettings, plans: adminSettings.plans.filter(p => p.id !== plan.id) })}
-                                        style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                                        title="Delete plan"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+            {/* Content Header */}
+            <motion.div
+                className={styles.pageHeader}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                <h1 className={styles.pageTitle}>
+                    {role === 'admin'
+                        ? (activeTab === 'pricing' ? 'Subscription Configuration' : 'System Configuration')
+                        : 'Account Settings'}
+                </h1>
+                <p className={styles.pageSubtitle}>
+                    {role === 'admin'
+                        ? (activeTab === 'pricing' ? 'Manage global subscription tiers, platform pricing, and support contact channels.' : 'Manage platform-level security protocols, firewall rules, and high-availability system settings.')
+                        : 'Customize your experience, notification preferences, and regional settings.'}
+                </p>
+            </motion.div>
 
-                                    <div className={styles.inputGroup} style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) auto', gap: '1rem', marginTop: '0', paddingRight: '30px' }}>
-                                        <div className={styles.formItem} style={{ marginBottom: 0 }}>
-                                            <label className={styles.label}>Plan Name</label>
-                                            <input
-                                                className={styles.plainInput} style={{ background: 'white', border: '1px solid #cbd5e1', padding: '10px 14px' }}
-                                                value={plan.name} onChange={e => {
-                                                    const newPlans = [...adminSettings.plans];
-                                                    newPlans[index].name = e.target.value;
-                                                    setAdminSettings({ ...adminSettings, plans: newPlans });
-                                                }}
-                                            />
+            {/* Dynamic Content Area */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={role === 'admin' ? activeTab : 'user-settings'}
+                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: -10 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                >
+                    {role === 'admin' ? (
+                        <div className={styles.adminContainer} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            {activeTab === 'pricing' ? (
+                                <>
+                                    {/* Support Section */}
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#f59e0b' }}>
+                                                <Mail size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Support Channels</h2>
                                         </div>
-                                        <div className={styles.formItem} style={{ marginBottom: 0 }}>
-                                            <label className={styles.label}>Price (e.g. 499 or Custom)</label>
-                                            <div className={styles.selectWrapper} style={{ background: 'white', border: '1px solid #cbd5e1' }}>
-                                                <IndianRupee size={16} color="var(--text-secondary)" />
-                                                <input
-                                                    className={styles.plainInput} style={{ background: 'transparent' }}
-                                                    value={plan.price} onChange={e => {
-                                                        const newPlans = [...adminSettings.plans];
-                                                        newPlans[index].price = e.target.value;
-                                                        setAdminSettings({ ...adminSettings, plans: newPlans });
-                                                    }}
-                                                />
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Support Email</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <Mail size={18} />
+                                                    <input
+                                                        className={styles.plainInput}
+                                                        value={adminSettings.supportEmail}
+                                                        onChange={e => setAdminSettings({ ...adminSettings, supportEmail: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Contact Phone</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <Phone size={18} />
+                                                    <input
+                                                        className={styles.plainInput}
+                                                        value={adminSettings.supportPhone}
+                                                        onChange={e => setAdminSettings({ ...adminSettings, supportPhone: e.target.value })}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className={styles.formItem} style={{ marginBottom: 0, alignSelf: 'center', marginTop: '22px' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
-                                                <input type="checkbox" checked={plan.isRecommended} onChange={e => {
-                                                    const newPlans = [...adminSettings.plans];
-                                                    if (e.target.checked) newPlans.forEach(p => p.isRecommended = false); // only one can be recommended
-                                                    newPlans[index].isRecommended = e.target.checked;
-                                                    setAdminSettings({ ...adminSettings, plans: newPlans });
-                                                }} style={{ width: '18px', height: '18px', accentColor: '#10b981' }} />
-                                                Recommended badge
+                                    </section>
+
+                                    {/* Plan Editor Section */}
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader} style={{ justifyContent: 'space-between', marginBottom: '2rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <div className={styles.cardIcon} style={{ background: '#10b981' }}>
+                                                    <Database size={24} />
+                                                </div>
+                                                <h2 className={styles.cardTitle}>Subscription Tiers</h2>
+                                            </div>
+                                            <button
+                                                className="btn-new"
+                                                onClick={() => setAdminSettings({
+                                                    ...adminSettings,
+                                                    plans: [...adminSettings.plans, { id: Date.now().toString(), name: 'New Tier', price: '0', isRecommended: false, features: 'Feature 1', cta: 'Upgrade' }]
+                                                })}
+                                                style={{
+                                                    background: 'var(--primary)', color: '#fff', border: 'none',
+                                                    padding: '12px 24px', borderRadius: '14px', fontWeight: 800,
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                    boxShadow: '0 10px 15px -3px rgba(45, 95, 63, 0.3)'
+                                                }}
+                                            >
+                                                <Plus size={18} /> Add New Plan
+                                            </button>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+                                            {adminSettings.plans.map((plan, idx) => (
+                                                <div key={plan.id} style={{
+                                                    background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                                                    borderRadius: '24px', padding: '2rem', transition: '0.3s',
+                                                    position: 'relative', overflow: 'hidden'
+                                                }}>
+                                                    <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: plan.isRecommended ? 'var(--primary)' : '#e2e8f0' }} />
+                                                    <button
+                                                        onClick={() => setAdminSettings({ ...adminSettings, plans: adminSettings.plans.filter(p => p.id !== plan.id) })}
+                                                        style={{ position: 'absolute', top: '20px', right: '20px', background: '#fee2e2', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '12px', cursor: 'pointer' }}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                                                        <div className={styles.formItem}>
+                                                            <label className={styles.label}>Tier Name</label>
+                                                            <input
+                                                                className={styles.boxedInput}
+                                                                value={plan.name}
+                                                                onChange={e => {
+                                                                    const up = [...adminSettings.plans];
+                                                                    up[idx].name = e.target.value;
+                                                                    setAdminSettings({ ...adminSettings, plans: up });
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className={styles.formItem}>
+                                                            <label className={styles.label}>Price</label>
+                                                            <div className={styles.selectWrapper} style={{ background: '#fff' }}>
+                                                                <IndianRupee size={16} />
+                                                                <input
+                                                                    className={styles.plainInput}
+                                                                    value={plan.price}
+                                                                    onChange={e => {
+                                                                        const up = [...adminSettings.plans];
+                                                                        up[idx].price = e.target.value;
+                                                                        setAdminSettings({ ...adminSettings, plans: up });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className={styles.formItem} style={{ alignSelf: 'center', marginTop: '20px' }}>
+                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 700 }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={plan.isRecommended}
+                                                                    onChange={e => {
+                                                                        const up = [...adminSettings.plans];
+                                                                        if (e.target.checked) up.forEach(u => u.isRecommended = false);
+                                                                        up[idx].isRecommended = e.target.checked;
+                                                                        setAdminSettings({ ...adminSettings, plans: up });
+                                                                    }}
+                                                                    style={{ width: '20px', height: '20px', accentColor: 'var(--primary)' }}
+                                                                />
+                                                                Popular Tag
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={styles.formItem}>
+                                                        <label className={styles.label}>Value Features (one per line)</label>
+                                                        <textarea
+                                                            className={styles.boxedInput}
+                                                            value={plan.features}
+                                                            onChange={e => {
+                                                                const up = [...adminSettings.plans];
+                                                                up[idx].features = e.target.value;
+                                                                setAdminSettings({ ...adminSettings, plans: up });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                </>
+                            ) : (
+                                <>
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
+                                                <SettingsIcon size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Platform System Rules</h2>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {[
+                                                { key: 'idsProtection', label: 'Intrusion Detection System (IDS)', desc: 'Real-time packet inspection and threat anomaly scoring for API nodes.', icon: ShieldAlert },
+                                                { key: 'strict2FA', label: 'Strict 2FA Protocol Enforcement', desc: 'Require TOTP confirmation for all administrative user modifications.', icon: Lock },
+                                                { key: 'systemAlerts', label: 'Dashboard Critical Smart Health Alert', desc: 'Broadcast critical animal biometric anomalies to admin feed.', icon: Zap },
+                                                { key: 'maintenanceMode', label: 'Platform Maintenance Mode', desc: 'Restricts user portal access to administrative personnel only.', icon: Activity }
+                                            ].map(item => {
+                                                const Icon = item.icon || Activity;
+                                                return (
+                                                    <div key={item.key} className={styles.toggleRow} style={{ border: 'none', background: '#f8fafc', padding: '1.5rem', borderRadius: '22px' }}>
+                                                        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+                                                            <div style={{ padding: '10px', background: '#fff', borderRadius: '12px', color: 'var(--primary)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                                                <Icon size={20} />
+                                                            </div>
+                                                            <div className={styles.toggleInfo}>
+                                                                <span className={styles.toggleLabel}>{item.label}</span>
+                                                                <span className={styles.toggleDesc}>{item.desc}</span>
+                                                            </div>
+                                                        </div>
+                                                        <label className={styles.switch}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={adminSettings[item.key] || false}
+                                                                onChange={() => setAdminSettings({ ...adminSettings, [item.key]: !adminSettings[item.key] })}
+                                                            />
+                                                            <span className={styles.slider}></span>
+                                                        </label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </section>
+
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#6366f1' }}>
+                                                <Lock size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Infrastructure Shield</h2>
+                                        </div>
+                                        <div style={{ padding: '2rem', background: '#e0f2fe', border: '1.5px solid #bae6fd', borderRadius: '24px', color: '#0369a1', lineHeight: 1.7 }}>
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                                <ShieldAlert size={20} />
+                                                <strong>Administrative Infrastructure Notice</strong>
+                                            </div>
+                                            Low-level firewall rules and Redis persistence layers are provisioned via Terraform. Business-level overrides below are currently synced with the central VPC configuration.
+                                        </div>
+                                    </section>
+                                </>
+                            )}
+
+                            {/* Sticky Save Bar */}
+                            <div style={{
+                                display: 'flex', justifyContent: 'flex-end', marginTop: '2rem',
+                                position: 'sticky', bottom: '2rem', zIndex: 100
+                            }}>
+                                <button
+                                    className="btn-primary"
+                                    onClick={handleSaveAdminSettings}
+                                    disabled={isSaving}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '12px',
+                                        padding: '1.2rem 3rem', background: 'var(--primary)', color: '#fff',
+                                        border: 'none', borderRadius: '22px', fontSize: '1.1rem', fontWeight: 800,
+                                        cursor: 'pointer', boxShadow: '0 15px 30px -5px rgba(45, 95, 63, 0.4)',
+                                        transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                                    onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                                >
+                                    {isSaving ? <Activity className="animate-spin" size={22} /> : <Save size={22} />}
+                                    {isSaving ? 'Deploying Changes...' : 'Sync Global Config'}
+                                </button>
+                            </div>
+                        </div>
+
+                    ) : (
+                        <div className={styles.userContainer} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                <section className={styles.card} style={{ marginBottom: 0 }}>
+                                    <div className={styles.cardHeader}>
+                                        <div className={styles.cardIcon}>
+                                            <Globe size={24} />
+                                        </div>
+                                        <h2 className={styles.cardTitle}>Language</h2>
+                                    </div>
+                                    <div className={styles.formItem}>
+                                        <label className={styles.label}>Primary Language</label>
+                                        <div className={styles.selectWrapper}>
+                                            <Globe size={18} />
+                                            <select className={styles.select} value={settings.language} onChange={handleChangeLang}>
+                                                <option value="en">English (US/UK)</option>
+                                                <option value="hi">हिंदी (Indo-Aryan)</option>
+                                                <option value="gu">ગુજરાતી (West Indian)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className={styles.card} style={{ marginBottom: 0 }}>
+                                    <div className={styles.cardHeader}>
+                                        <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
+                                            <IndianRupee size={24} />
+                                        </div>
+                                        <h2 className={styles.cardTitle}>Region</h2>
+                                    </div>
+                                    <div className={styles.formItem}>
+                                        <label className={styles.label}>Locale Format</label>
+                                        <div className={styles.selectWrapper}>
+                                            <IndianRupee size={18} />
+                                            <select className={styles.select} value={settings.region || 'in'} onChange={handleChangeRegion}>
+                                                <option value="in">India (GMT+5:30)</option>
+                                                <option value="us">United States (EST/PST)</option>
+                                                <option value="gb">United Kingdom (GMT)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+
+                            <AnimatePresence>
+                                {isApplying && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        style={{
+                                            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                            padding: '1rem 2rem', background: 'rgba(0,0,0,0.8)', color: '#fff',
+                                            borderRadius: '50px', zIndex: 999, display: 'flex', alignItems: 'center', gap: '12px',
+                                            backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+                                        }}
+                                    >
+                                        <Activity className="animate-spin" size={20} />
+                                        <span style={{ fontWeight: 600 }}>Applying Language...</span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <section className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <div className={styles.cardIcon}>
+                                        <Bell size={24} />
+                                    </div>
+                                    <h2 className={styles.cardTitle}>Communication Preferences</h2>
+                                </div>
+                                <div className={styles.sectionGroup} style={{ gap: '0.5rem' }}>
+                                    {[
+                                        { key: 'emailNotifications', label: 'Email Reports', desc: 'Detailed health summaries sent to your inbox' },
+                                        { key: 'healthAlerts', label: 'Critical Smart Alerts', desc: 'Real-time alerts for biometric anomalies' },
+                                        { key: 'weeklyReports', label: 'Weekly Performance Digest', desc: 'Consolidated data for animal trends' }
+                                    ].map(item => (
+                                        <div key={item.key} className={styles.toggleRow} style={{ border: 'none', background: '#f8fafc', padding: '1.25rem', borderRadius: '18px', marginBottom: '0.75rem' }}>
+                                            <div className={styles.toggleInfo}>
+                                                <span className={styles.toggleLabel}>{item.label}</span>
+                                                <span className={styles.toggleDesc}>{item.desc}</span>
+                                            </div>
+                                            <label className={styles.switch}>
+                                                <input type="checkbox" checked={settings[item.key]} onChange={() => handleToggle(item.key)} />
+                                                <span className={styles.slider}></span>
                                             </label>
                                         </div>
-                                    </div>
-
-                                    <div className={styles.inputGroup} style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0' }}>
-                                        <div className={styles.formItem} style={{ marginBottom: 0 }}>
-                                            <label className={styles.label}>Features (one per line)</label>
-                                            <textarea
-                                                className={styles.plainInput} style={{ background: 'white', border: '1px solid #cbd5e1', padding: '12px 14px', minHeight: '110px', resize: 'vertical' }}
-                                                placeholder="Up to 10 animals&#10;Basic Analytics..."
-                                                value={plan.features} onChange={e => {
-                                                    const newPlans = [...adminSettings.plans];
-                                                    newPlans[index].features = e.target.value;
-                                                    setAdminSettings({ ...adminSettings, plans: newPlans });
-                                                }}
-                                            />
-                                        </div>
-                                        <div className={styles.formItem} style={{ marginBottom: 0 }}>
-                                            <label className={styles.label}>Button Call to Action (CTA)</label>
-                                            <input
-                                                className={styles.plainInput} style={{ background: 'white', border: '1px solid #cbd5e1', padding: '10px 14px', marginBottom: '1rem' }}
-                                                value={plan.cta} onChange={e => {
-                                                    const newPlans = [...adminSettings.plans];
-                                                    newPlans[index].cta = e.target.value;
-                                                    setAdminSettings({ ...adminSettings, plans: newPlans });
-                                                }}
-                                                placeholder="e.g. Upgrade to this Plan"
-                                            />
-                                            <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px', fontSize: '0.85rem', color: '#065f46', lineHeight: 1.5 }}>
-                                                <strong>Notice:</strong> This plan will be visible to all users. Modifying the features will instantly update the user portal.
-                                            </div>
-                                        </div>
-                                    </div>
+                                    ))}
                                 </div>
-                            ))}
-                            {adminSettings.plans.length === 0 && (
-                                <div style={{ textAlign: 'center', padding: '3rem', background: '#f8fafc', borderRadius: '10px', color: 'var(--text-secondary)' }}>
-                                    No plans configured. Add a plan to display it on the Billing page.
-                                </div>
-                            )}
+                            </section>
                         </div>
-                    </div>
-
-                    {/* Pricing Config (Legacy) */}
-                    <div className={styles.card}>
-                        <div className={styles.cardHeader}>
-                            <Tag className={styles.cardIcon} size={24} />
-                            <h2 className={styles.cardTitle}>Legacy Plan Configuration</h2>
-                        </div>
-                        <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                            Used by backend API limits for free/pro users.
-                        </p>
-
-                        <div className={styles.inputGroup} style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem' }}>
-                            <div className={styles.formItem}>
-                                <label className={styles.label}>Pro Plan Price Amount (₹)</label>
-                                <div className={styles.selectWrapper}>
-                                    <IndianRupee size={18} color="var(--text-secondary)" />
-                                    <input
-                                        type="number"
-                                        className={styles.plainInput}
-                                        value={adminSettings.proPrice}
-                                        onChange={(e) => setAdminSettings({ ...adminSettings, proPrice: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div className={styles.formItem}>
-                                <label className={styles.label}>Free Account Animal Limit</label>
-                                <div className={styles.selectWrapper}>
-                                    <Activity size={18} color="var(--text-secondary)" />
-                                    <input
-                                        type="number"
-                                        className={styles.plainInput}
-                                        value={adminSettings.freeLimit}
-                                        onChange={(e) => setAdminSettings({ ...adminSettings, freeLimit: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                        <button
-                            className="btn-primary"
-                            style={{ gap: '0.75rem', padding: '0.75rem 2rem' }}
-                            disabled={isSaving}
-                            onClick={handleSaveAdminSettings}
-                        >
-                            <Save size={18} /> {isSaving ? 'Saving...' : 'Save Global Sets'}
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <>
-                    <div className={styles.card}>
-                        <div className={styles.cardHeader}>
-                            <Globe className={styles.cardIcon} size={24} />
-                            <h2 className={styles.cardTitle}>Language Preferences</h2>
-                        </div>
-                        <label className={styles.label}>Select your preferred language</label>
-                        <div className={styles.selectWrapper}>
-                            <Globe size={18} color="var(--text-secondary)" />
-                            <select
-                                className={styles.select}
-                                value={settings.language}
-                                onChange={handleChangeLang}
-                            >
-                                <option value="en">GB English</option>
-                                <option value="hi">हिंदी (Hindi)</option>
-                                <option value="gu">ગુજરાતી (Gujarati)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className={styles.card}>
-                        <div className={styles.cardHeader}>
-                            <Bell className={styles.cardIcon} size={24} />
-                            <h2 className={styles.cardTitle}>Notifications</h2>
-                        </div>
-                        <div className={styles.sectionGroup}>
-                            <div className={styles.toggleRow}>
-                                <div className={styles.toggleInfo}>
-                                    <span className={styles.toggleLabel}>Email Notifications</span>
-                                    <span className={styles.toggleDesc}>Receive email updates about your cattle</span>
-                                </div>
-                                <label className={styles.switch}>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.emailNotifications}
-                                        onChange={() => handleToggle('emailNotifications')}
-                                    />
-                                    <span className={styles.slider}></span>
-                                </label>
-                            </div>
-
-                            <div className={styles.toggleRow}>
-                                <div className={styles.toggleInfo}>
-                                    <span className={styles.toggleLabel}>Health Alerts</span>
-                                    <span className={styles.toggleDesc}>Get alerts for critical health status</span>
-                                </div>
-                                <label className={styles.switch}>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.healthAlerts}
-                                        onChange={() => handleToggle('healthAlerts')}
-                                    />
-                                    <span className={styles.slider}></span>
-                                </label>
-                            </div>
-
-                            <div className={styles.toggleRow}>
-                                <div className={styles.toggleInfo}>
-                                    <span className={styles.toggleLabel}>Weekly reports</span>
-                                    <span className={styles.toggleDesc}>Receive weekly health summary</span>
-                                </div>
-                                <label className={styles.switch}>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.weeklyReports}
-                                        onChange={() => handleToggle('weeklyReports')}
-                                    />
-                                    <span className={styles.slider}></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className={styles.card}>
-                        <div className={styles.cardHeader}>
-                            <Lock className={styles.cardIcon} size={24} />
-                            <h2 className={styles.cardTitle}>Security & Privacy</h2>
-                        </div>
-                        <p className={styles.securityText}>
-                            Your security and privacy are managed by the platform settings.
-                        </p>
-                    </div>
-                </>
-            )}
+                    )}
+                </motion.div>
+            </AnimatePresence>
         </div>
     );
 }

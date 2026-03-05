@@ -392,14 +392,14 @@ export default function Login() {
                             transition={{ delay: 0.12, duration: 0.72 }}
                             className={styles.heroBlock}
                         >
-                            <div className={styles.pill}>PRECISION LIVESTOCK AI</div>
+                            <div className={styles.pill}>PRECISION ARANYA AI</div>
                             <h1 className={styles.heroH1}>
                                 The Future of<br />
                                 <span className={styles.heroGreen}>Herd Intelligence</span>
                             </h1>
                             <p className={styles.heroP}>
                                 AI-powered diagnostics that catch critical health issues
-                                before they happen — keeping your cattle thriving.
+                                before they happen — keeping your animals thriving.
                             </p>
                         </motion.div>
 
@@ -521,7 +521,7 @@ export default function Login() {
                                         <p className={styles.formSub}>
                                             {isSignUp
                                                 ? '500+ farms use our AI to prevent loss and boost yield.'
-                                                : 'Your livestock dashboard is ready when you are.'}
+                                                : 'Your Aranya dashboard is ready when you are.'}
                                         </p>
                                     )}
                                 </div>
@@ -562,7 +562,7 @@ export default function Login() {
                                             disabled={isLoading}
                                         >
                                             <GoogleIcon />
-                                            <span>Continue with Google</span>
+                                            <span>{isSignUp ? 'Sign up with Google' : 'Sign in with Google'}</span>
                                         </motion.button>
                                         <div className={styles.orRow}><span>or continue with email</span></div>
                                     </>
@@ -920,7 +920,7 @@ export default function Login() {
                             </span>
                         </div>
                         <p className={styles.footerTagline}>
-                            AI-powered precision livestock management trusted by 500+ high-performance farms across India.
+                            AI-powered precision animal management trusted by 500+ high-performance farms across India.
                         </p>
                         <div className={styles.footerSocials}>
                             <Facebook size={18} /><Twitter size={18} /><Linkedin size={18} /><Youtube size={18} /><Github size={18} />
@@ -945,7 +945,7 @@ export default function Login() {
                         <h4 className={styles.footerColTitle}>Industry</h4>
                         <ul className={styles.footerList}>
                             <li>Dairy Farming</li>
-                            <li>Livestock Export</li>
+                            <li>Animal Export</li>
                             <li>Research Institutions</li>
                             <li>Government Oversight</li>
                             <li>Sustainable Agriculture</li>

@@ -156,10 +156,10 @@ export default function Dashboard() {
     let insightTheme = { bg: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", color: "var(--primary)", border: "#bbf7d0" };
 
     if (critical > 0) {
-        insightMessage = `Critical alert: ${critical} of your cattle require immediate veterinary attention! AI models detected severe vital anomalies.`;
+        insightMessage = `Critical alert: ${critical} of your animals require immediate veterinary attention! AI models detected severe vital anomalies.`;
         insightTheme = { bg: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", color: "#b91c1c", border: "#fecaca" };
     } else if (alert > 0) {
-        insightMessage = `Attention needed: ${alert} of your cattle are showing early warning signs. The AI recommends close monitoring over the next 24 hours.`;
+        insightMessage = `Attention needed: ${alert} of your animals are showing early warning signs. The AI recommends close monitoring over the next 24 hours.`;
         insightTheme = { bg: "linear-gradient(135deg, #fefce8 0%, #fef08a 100%)", color: "#a16207", border: "#fde047" };
     } else if (total > 0 && healthScore === 100) {
         insightMessage = "Perfect! The AI model confirms your entire herd's vitals are in excellent condition today.";
@@ -175,8 +175,8 @@ export default function Dashboard() {
         <div className={`${styles.dashboard} animate-fade-in`}>
             <header className={styles.header}>
                 <div className={styles.headerText}>
-                    <h1 className={styles.title}>My Cattle Dashboard</h1>
-                    <p className={styles.subtitle}>Here is the latest health report of your cattle.</p>
+                    <h1 className={styles.title}>My Aranya Dashboard</h1>
+                    <p className={styles.subtitle}>Here is the latest health report of your animals.</p>
                 </div>
                 <button className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
                     <Plus size={20} /> Add New Animal
@@ -226,7 +226,7 @@ export default function Dashboard() {
                 <div className={styles.statCard}>
                     <div className={styles.statIcon}><Activity size={24} /></div>
                     <div className={styles.statInfo}>
-                        <span className={styles.statLabel}>Total Cattle</span>
+                        <span className={styles.statLabel}>Total Aranya</span>
                         <span className={styles.statValue}>{total}</span>
                     </div>
                 </div>
@@ -312,9 +312,9 @@ export default function Dashboard() {
 
                 <div className={styles.animalGrid}>
                     {animals.length === 0 ? (
-                        <p className={styles.emptyText}>You haven't added any cattle yet. Click "Add New Animal" to start building your herd.</p>
+                        <p className={styles.emptyText}>You haven't added any animals yet. Click "Add New Animal" to start building your herd.</p>
                     ) : filteredAnimals.length === 0 ? (
-                        <p className={styles.emptyText}>No cattle found matching your search.</p>
+                        <p className={styles.emptyText}>No animals found matching your search.</p>
                     ) : (
                         filteredAnimals.map((animal, idx) => (
                             <motion.div
