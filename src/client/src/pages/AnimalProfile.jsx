@@ -245,7 +245,7 @@ export default function AnimalProfile() {
     };
 
     if (loading) {
-        return <AdvancedLoader message="Retrieving vital history and status..." />;
+        return <AdvancedLoader type="default" />;
     }
 
     if (!animal) {

@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import { BookOpen, Video, FileText, ChevronRight, ArrowLeft, Loader2, PlayCircle, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AdvancedLoader from '../components/AdvancedLoader';
 import s from './Docs.module.css';
 
 const CAT_INFO = {
@@ -91,19 +92,7 @@ export default function Docs() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className={s.page}>
-                <div className={s.hero}>
-                    <h1>Documentation</h1>
-                    <p>Fetching the latest guides and tutorials...</p>
-                </div>
-                <div className={s.skeletonGrid}>
-                    {[1, 2, 3].map(i => <div key={i} className={s.skeletonCard} />)}
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <AdvancedLoader type="docs" />;
 
     return (
         <div className={s.page}>

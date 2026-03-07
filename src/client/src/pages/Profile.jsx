@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck, Calendar, Users as UsersIcon, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import AdvancedLoader from '../components/AdvancedLoader';
 import styles from './Profile.module.css';
 
 // Helper to get auth headers
@@ -317,7 +318,7 @@ export default function Profile() {
         return map[g] || '—';
     };
 
-    if (!user) return <div className={styles.loading}><Loader2 className={styles.spin} size={24} /> Loading Profile...</div>;
+    if (!user) return <AdvancedLoader type="profile" />;
 
     const roleLabel = user.role === 'admin' ? 'System Administrator' : 'Platform User';
 

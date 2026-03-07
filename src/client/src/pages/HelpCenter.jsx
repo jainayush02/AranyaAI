@@ -3,6 +3,7 @@ import { Search, HelpCircle, ChevronDown, MessageCircle, BookOpen, Loader2 } fro
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import AdvancedLoader from '../components/AdvancedLoader';
 import styles from './HelpCenter.module.css';
 
 export default function HelpCenter() {
@@ -71,7 +72,7 @@ export default function HelpCenter() {
                     <h2 className={styles.sectionTitle}>Frequently Asked Questions</h2>
 
                     {loading ? (
-                        <div className={styles.loading}><Loader2 size={24} className={styles.spin} /> Loading FAQs...</div>
+                        <AdvancedLoader type="help" compact={true} fullScreen={false} />
                     ) : filtered.length === 0 ? (
                         <div className={styles.empty}>
                             <HelpCircle size={40} color="#cbd5e1" />

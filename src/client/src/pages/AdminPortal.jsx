@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import AdvancedLoader from '../components/AdvancedLoader';
 import s from './AdminPortal.module.css';
 
 const API = '/api';
@@ -138,6 +139,7 @@ export default function AdminPortal() {
 
     // FAQs
     const [faqs, setFaqs] = useState([]);
+    const [faqsLoading, setFaqsLoading] = useState(false);
     const [faqModal, setFaqModal] = useState(null);
     const [faqSearch, setFaqSearch] = useState('');
     const [faqForm, setFaqForm] = useState({ question: '', answer: '', category: 'General', published: true });
@@ -165,6 +167,10 @@ export default function AdminPortal() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadSuccess, setUploadSuccess] = useState(false);
     const [videoPreview, setVideoPreview] = useState(null);
+
+    // Pricing & Settings simulation
+    const [pricingLoading, setPricingLoading] = useState(false);
+    const [settingsLoading, setSettingsLoading] = useState(false);
 
     // ── Fetch helpers ────────────────────────────
     const fetchOverview = useCallback(async () => {
@@ -221,7 +227,12 @@ export default function AdminPortal() {
     }, [logPage, logType]);
 
     const fetchFaqs = useCallback(async () => {
-        try { const r = await axios.get(`${API}/admin/faqs`, authH()); setFaqs(r.data); } catch { }
+        setFaqsLoading(true);
+        try {
+            const r = await axios.get(`${API}/admin/faqs`, authH());
+            setFaqs(r.data);
+        } catch { }
+        finally { setFaqsLoading(false); }
     }, []);
 
     const fetchArticles = useCallback(async () => {
@@ -308,6 +319,17 @@ export default function AdminPortal() {
     useEffect(() => { if (tab === 'content') fetchFaqs(); }, [tab, fetchFaqs]);
     useEffect(() => { if (tab === 'docs') fetchArticles(); }, [tab, fetchArticles]);
     useEffect(() => { if (tab === 'adminaccess') fetchAdminAccess(); }, [tab, fetchAdminAccess]);
+
+    useEffect(() => {
+        if (tab === 'pricing') {
+            setPricingLoading(true);
+            setPricingLoading(false);
+        }
+        if (tab === 'settings') {
+            setSettingsLoading(true);
+            setSettingsLoading(false);
+        }
+    }, [tab]);
 
     const blockToggle = async u => {
         try {
@@ -842,12 +864,7 @@ export default function AdminPortal() {
                                         <button className={s.refreshBtn} onClick={fetchOverview}><RefreshCw size={15} /> Refresh</button>
                                     </div>
                                     {overviewLoading ? (
-                                        <>
-                                            <div className={s.skeletonGrid}>
-                                                {[...Array(8)].map((_, i) => <StatSkeleton key={i} />)}
-                                            </div>
-                                            <ActivitySkeleton />
-                                        </>
+                                        <AdvancedLoader type="home" compact={false} fullScreen={false} />
                                     ) : !stats ? (
                                         <div className={s.emptyMsg} style={{ textAlign: 'center', padding: '3rem 0' }}>
                                             <AlertCircle size={32} color="#ef4444" style={{ marginBottom: '1rem' }} />
@@ -896,24 +913,7 @@ export default function AdminPortal() {
                                         <div>
                                             <button className={s.backBtn} onClick={() => setFocusedUser(null)}><ChevronLeft size={15} /> Back to Users</button>
                                             {focusLoading ? (
-                                                <div className={s.userDetailGrid}>
-                                                    <div className={s.skeletonCard} style={{ height: '350px', flexDirection: 'column', textAlign: 'center' }}>
-                                                        <div className={`${s.skeletonIcon} ${s.pulse}`} style={{ width: '100px', height: '100px', borderRadius: '50%', margin: '0 auto 1rem' }} />
-                                                        <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '60%', height: '20px', margin: '0 auto 0.5rem' }} />
-                                                        <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '40%', height: '14px', margin: '0 auto 1.5rem' }} />
-                                                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                                                            <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '70px', height: '22px', borderRadius: '20px' }} />
-                                                            <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '70px', height: '22px', borderRadius: '20px' }} />
-                                                        </div>
-                                                        <div className={s.skeletonText}>
-                                                            {[1, 2, 3, 4].map(i => <div key={i} className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '100%', marginBottom: '10px' }} />)}
-                                                        </div>
-                                                    </div>
-                                                    <div className={s.userDetailRight}>
-                                                        <div className={s.skeletonActivity} style={{ margin: 0 }} />
-                                                        <div className={s.skeletonActivity} style={{ margin: '1rem 0 0' }} />
-                                                    </div>
-                                                </div>
+                                                <AdvancedLoader type="profile" compact={false} fullScreen={false} />
                                             ) : (
                                                 <div className={s.userDetailGrid} style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.35fr) 1fr', gap: '1rem', alignItems: 'stretch', maxHeight: '800px' }}>
                                                     <div className={s.userCard} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', height: '100%', minHeight: '650px' }}>
@@ -1157,7 +1157,7 @@ export default function AdminPortal() {
                                                     <option value="admin">Administrators</option>
                                                 </select>
                                             </div>
-                                            {usersLoading ? <TableSkeleton cols={7} rows={10} /> : (
+                                            {usersLoading ? <AdvancedLoader type="profile" compact={false} fullScreen={false} /> : (
                                                 <div className={s.tableWrap}>
                                                     <table className={s.table}>
                                                         <thead>
@@ -1237,19 +1237,7 @@ export default function AdminPortal() {
                                         </select>
                                     </div>
                                     {logsLoading ? (
-                                        <div className={s.logList}>
-                                            {[...Array(10)].map((_, i) => (
-                                                <div key={i} className={s.logRow} style={{ border: 'none' }}>
-                                                    <div className={`${s.actDot} ${s.pulse}`} style={{ background: '#f1f5f9' }} />
-                                                    <div className={s.logMain}>
-                                                        <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '15%', height: '14px' }} />
-                                                        <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '40%', height: '12px' }} />
-                                                    </div>
-                                                    <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '8%', height: '18px', borderRadius: '12px' }} />
-                                                    <div className={`${s.skeletonBar} ${s.pulse}`} style={{ width: '10%', height: '12px' }} />
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <AdvancedLoader type="activity" compact={false} fullScreen={false} />
                                     ) : (
                                         <div className={s.logList}>
                                             {allLogs.length === 0 && <p className={s.emptyMsg}>No logs found for the selected filter.</p>}
@@ -1315,24 +1303,28 @@ export default function AdminPortal() {
                                             </div>
                                         </div>
 
-                                        <div className={s.faqList} style={{ background: '#fff', padding: '1rem', borderRadius: '0 0 16px 16px', border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                                            {faqs.length === 0 && <p className={s.emptyMsg}>No FAQs published. Start by adding a new article above.</p>}
-                                            {faqs.filter(f => f.question.toLowerCase().includes(faqSearch.toLowerCase()) || f.category.toLowerCase().includes(faqSearch.toLowerCase())).map(f => (
-                                                <div key={f._id} className={`${s.faqRow} ${!f.published ? s.faqDraft : ''}`}>
-                                                    <div className={s.faqQ}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                                                            <span className={s.faqCat} style={{ color: '#2d5f3f', background: '#f0fdf4', padding: '2px 8px', borderRadius: '6px' }}>{f.category}</span>
-                                                            {!f.published && <span className={s.draftTag} style={{ background: '#fff1f2', color: '#e11d48' }}>Private Draft</span>}
+                                        {faqsLoading ? (
+                                            <AdvancedLoader type="help" compact={false} fullScreen={false} />
+                                        ) : (
+                                            <div className={s.faqList} style={{ background: '#fff', padding: '1rem', borderRadius: '0 0 16px 16px', border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                                                {faqs.length === 0 && <p className={s.emptyMsg}>No FAQs published. Start by adding a new article above.</p>}
+                                                {faqs.filter(f => f.question.toLowerCase().includes(faqSearch.toLowerCase()) || f.category.toLowerCase().includes(faqSearch.toLowerCase())).map(f => (
+                                                    <div key={f._id} className={`${s.faqRow} ${!f.published ? s.faqDraft : ''}`}>
+                                                        <div className={s.faqQ}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                                                                <span className={s.faqCat} style={{ color: '#2d5f3f', background: '#f0fdf4', padding: '2px 8px', borderRadius: '6px' }}>{f.category}</span>
+                                                                {!f.published && <span className={s.draftTag} style={{ background: '#fff1f2', color: '#e11d48' }}>Private Draft</span>}
+                                                            </div>
+                                                            <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>{f.question}</span>
                                                         </div>
-                                                        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>{f.question}</span>
+                                                        <div className={s.faqActs}>
+                                                            <button className={s.iconSm} onClick={() => openFaqEdit(f)}><Pencil size={15} /></button>
+                                                            <button className={`${s.iconSm} ${s.iconDanger}`} onClick={() => setFaqDeleteTarget(f)}><Trash2 size={15} /></button>
+                                                        </div>
                                                     </div>
-                                                    <div className={s.faqActs}>
-                                                        <button className={s.iconSm} onClick={() => openFaqEdit(f)}><Pencil size={15} /></button>
-                                                        <button className={`${s.iconSm} ${s.iconDanger}`} onClick={() => setFaqDeleteTarget(f)}><Trash2 size={15} /></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </motion.div>
                             )}
@@ -1414,7 +1406,11 @@ export default function AdminPortal() {
                                                     </thead>
                                                     <tbody>
                                                         {articlesLoading ? (
-                                                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>Loading documents...</td></tr>
+                                                            <tr>
+                                                                <td colSpan="4" style={{ padding: '0' }}>
+                                                                    <AdvancedLoader type="docs" compact={true} fullScreen={false} />
+                                                                </td>
+                                                            </tr>
                                                         ) : articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === subTab).length === 0 ? (
                                                             <tr><td colSpan="4" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>No articles found in this category.</td></tr>
                                                         ) : (
@@ -1462,45 +1458,52 @@ export default function AdminPortal() {
                                         <button className={s.primaryBtn} onClick={() => navigate('/settings?tab=pricing')}><Crown size={16} /> Subscription Settings</button>
                                     </div>
 
-                                    <div className={s.heroCard} style={{ background: '#1e293b', color: '#fff', textAlign: 'left', alignItems: 'flex-start' }}>
-                                        <div style={{ position: 'relative', zIndex: 1, display: 'flex', width: '100%', alignItems: 'center', gap: '4rem' }}>
-                                            <div style={{ flex: 1 }}>
-                                                <h2 className={s.heroCardTitle} style={{ color: '#fff' }}>Revenue Optimization</h2>
-                                                <p className={s.heroCardDesc} style={{ color: '#94a3b8' }}>Monitor real-time subscription performance and adjust tier pricing to maximize LTV.</p>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '2rem' }}>
-                                                <div>
-                                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total MRR</div>
-                                                    <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22c55e' }}>₹4.2L</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Growth</div>
-                                                    <div style={{ fontSize: '2rem', fontWeight: 900, color: '#3b82f6' }}>+12%</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    {pricingLoading ? (
+                                        <AdvancedLoader type="pricing" compact={false} fullScreen={false} />
+                                    ) : (
+                                        <>
 
-                                    <div className={s.featureGrid}>
-                                        <div className={s.featureCard}>
-                                            <div className={s.featureCardIcon} style={{ background: 'rgba(71, 85, 105, 0.1)', color: '#475569' }}><Zap size={22} /></div>
-                                            <div className={s.featureCardTitle}>Free Tier</div>
-                                            <p className={s.featureCardDesc}>Basic health tracking for 2 animals. No AI features.</p>
-                                            <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>₹0<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
-                                        </div>
-                                        <div className={s.featureCard} style={{ border: '2px solid #2d5f3f' }}>
-                                            <div className={s.featureCardIcon} style={{ background: '#2d5f3f', color: '#fff' }}><Crown size={22} /></div>
-                                            <div className={s.featureCardTitle}>Pro Tier</div>
-                                            <p className={s.featureCardDesc}>Unlimited animals & full AI diagnostics. Priority support.</p>
-                                            <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto', color: '#2d5f3f' }}>₹499<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
-                                        </div>
-                                        <div className={s.featureCard}>
-                                            <div className={s.featureCardIcon} style={{ background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed' }}><TrendingUp size={22} /></div>
-                                            <div className={s.featureCardTitle}>Enterprise</div>
-                                            <p className={s.featureCardDesc}>Custom deployment for labs & shelters. Dedicated SLA.</p>
-                                            <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>Custom</div>
-                                        </div>
-                                    </div>
+                                            <div className={s.heroCard} style={{ background: '#1e293b', color: '#fff', textAlign: 'left', alignItems: 'flex-start' }}>
+                                                <div style={{ position: 'relative', zIndex: 1, display: 'flex', width: '100%', alignItems: 'center', gap: '4rem' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <h2 className={s.heroCardTitle} style={{ color: '#fff' }}>Revenue Optimization</h2>
+                                                        <p className={s.heroCardDesc} style={{ color: '#94a3b8' }}>Monitor real-time subscription performance and adjust tier pricing to maximize LTV.</p>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '2rem' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total MRR</div>
+                                                            <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22c55e' }}>₹4.2L</div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Growth</div>
+                                                            <div style={{ fontSize: '2rem', fontWeight: 900, color: '#3b82f6' }}>+12%</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className={s.featureGrid}>
+                                                <div className={s.featureCard}>
+                                                    <div className={s.featureCardIcon} style={{ background: 'rgba(71, 85, 105, 0.1)', color: '#475569' }}><Zap size={22} /></div>
+                                                    <div className={s.featureCardTitle}>Free Tier</div>
+                                                    <p className={s.featureCardDesc}>Basic health tracking for 2 animals. No AI features.</p>
+                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>₹0<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
+                                                </div>
+                                                <div className={s.featureCard} style={{ border: '2px solid #2d5f3f' }}>
+                                                    <div className={s.featureCardIcon} style={{ background: '#2d5f3f', color: '#fff' }}><Crown size={22} /></div>
+                                                    <div className={s.featureCardTitle}>Pro Tier</div>
+                                                    <p className={s.featureCardDesc}>Unlimited animals & full AI diagnostics. Priority support.</p>
+                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto', color: '#2d5f3f' }}>₹499<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
+                                                </div>
+                                                <div className={s.featureCard}>
+                                                    <div className={s.featureCardIcon} style={{ background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed' }}><TrendingUp size={22} /></div>
+                                                    <div className={s.featureCardTitle}>Enterprise</div>
+                                                    <p className={s.featureCardDesc}>Custom deployment for labs & shelters. Dedicated SLA.</p>
+                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>Custom</div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </motion.div>
                             )}
 
@@ -1512,43 +1515,47 @@ export default function AdminPortal() {
                                         <button className={s.primaryBtn} onClick={() => navigate('/settings?tab=advanced')}><SettingsIcon size={16} /> Advanced Config</button>
                                     </div>
 
-                                    <div className={s.contentGrid}>
-                                        <div className={s.contentCard}>
-                                            <div className={s.contentCardHead}>
-                                                <div className={s.contentCardTitle}><Lock size={18} color="#ef4444" /> Security Firewall</div>
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                    <ShieldAlert size={18} color="#ef4444" />
-                                                    <span style={{ fontWeight: 700 }}>Intrusion Detection (IDS)</span>
-                                                    <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>Active</span>
+                                    {settingsLoading ? (
+                                        <AdvancedLoader type="settings" compact={false} fullScreen={false} />
+                                    ) : (
+                                        <div className={s.contentGrid}>
+                                            <div className={s.contentCard}>
+                                                <div className={s.contentCardHead}>
+                                                    <div className={s.contentCardTitle}><Lock size={18} color="#ef4444" /> Security Firewall</div>
                                                 </div>
-                                                <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                    <Lock size={18} color="#64748b" />
-                                                    <span style={{ fontWeight: 700 }}>2FA Protocol</span>
-                                                    <span style={{ marginLeft: 'auto', color: '#166534', fontWeight: 800 }}>Strict</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                    <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <ShieldAlert size={18} color="#ef4444" />
+                                                        <span style={{ fontWeight: 700 }}>Intrusion Detection (IDS)</span>
+                                                        <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>Active</span>
+                                                    </div>
+                                                    <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <Lock size={18} color="#64748b" />
+                                                        <span style={{ fontWeight: 700 }}>2FA Protocol</span>
+                                                        <span style={{ marginLeft: 'auto', color: '#166534', fontWeight: 800 }}>Strict</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        <div className={s.contentCard}>
-                                            <div className={s.contentCardHead}>
-                                                <div className={s.contentCardTitle}><Globe size={18} color="#0ea5e9" /> Global API Status</div>
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                    <Zap size={18} color="#f59e0b" />
-                                                    <span style={{ fontWeight: 700 }}>Payment Gateway (Razorpay)</span>
-                                                    <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>Operational</span>
+                                            <div className={s.contentCard}>
+                                                <div className={s.contentCardHead}>
+                                                    <div className={s.contentCardTitle}><Globe size={18} color="#0ea5e9" /> Global API Status</div>
                                                 </div>
-                                                <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                    <CheckCircle size={18} color="#22c55e" />
-                                                    <span style={{ fontWeight: 700 }}>AI Model Server (inference)</span>
-                                                    <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>0.4s Latency</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                    <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <Zap size={18} color="#f59e0b" />
+                                                        <span style={{ fontWeight: 700 }}>Payment Gateway (Razorpay)</span>
+                                                        <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>Operational</span>
+                                                    </div>
+                                                    <div className={s.miniAnimal} style={{ background: '#fff', border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <CheckCircle size={18} color="#22c55e" />
+                                                        <span style={{ fontWeight: 700 }}>AI Model Server (inference)</span>
+                                                        <span className={`${s.pill} ${s.pillActive}`} style={{ marginLeft: 'auto', background: '#dcfce7', color: '#166534' }}>0.4s Latency</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </motion.div>
                             )}
 
@@ -1688,10 +1695,7 @@ export default function AdminPortal() {
                                             </div>
                                         </div>
                                         {adminAccessLoading ? (
-                                            <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-                                                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
-                                                <p style={{ margin: 0, fontSize: '0.85rem' }}>Loading admin roster…</p>
-                                            </div>
+                                            <AdvancedLoader type="admin" compact={true} fullScreen={false} />
                                         ) : adminUsers.filter(u => !adminSearch || `${u.full_name}${u.email}`.toLowerCase().includes(adminSearch.toLowerCase())).length === 0 ? (
                                             <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
                                                 <ShieldOff size={32} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />

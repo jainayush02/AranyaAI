@@ -124,9 +124,9 @@ export default function Settings() {
         const updated = { ...settings, language: val };
         setSettings(updated);
 
-        // Visual feedback that it's applying
+        // Feedback is now immediate
         setIsApplying(true);
-        setTimeout(() => setIsApplying(false), 800);
+        setIsApplying(false);
 
         if (user) {
             const updatedUser = { ...user, settings: updated };

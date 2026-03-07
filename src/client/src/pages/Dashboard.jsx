@@ -185,7 +185,7 @@ export default function Dashboard() {
         return <Navigate to="/admin-portal" replace />;
     }
 
-    if (loading) return <AdvancedLoader message="Syncing your herd data with Aranya AI..." />;
+    if (loading) return <AdvancedLoader type="home" />;
 
     return (
         <div className={`container ${styles.dashboard} animate-fade-in`}>
