@@ -30,6 +30,11 @@ export default function UserProfileMenu({ user, onLogout }) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Reset imgError whenever the user's profile picture changes
+    useEffect(() => {
+        setImgError(false);
+    }, [user?.profilePic]);
+
     // Format initials
     const name = user?.full_name || user?.email?.split('@')[0] || user?.mobile || 'User';
     const identifier = user?.email || user?.mobile || '';

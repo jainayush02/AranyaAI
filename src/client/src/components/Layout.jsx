@@ -52,7 +52,11 @@ export default function Layout() {
 
         syncUser();
         window.addEventListener('storage', syncUser);
-        return () => window.removeEventListener('storage', syncUser);
+        window.addEventListener('userUpdated', syncUser);
+        return () => {
+            window.removeEventListener('storage', syncUser);
+            window.removeEventListener('userUpdated', syncUser);
+        };
     }, []);
 
     const handleLogout = () => {

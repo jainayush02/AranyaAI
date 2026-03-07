@@ -118,7 +118,10 @@ export default function Profile() {
         const dob = updatedUser.dateOfBirth ? new Date(updatedUser.dateOfBirth).toISOString().split('T')[0] : '';
         setDateOfBirth(dob);
         setAge(updatedUser.age || calcAge(dob) || '');
+
+        // Dispatch combined signal for total sync
         window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('userUpdated'));
     };
 
     const handleImageSelect = (e) => {
