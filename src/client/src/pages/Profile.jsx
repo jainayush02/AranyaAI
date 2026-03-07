@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck } from 'lucide-react';
+import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck, Calendar, Users as UsersIcon, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './Profile.module.css';
@@ -10,6 +10,19 @@ const getAuthHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 });
 
+// Auto-calculate age from DOB
+const calcAge = (dob) => {
+    if (!dob) return '';
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age > 0 ? age : '';
+};
+
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : 'N/A';
+
 export default function Profile() {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
@@ -17,6 +30,9 @@ export default function Profile() {
     const [fullName, setFullName] = useState('');
     const [mobile, setMobile] = useState('');
     const [email, setEmail] = useState('');
+    const [gender, setGender] = useState('');
+    const [dateOfBirth, setDateOfBirth] = useState('');
+    const [age, setAge] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [pendingImage, setPendingImage] = useState(null);
@@ -40,6 +56,17 @@ export default function Profile() {
     const [resendTimer, setResendTimer] = useState(0);
 
     useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const res = await axios.get('/api/auth/profile', getAuthHeaders());
+                if (res.data) {
+                    syncUser(res.data);
+                }
+            } catch (err) {
+                console.error('Real-time sync failed:', err);
+            }
+        };
+
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             try {
@@ -48,9 +75,22 @@ export default function Profile() {
                 setFullName(parsed.full_name || '');
                 setMobile(parsed.mobile || '');
                 setEmail(parsed.email || '');
+                setGender(parsed.gender || '');
+                const dob = parsed.dateOfBirth ? new Date(parsed.dateOfBirth).toISOString().split('T')[0] : '';
+                setDateOfBirth(dob);
+                setAge(parsed.age || calcAge(dob) || '');
             } catch (e) { }
         }
+        fetchProfile();
     }, []);
+
+    // Auto-calculate age when DOB changes
+    useEffect(() => {
+        if (dateOfBirth) {
+            const calculated = calcAge(dateOfBirth);
+            if (calculated) setAge(calculated);
+        }
+    }, [dateOfBirth]);
 
     // Resend timer countdown
     useEffect(() => {
@@ -74,6 +114,10 @@ export default function Profile() {
         setUser(updatedUser);
         setMobile(updatedUser.mobile || '');
         setEmail(updatedUser.email || '');
+        setGender(updatedUser.gender || '');
+        const dob = updatedUser.dateOfBirth ? new Date(updatedUser.dateOfBirth).toISOString().split('T')[0] : '';
+        setDateOfBirth(dob);
+        setAge(updatedUser.age || calcAge(dob) || '');
         window.dispatchEvent(new Event('storage'));
     };
 
@@ -122,15 +166,21 @@ export default function Profile() {
         const mobileChanged = mobile !== (user.mobile || '') && mobile.trim().length > 0;
         const emailChanged = email !== (user.email || '') && email.trim().length > 0;
         const nameChanged = fullName !== (user.full_name || '');
+        const genderChanged = gender !== (user.gender || '');
+        const dobChanged = dateOfBirth !== (user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '');
+        const ageChanged = String(age) !== String(user.age || '');
 
-        // Save name immediately if changed
-        if (nameChanged) {
+        // Save name + personal info if changed
+        if (nameChanged || genderChanged || dobChanged || ageChanged) {
             setIsSaving(true);
             try {
                 const res = await axios.put('/api/auth/profile', {
                     email: user.email,
                     mobile: user.mobile,
-                    full_name: fullName
+                    full_name: fullName,
+                    gender,
+                    dateOfBirth: dateOfBirth || null,
+                    age: age ? Number(age) : null
                 }, getAuthHeaders());
                 syncUser(res.data.user);
             } catch (_) { }
@@ -151,7 +201,7 @@ export default function Profile() {
             } catch (err) {
                 setVerifyError(err.response?.data?.message || 'Failed to send verification code.');
             }
-            return; // Don't close editing yet
+            return;
         }
 
         // Email changed → start verification
@@ -168,7 +218,7 @@ export default function Profile() {
             } catch (err) {
                 setVerifyError(err.response?.data?.message || 'Failed to send verification code.');
             }
-            return; // Don't close editing yet
+            return;
         }
 
         // No verification needed, just close
@@ -259,23 +309,21 @@ export default function Profile() {
         setEmail(user.email || '');
     };
 
-    if (!user) return <div className="p-8">Loading profile...</div>;
+    const genderLabel = (g) => {
+        const map = { male: 'Male', female: 'Female', other: 'Other', prefer_not_to_say: 'Prefer not to say', '': '—' };
+        return map[g] || '—';
+    };
+
+    if (!user) return <div className={styles.loading}><Loader2 className={styles.spin} size={24} /> Loading Profile...</div>;
+
+    const roleLabel = user.role === 'admin' ? 'System Administrator' : 'Platform User';
 
     return (
-        <div className={`container ${styles.pageContainer} animate-fade-in`}>
-            <div className={styles.pageHeader}>
-                <h1 className={styles.pageTitle}>Profile</h1>
-                <p className={styles.pageSubtitle}>Manage your personal information</p>
-            </div>
+        <div className={styles.pageContainer}>
+            <div className={styles.profileLayout}>
 
-            <div className={styles.card}>
-                <div className={styles.cardHeader}>
-                    <User className={styles.cardIcon} size={28} />
-                    <h2 className={styles.cardTitle}>Personal Information</h2>
-                </div>
-
-                {/* Avatar */}
-                <div className={styles.avatarContainer}>
+                {/* ── LEFT SIDEBAR: PROFILE SUMMARY ── */}
+                <aside className={styles.summaryCard}>
                     <div className={styles.avatarWrapper}>
                         <div className={styles.avatar}>
                             {previewUrl ? (
@@ -298,228 +346,228 @@ export default function Profile() {
                                 disabled={isUploading}
                                 title="Change Photo"
                             >
-                                <Camera size={18} />
+                                <Camera size={20} />
                             </button>
                         )}
+
+                        <AnimatePresence>
+                            {pendingImage && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className={styles.photoActionsOverlay}
+                                >
+                                    <button className={styles.confirmPhotoBtn} onClick={handlePhotoSave} disabled={isUploading}>
+                                        {isUploading ? <Loader2 className={styles.spin} size={18} /> : <Check size={20} />}
+                                    </button>
+                                    <button className={styles.cancelPhotoBtn} onClick={() => { setPendingImage(null); setPreviewUrl(''); }} disabled={isUploading}>
+                                        <X size={20} />
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        style={{ display: 'none' }}
-                        accept="image/*"
-                        onChange={handleImageSelect}
-                    />
 
-                    <AnimatePresence>
-                        {pendingImage && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 10 }}
-                                className={styles.photoActionsOverlay}
-                            >
-                                <button
-                                    className={styles.confirmPhotoBtn}
-                                    onClick={handlePhotoSave}
-                                    disabled={isUploading}
+                    <h2 className={styles.userName}>
+                        {fullName || 'Unnamed User'}
+                        <AnimatePresence>
+                            {user?.isVerified && (
+                                <motion.span
+                                    initial={{ opacity: 0, scale: 0.5, x: 5 }}
+                                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 0.5, x: 5 }}
+                                    transition={{ type: 'spring', damping: 15 }}
+                                    style={{ display: 'inline-flex', alignItems: 'center' }}
                                 >
-                                    {isUploading ? <Loader2 className="spin" size={16} /> : <Check size={18} />}
-                                    <span>Save</span>
-                                </button>
-                                <button
-                                    className={styles.cancelPhotoBtn}
-                                    onClick={() => { setPendingImage(null); setPreviewUrl(''); }}
-                                    disabled={isUploading}
-                                >
-                                    <X size={18} />
-                                    <span>Cancel</span>
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                                    <CheckCircle size={18} className={styles.verifiedIcon} />
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                    </h2>
+                    <div className={styles.userRole}>{roleLabel}</div>
 
-                {/* Full Name */}
-                <div className={styles.formGroup}>
-                    <label className={styles.label}>Full Name</label>
-                    <input
-                        type="text"
-                        className={styles.input}
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        disabled={!isEditing}
-                    />
-                </div>
-
-                {/* Email */}
-                <div className={styles.formGroup}>
-                    <label className={styles.label}>
-                        <Mail size={16} /> Email
-                    </label>
-                    <input
-                        type="email"
-                        className={styles.input}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={!isEditing}
-                        placeholder="Add email address"
-                    />
-                    <span className={styles.helpText}>
-                        {user.email ? 'Verified ✓ — Changing requires OTP verification' : 'Add an email to enable email login'}
-                    </span>
-                </div>
-
-                {/* Mobile */}
-                <div className={styles.formGroup}>
-                    <label className={styles.label}>
-                        <Phone size={16} /> Mobile Number
-                    </label>
-                    <input
-                        type="tel"
-                        className={styles.input}
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value)}
-                        disabled={!isEditing}
-                        placeholder="+91XXXXXXXXXX"
-                    />
-                    <span className={styles.helpText}>
-                        {user.mobile ? 'Verified ✓ — Changing requires OTP verification' : 'Add a mobile number to enable mobile login'}
-                    </span>
-                </div>
-
-                {/* Success / Error Messages */}
-                {verifyMsg && !showMobileVerify && !showEmailVerify && (
-                    <div className={styles.successMsg}>{verifyMsg}</div>
-                )}
-
-                {/* Mobile Verification Box */}
-                <AnimatePresence>
-                    {showMobileVerify && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className={styles.verifyBox}
-                        >
-                            <div className={styles.verifyHeader}>
-                                <ShieldCheck size={20} />
-                                <strong>Verify Mobile Number</strong>
-                            </div>
-                            <p className={styles.verifyText}>
-                                We've sent a 6-digit code to <strong>{pendingMobile}</strong>. Enter it below to link this number.
-                            </p>
-
-                            {verifyMsg && <div className={styles.successMsg}>{verifyMsg}</div>}
-                            {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
-
-                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                <input
-                                    type="text"
-                                    className={styles.input}
-                                    value={mobileOtp}
-                                    onChange={(e) => setMobileOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="6-digit code"
-                                    maxLength={6}
-                                    style={{ flex: 1 }}
-                                />
-                                <button className={styles.saveBtn} onClick={handleVerifyMobileOtp}>
-                                    Verify
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-                                <button
-                                    className={styles.linkBtn}
-                                    onClick={handleResendMobileOtp}
-                                    disabled={resendTimer > 0}
-                                >
-                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-                                </button>
-                                <button className={styles.linkBtn} onClick={cancelVerification}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Email Verification Box */}
-                <AnimatePresence>
-                    {showEmailVerify && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className={styles.verifyBox}
-                        >
-                            <div className={styles.verifyHeader}>
-                                <ShieldCheck size={20} />
-                                <strong>Verify Email Address</strong>
-                            </div>
-                            <p className={styles.verifyText}>
-                                We've sent a 6-digit code to <strong>{pendingEmail}</strong>. Enter it below to link this email.
-                            </p>
-
-                            {verifyMsg && <div className={styles.successMsg}>{verifyMsg}</div>}
-                            {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
-
-                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                <input
-                                    type="text"
-                                    className={styles.input}
-                                    value={emailOtp}
-                                    onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="6-digit code"
-                                    maxLength={6}
-                                    style={{ flex: 1 }}
-                                />
-                                <button className={styles.saveBtn} onClick={handleVerifyEmailOtp}>
-                                    Verify
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-                                <button
-                                    className={styles.linkBtn}
-                                    onClick={handleResendEmailOtp}
-                                    disabled={resendTimer > 0}
-                                >
-                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-                                </button>
-                                <button className={styles.linkBtn} onClick={cancelVerification}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Action Buttons */}
-                <div className={styles.actionArea}>
-                    {isEditing ? (
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button className={styles.saveBtn} onClick={handleSave} disabled={isSaving}>
-                                {isSaving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                            <button
-                                className="btn-secondary"
-                                onClick={() => {
-                                    setIsEditing(false);
-                                    setFullName(user.full_name || '');
-                                    setMobile(user.mobile || '');
-                                    setEmail(user.email || '');
-                                    cancelVerification();
-                                }}
-                            >
-                                Cancel
-                            </button>
+                    <div className={styles.highlightsArea}>
+                        <div className={styles.highlightPill}>
+                            <span className={styles.pillLabel}>Membership</span>
+                            <span className={styles.pillValue}>
+                                {user.plan || 'Standard'}
+                                <span className={styles.pillSubtext}>Account Plan</span>
+                            </span>
                         </div>
-                    ) : (
-                        <button className={styles.saveBtn} onClick={() => setIsEditing(true)}>
-                            Edit Profile
-                        </button>
-                    )}
-                </div>
+                        <div className={styles.highlightPill}>
+                            <span className={styles.pillLabel}>Aranya Legacy</span>
+                            <span className={styles.pillValue}>
+                                {(() => {
+                                    const created = user?.createdAt ? new Date(user.createdAt) : new Date();
+                                    const diff = new Date() - created;
+                                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                                    return isNaN(days) ? 1 : Math.max(1, days);
+                                })()} Days
+                                <span className={styles.pillSubtext}>Journey Together</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageSelect} />
+                </aside>
+
+                {/* ── MAIN CONTENT: EDITABLE FORMS ── */}
+                <main className={styles.mainContent}>
+
+                    {/* section 1: Account Identification */}
+                    <div className={styles.card}>
+                        <div className={styles.cardHeader}>
+                            <User className={styles.cardIcon} size={22} />
+                            <h3 className={styles.cardTitle}>Account Identity</h3>
+                        </div>
+
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                                <label className={styles.label}>Display Name</label>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="Enter your full name"
+                                />
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}><Mail size={14} /> Email Address</label>
+                                <input
+                                    type="email"
+                                    className={styles.input}
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="email@example.com"
+                                />
+                                {user.email && <span className={styles.helpText}>Identity verified ✓</span>}
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}><Phone size={14} /> Mobile Number</label>
+                                <input
+                                    type="tel"
+                                    className={styles.input}
+                                    value={mobile}
+                                    onChange={(e) => setMobile(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="+91 XXX XXX XXXX"
+                                />
+                                {user.mobile && <span className={styles.helpText}>Contact verified ✓</span>}
+                            </div>
+                        </div>
+
+                        {/* Verification Modals within the column */}
+                        <AnimatePresence>
+                            {showMobileVerify && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={styles.verifyBox}>
+                                    <div className={styles.verifyHeader}><ShieldCheck size={18} /> Verify Phone</div>
+                                    <p className={styles.verifyText}>Enter the 6-digit code sent to <strong>{pendingMobile}</strong></p>
+                                    {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
+                                    <input
+                                        type="text"
+                                        className={styles.otpInput}
+                                        value={mobileOtp}
+                                        onChange={(e) => setMobileOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        placeholder="000000"
+                                    />
+                                    <div className={styles.verifyActions}>
+                                        <button className={styles.saveBtn} style={{ padding: '0.6rem 1.5rem' }} onClick={handleVerifyMobileOtp}>Submit</button>
+                                        <button className={styles.linkBtn} onClick={handleResendMobileOtp} disabled={resendTimer > 0}>
+                                            {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+                                        </button>
+                                        <button className={styles.linkBtn} onClick={cancelVerification}>Cancel</button>
+                                    </div>
+                                </motion.div>
+                            )}
+                            {showEmailVerify && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={styles.verifyBox}>
+                                    <div className={styles.verifyHeader}><ShieldCheck size={18} /> Verify Email</div>
+                                    <p className={styles.verifyText}>Enter the 6-digit code sent to <strong>{pendingEmail}</strong></p>
+                                    {verifyError && <div className={styles.errorMsg}>{verifyError}</div>}
+                                    <input
+                                        type="text"
+                                        className={styles.otpInput}
+                                        value={emailOtp}
+                                        onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        placeholder="000000"
+                                    />
+                                    <div className={styles.verifyActions}>
+                                        <button className={styles.saveBtn} style={{ padding: '0.6rem 1.5rem' }} onClick={handleVerifyEmailOtp}>Submit</button>
+                                        <button className={styles.linkBtn} onClick={handleResendEmailOtp} disabled={resendTimer > 0}>
+                                            {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
+                                        </button>
+                                        <button className={styles.linkBtn} onClick={cancelVerification}>Cancel</button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* section 2: Profile Metrics */}
+                    <div className={styles.card}>
+                        <div className={styles.cardHeader}>
+                            <UsersIcon className={styles.cardIcon} size={22} />
+                            <h3 className={styles.cardTitle}>Personal Details</h3>
+                        </div>
+
+                        <div className={styles.formGrid}>
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Gender</label>
+                                <select className={styles.select} value={gender} onChange={(e) => setGender(e.target.value)} disabled={!isEditing}>
+                                    <option value="">Choose...</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                    <option value="prefer_not_to_say">Private</option>
+                                </select>
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}><Calendar size={14} /> Birth Date</label>
+                                <input
+                                    type="date"
+                                    className={styles.input}
+                                    value={dateOfBirth}
+                                    onChange={(e) => setDateOfBirth(e.target.value)}
+                                    disabled={!isEditing}
+                                    max={new Date().toISOString().split('T')[0]}
+                                />
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Age (Final)</label>
+                                <input
+                                    type="number"
+                                    className={styles.input}
+                                    value={age}
+                                    onChange={(e) => setAge(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="Calculated automatically"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Save / Edit Button Area */}
+                        <div className={styles.actionArea}>
+                            {isEditing ? (
+                                <>
+                                    <button className={styles.cancelBtn} onClick={() => setIsEditing(false)}>Discard</button>
+                                    <button className={styles.saveBtn} onClick={handleSave} disabled={isSaving}>
+                                        {isSaving ? <Loader2 className={styles.spin} size={16} /> : 'Save Profile'}
+                                    </button>
+                                </>
+                            ) : (
+                                <button className={styles.saveBtn} onClick={() => setIsEditing(true)}>Update Profile Details</button>
+                            )}
+                        </div>
+                    </div>
+                </main>
             </div>
         </div>
     );

@@ -1,28 +1,35 @@
 .overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.4);
-    backdrop-filter: blur(12px) saturate(140%);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: 2rem;
 }
 
 .chatWrapper {
-    width: 100%;
-    max-width: 1200px;
-    height: 90vh;
+    width: 90%;
+    max-width: 1100px;
+    height: 85vh;
     background: #ffffff;
     border-radius: 24px;
     display: flex;
     overflow: hidden;
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.08), 0 0 0 2px transparent;
-    animation: chatBorderPulse 4s ease-in-out infinite;
+    position: relative;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.25);
+    z-index: 1001;
+    pointer-events: auto;
+    border: 1px solid rgba(45, 95, 63, 0.15);
+}
+
+.mainChat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    position: relative;
 }
 
 @keyframes chatBorderPulse {
@@ -173,13 +180,22 @@
 }
 
 .chatTitle {
-    font-size: 0.95rem;
-    font-weight: 500;
+    font-size: 0.98rem;
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
     transition: opacity 0.2s;
+    color: #334155;
+}
+
+.historyLabelRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-right: 0.5rem;
 }
 
 .historyLabel {
@@ -188,9 +204,38 @@
     color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    margin-bottom: 1rem;
     padding-left: 0.5rem;
     transition: opacity 0.2s;
+}
+
+.bulkActionsHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bulkActionBtn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.bulkActionBtn:hover {
+    color: var(--primary);
+    background: rgba(45, 95, 63, 0.05);
+}
+
+.bulkDeleteIcon:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
 }
 
 .sidebarCollapsed .newChatText,
@@ -231,6 +276,25 @@
     align-items: center;
     flex: 1;
     overflow: hidden;
+    gap: 0.5rem;
+}
+
+.checkbox {
+    flex-shrink: 0;
+    color: #cbd5e1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.checkbox:hover {
+    color: var(--primary);
+}
+
+.checkboxChecked {
+    color: var(--primary);
 }
 
 .chatActions {
@@ -279,13 +343,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px) saturate(160%);
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     z-index: 20;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
 }
 
 .chatHeaderCompact {
@@ -369,11 +435,51 @@
 }
 
 .aiBubble {
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
     color: #334155;
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.04);
     border-bottom-left-radius: 4px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.messageContent {
+    position: relative;
+    width: 100%;
+}
+
+.copyBtn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+    border: 1px solid #e2e8f0;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #64748b;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    opacity: 0;
+    transform: translateY(-5px);
+}
+
+.aiBubble:hover .copyBtn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.copyBtn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: #ffffff;
+    box-shadow: 0 6px 15px rgba(45, 95, 63, 0.15);
+    transform: scale(1.05);
 }
 
 /* Ensure basic markdown elements look good inside AI bubble */
@@ -514,29 +620,142 @@
     animation-delay: -0.16s;
 }
 
-/* Floating Toggle Button */
+/* Floating Toggle Button — Premium Pill */
 .chatToggle {
     position: fixed;
-    bottom: 2.5rem;
-    right: 2.5rem;
-    width: 68px;
-    height: 68px;
-    background: linear-gradient(135deg, var(--primary), #1a4a38);
-    color: white;
-    border: none;
-    border-radius: 50%;
+    bottom: 2rem;
+    right: 2rem;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.85rem;
+    padding: 0 1.4rem 0 0.8rem;
+    height: 50px;
+    background: linear-gradient(135deg, #1c3a2a 0%, #11261a 100%);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 100px;
     cursor: pointer;
-    box-shadow: 0 12px 30px rgba(45, 95, 63, 0.35);
+    box-shadow:
+        0 15px 35px -8px rgba(0, 0, 0, 0.35),
+        0 8px 15px -4px rgba(28, 58, 42, 0.2);
     z-index: 500;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .chatToggle:hover {
-    transform: scale(1.08) translateY(-4px);
-    box-shadow: 0 20px 40px rgba(45, 95, 63, 0.45);
+    transform: translateY(-5px) scale(1.02);
+    background: linear-gradient(135deg, #224733 0%, #152f20 100%);
+    box-shadow:
+        0 30px 60px -12px rgba(0, 0, 0, 0.5),
+        0 15px 30px -8px rgba(34, 71, 51, 0.4);
+}
+
+.chatToggleIcon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chatToggleLabel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.15;
+}
+
+.chatToggleName {
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.chatToggleSub {
+    font-size: 0.65rem;
+    font-weight: 600;
+    opacity: 0.7;
+    letter-spacing: 0.02em;
+}
+
+/* live dot */
+.chatToggleDot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+    z-index: -1;
+    opacity: 0.4;
+}
+
+.chatToggleDot::after {
+    content: '';
+    position: absolute;
+    inset: -15px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: statusRipple 4s infinite;
+}
+
+@keyframes statusRipple {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1.8);
+        opacity: 0;
+    }
+}
+
+@keyframes dotBlink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes togglePulse {
+
+    0%,
+    100% {
+        box-shadow: 0 8px 32px rgba(45, 95, 63, 0.45), 0 0 0 0 rgba(45, 95, 63, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 8px 32px rgba(45, 95, 63, 0.45), 0 0 0 8px rgba(45, 95, 63, 0);
+    }
+}
+
+.rotatingLogo {
+    animation: logoRotate 10s linear infinite;
+    transform-origin: center;
+}
+
+@keyframes logoRotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .closeMainBtn {
@@ -609,11 +828,12 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-top: 8rem;
     height: 100%;
     max-width: 900px;
     margin: 0 auto;
-    gap: 2.5rem;
+    gap: 2rem;
 }
 
 .emptyState {
@@ -626,8 +846,10 @@
 
 .emptyState h3 {
     margin: 1.5rem 0 0.5rem 0;
-    font-weight: 700;
-    font-size: 1.4rem;
+    font-weight: 800;
+    font-size: 1.75rem;
+    letter-spacing: -0.02em;
+    color: #0f172a;
 }
 
 .emptyState p {
@@ -636,36 +858,39 @@
 }
 
 .botGlow {
-    width: 64px;
-    height: 64px;
-    background: #ffffff;
-    border-radius: 18px;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+    border-radius: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--primary);
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
     position: relative;
-    box-shadow: 0 12px 30px rgba(45, 95, 63, 0.1);
+    box-shadow:
+        0 20px 40px rgba(45, 95, 63, 0.12),
+        inset 0 0 0 1px rgba(255, 255, 255, 1);
     animation: floatbot 4s ease-in-out infinite;
+    border: 1px solid rgba(45, 95, 63, 0.08);
 }
 
 .botGlow::before,
 .botGlow::after {
     content: '';
     position: absolute;
-    inset: 0;
-    border: 1px solid var(--primary);
-    border-radius: 18px;
+    inset: -10px;
+    border: 2px solid var(--primary);
+    border-radius: 30px;
     opacity: 0;
 }
 
 .botGlow::before {
-    animation: liquidripple 3s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+    animation: liquidripple 3s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
 .botGlow::after {
-    animation: liquidripple 3s cubic-bezier(0, 0.2, 0.8, 1) infinite 1.5s;
+    animation: liquidripple 3s cubic-bezier(0.16, 1, 0.3, 1) infinite 1.5s;
 }
 
 @keyframes floatbot {

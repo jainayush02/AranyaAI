@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Animal = require('../models/Animal');
 const ActivityLog = require('../models/ActivityLog');
 const Faq = require('../models/Faq');
+const { logActivity } = require('../utils/logger');
 
 // ── Middleware ──────────────────────────────────────────
 const authenticate = async (req, res, next) => {
@@ -25,7 +26,7 @@ const adminOnly = (req, res, next) => {
 };
 
 const log = async (type, adminUser, detail) => {
-    try { await ActivityLog.create({ type, user: adminUser?.full_name || adminUser?.email || 'Admin', userId: adminUser?._id, detail }); } catch { }
+    await logActivity(type, adminUser, detail);
 };
 
 // ═══════════════════════════════════════════════════════
@@ -113,16 +114,21 @@ router.get('/users', authenticate, adminOnly, async (req, res) => {
 });
 
 // Single user detail + their animals + logs
+// Single user detail + their animals + logs
 router.get('/users/:id', authenticate, adminOnly, async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select('-password -otp -otpExpires');
         if (!user) return res.status(404).json({ message: 'User not found' });
+
         const [animals, logs] = await Promise.all([
-            Animal.find({ owner: req.params.id }).sort({ createdAt: -1 }).limit(20),
-            ActivityLog.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(30)
+            Animal.find({ user_id: req.params.id }).sort({ createdAt: -1 }),
+            ActivityLog.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(100)
         ]);
         res.json({ user, animals, logs });
-    } catch (err) { res.status(500).json({ message: err.message }); }
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+        res.status(500).json({ message: err.message });
+    }
 });
 
 // Block / Unblock
@@ -155,7 +161,7 @@ router.delete('/users/:id', authenticate, adminOnly, async (req, res) => {
         if (req.params.id === req.user._id.toString()) return res.status(400).json({ message: 'Cannot delete yourself' });
         const user = await User.findByIdAndDelete(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
-        await Animal.deleteMany({ owner: req.params.id });
+        await Animal.deleteMany({ user_id: req.params.id });
         await log('admin', req.user, `Deleted user: ${user.full_name || user.email}`);
         res.json({ message: 'Deleted' });
     } catch (err) { res.status(500).json({ message: err.message }); }

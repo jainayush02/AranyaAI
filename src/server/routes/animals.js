@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const Animal = require('../models/Animal');
 const HealthLog = require('../models/HealthLog');
 const axios = require('axios');
+const { logActivity } = require('../utils/logger');
 
 // @route   GET /api/animals
 // @desc    Get all animals for valid user
@@ -41,6 +42,7 @@ router.post('/', auth, async (req, res) => {
         });
 
         const animal = await newAnimal.save();
+        await logActivity('animal_registry', req.user, `Added new animal: ${name} (${breed})`);
         res.json(animal);
     } catch (err) {
         console.error(err.message);
@@ -68,6 +70,7 @@ router.delete('/:id', auth, async (req, res) => {
         // Optional: Also delete all related HealthLogs here
         await HealthLog.deleteMany({ animal_id: req.params.id });
 
+        await logActivity('animal_registry', req.user, `Removed animal: ${animal.name}`);
         res.json({ msg: 'Animal removed' });
     } catch (err) {
         console.error(err.message);

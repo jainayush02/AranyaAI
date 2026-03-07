@@ -11,6 +11,7 @@ const nodemailer = require('nodemailer');
 const axios = require('axios');
 const { OAuth2Client } = require('google-auth-library');
 const ActivityLog = require('../models/ActivityLog');
+const { logActivity } = require('../utils/logger');
 
 // ── JWT Auth Middleware (for protected routes) ──
 const authMiddleware = (req, res, next) => {
@@ -340,6 +341,10 @@ router.post('/login', async (req, res) => {
         user.loginCount = (user.loginCount || 0) + 1;
         await user.save();
 
+        try {
+            await logActivity('login', user, `User logged in using ${password ? 'password' : 'OTP'}`);
+        } catch (_) { }
+
         const payload = { user: { id: user.id } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
@@ -434,6 +439,10 @@ router.post('/admin-login', async (req, res) => {
         }
 
         const payload = { user: { id: user.id, role: user.role } };
+        try {
+            await logActivity('admin', user, `Administrator logged in from IP ${ip}`);
+        } catch (_) { }
+
         jwt.sign(payload, secret, { expiresIn: '4h' }, (err, token) => {
             if (err) throw err;
             console.log(`[AUDIT] Admin login success: ${user.email} from IP ${ip} at ${new Date().toISOString()}`);
@@ -454,18 +463,36 @@ router.post('/admin-login', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+// @route GET /api/auth/profile
+// @desc  Get current user profile
+router.get('/profile', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 // @route PUT /api/auth/profile
 // @desc  Update user profile (e.g., full name, mobile)
 router.put('/profile', authMiddleware, async (req, res) => {
     try {
-        const { email, mobile, new_mobile, full_name } = req.body;
+        const { email, mobile, new_mobile, full_name, gender, dateOfBirth, age } = req.body;
 
-        let user = await User.findOne({
-            $or: [
-                email ? { email } : null,
-                mobile ? { mobile } : null
-            ].filter(Boolean)
-        });
+        let user = await User.findById(req.user.id);
+
+        if (!user) {
+            // Fallback: try by email/mobile
+            user = await User.findOne({
+                $or: [
+                    email ? { email } : null,
+                    mobile ? { mobile } : null
+                ].filter(Boolean)
+            });
+        }
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -473,8 +500,14 @@ router.put('/profile', authMiddleware, async (req, res) => {
 
         if (full_name !== undefined) user.full_name = full_name;
         if (new_mobile !== undefined) user.mobile = new_mobile;
+        if (gender !== undefined) user.gender = gender;
+        if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth || null;
+        if (age !== undefined) user.age = age || null;
 
         await user.save();
+        try {
+            await logActivity('profile', user, `Updated profile information`);
+        } catch (_) { }
 
         res.status(200).json({
             message: 'Profile updated',
@@ -484,7 +517,10 @@ router.put('/profile', authMiddleware, async (req, res) => {
                 mobile: user.mobile,
                 role: user.role,
                 full_name: user.full_name,
-                profilePic: user.profilePic
+                profilePic: user.profilePic,
+                gender: user.gender,
+                dateOfBirth: user.dateOfBirth,
+                age: user.age
             }
         });
     } catch (error) {
@@ -516,6 +552,10 @@ router.post('/profile/upload', authMiddleware, upload.single('profilePic'), asyn
         // Save path to DB (relative path to be served)
         user.profilePic = `/uploads/${req.file.filename}`;
         await user.save();
+
+        try {
+            await logActivity('profile', user, `Updated profile picture`);
+        } catch (_) { }
 
         res.status(200).json({
             message: 'Profile picture uploaded',
@@ -788,6 +828,9 @@ router.post('/google', async (req, res) => {
             user.lastLoginAt = new Date();
             user.loginCount = (user.loginCount || 0) + 1;
             await user.save();
+            try {
+                await logActivity('login', user, `Logged in via Google SSO`);
+            } catch (_) { }
         }
 
         const payload = { user: { id: user.id } };
@@ -855,6 +898,10 @@ router.post('/google-admin', async (req, res) => {
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
 
         const payload = { user: { id: user.id, role: user.role } };
+        try {
+            await logActivity('admin', user, `Administrator logged in via Google SSO`);
+        } catch (_) { }
+
         jwt.sign(payload, secret, { expiresIn: '4h' }, (err, token) => {
             if (err) throw err;
             console.log(`[AUDIT] Admin Google login: ${user.email} at ${new Date().toISOString()}`);
@@ -951,11 +998,14 @@ router.post('/verify-mobile/confirm', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired verification code.' });
         }
 
-        // Link mobile to account
         user.mobile = mobile;
         user.otp = undefined;
         user.otpExpires = undefined;
         await user.save();
+
+        try {
+            await logActivity('profile', user, `Verified mobile number: ${mobile}`);
+        } catch (_) { }
 
         res.status(200).json({
             message: 'Mobile number verified and linked!',
@@ -1067,6 +1117,10 @@ router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
         user.otpExpires = undefined;
         user.isVerified = true;
         await user.save();
+
+        try {
+            await logActivity('profile', user, `Verified email address: ${email}`);
+        } catch (_) { }
 
         res.status(200).json({
             message: 'Email verified and linked!',

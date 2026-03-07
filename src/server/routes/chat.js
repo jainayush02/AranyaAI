@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const ChatMessage = require('../models/ChatMessage');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { logActivity } = require('../utils/logger');
 
 // @route   GET /api/chat/conversations
 // @desc    Get all conversations for user
@@ -168,6 +169,9 @@ router.post('/conversations/:id/messages', auth, async (req, res) => {
             content: aiContent
         });
         await aiMsg.save();
+        try {
+            await logActivity('chat', { id: req.user.id }, `Used AI chatbot: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`);
+        } catch (_) { }
 
         res.json({ userMessage: userMsg, aiMessage: aiMsg, conversation });
     } catch (err) {

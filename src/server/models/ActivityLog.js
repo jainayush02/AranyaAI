@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const ActivityLogSchema = new mongoose.Schema({
-    type: { type: String, enum: ['registration', 'price', 'alert', 'support', 'doc', 'animal', 'admin'], default: 'admin' },
+    type: { type: String, enum: ['registration', 'price', 'alert', 'support', 'doc', 'animal', 'admin', 'login', 'profile', 'chat'], default: 'admin' },
     user: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     detail: { type: String, required: true },

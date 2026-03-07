@@ -361,13 +361,14 @@ export default function Login() {
                     <div className={styles.gridMesh} aria-hidden="true" />
 
                     {/* Top Toast Notification */}
-                    <AnimatePresence>
+                    <AnimatePresence mode="wait">
                         {showStatus && (
                             <motion.div
                                 className={styles.aranyaToast}
-                                initial={{ y: -100, x: '-50%', opacity: 0 }}
-                                animate={{ y: 24, x: '-50%', opacity: 1 }}
-                                exit={{ y: -100, x: '-50%', opacity: 0 }}
+                                initial={{ y: -60, x: '-50%', opacity: 0, scale: 0.9 }}
+                                animate={{ y: 24, x: '-50%', opacity: 1, scale: 1 }}
+                                exit={{ y: -60, x: '-50%', opacity: 0, scale: 0.9 }}
+                                transition={{ type: 'spring', damping: 20, stiffness: 200 }}
                             >
                                 <Zap size={16} fill="#fbbf24" color="#fbbf24" />
                                 <span>{statusMsg}</span>
@@ -527,28 +528,34 @@ export default function Login() {
                                 </div>
 
                                 {/* Alerts */}
-                                <AnimatePresence>
-                                    {error && (
-                                        <motion.div
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: 'auto' }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            className={styles.alertErr}
-                                        >
-                                            ⚠ {error}
-                                        </motion.div>
-                                    )}
-                                    {successMsg && (
-                                        <motion.div
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: 'auto' }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            className={styles.alertOk}
-                                        >
-                                            ✓ {successMsg}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                <div style={{ minHeight: (error || successMsg) ? 'auto' : 0, marginBottom: (error || successMsg) ? '1rem' : 0, transition: '0.3s' }}>
+                                    <AnimatePresence mode="wait">
+                                        {error && (
+                                            <motion.div
+                                                key="err"
+                                                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                                                transition={{ duration: 0.2 }}
+                                                className={styles.alertErr}
+                                            >
+                                                ⚠ {error}
+                                            </motion.div>
+                                        )}
+                                        {successMsg && (
+                                            <motion.div
+                                                key="ok"
+                                                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                                                transition={{ duration: 0.2 }}
+                                                className={styles.alertOk}
+                                            >
+                                                ✓ {successMsg}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
 
                                 {/* Google SSO — shown on main forms only */}
                                 {!isForgotPassword && !isAdminPortal && (

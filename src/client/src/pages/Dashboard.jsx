@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X } from 'lucide-react';
+import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise } from 'lucide-react';
 import styles from './Dashboard.module.css';
 import AddAnimalDialog from '../components/AddAnimalDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -18,11 +18,14 @@ export default function Dashboard() {
     const [animals, setAnimals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 8;
     const [selectedAnimals, setSelectedAnimals] = useState([]);
     const [platformSettings, setPlatformSettings] = useState({ proPrice: 499, freeLimit: 5 });
     const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { } });
     const [adminStats, setAdminStats] = useState({ totalUsers: 0, totalAnimals: 0, criticalAnimals: 0, platformLoad: 0, newThisWeek: 0, activeToday: 0, blockedUsers: 0, proUsers: 0 });
     const [activityLog, setActivityLog] = useState([]);
+    const [filterStatus, setFilterStatus] = useState('all'); // all, healthy, warning, critical
 
     const fetchAnimals = async () => {
         try {
@@ -145,10 +148,13 @@ export default function Dashboard() {
     const alert = animals.filter(a => (a.status || '').toLowerCase() === 'alert' || (a.status || '').toLowerCase() === 'warning').length;
     const critical = animals.filter(a => (a.status || '').toLowerCase() === 'critical').length;
 
-    const filteredAnimals = animals.filter(animal =>
-        (animal.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (animal.tag_number || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredAnimals = animals.filter(animal => {
+        const matchesSearch = (animal.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (animal.tag_number || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || (animal.status || '').toLowerCase() === filterStatus.toLowerCase() ||
+            (filterStatus === 'warning' && (animal.status || '').toLowerCase() === 'alert');
+        return matchesSearch && matchesStatus;
+    });
 
     const healthScore = total > 0 ? Math.round((healthy / total) * 100) : 100;
 
@@ -165,6 +171,16 @@ export default function Dashboard() {
         insightMessage = "Perfect! The AI model confirms your entire herd's vitals are in excellent condition today.";
     }
 
+    // Greeting
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const GreetIcon = hour < 12 ? Sunrise : hour < 18 ? Sun : Moon;
+
+    // Donut ring
+    const RING_R = 42;
+    const RING_CIRC = 2 * Math.PI * RING_R;
+    const ringOffset = RING_CIRC - (healthScore / 100) * RING_CIRC;
+
     if (role === 'admin') {
         return <Navigate to="/admin-portal" replace />;
     }
@@ -173,15 +189,23 @@ export default function Dashboard() {
 
     return (
         <div className={`${styles.dashboard} animate-fade-in`}>
-            <header className={styles.header}>
-                <div className={styles.headerText}>
-                    <h1 className={styles.title}>My Aranya Dashboard</h1>
-                    <p className={styles.subtitle}>Here is the latest health report of your animals.</p>
+
+            {/* ── Header ── */}
+            <header className={styles.greetHeader}>
+                <div className={styles.greetLeft}>
+                    <div className={styles.greetIconWrap}>
+                        <GreetIcon size={24} />
+                    </div>
+                    <div>
+                        <p className={styles.greetLine}>{greeting}, {user?.full_name?.split(' ')[0] || 'Farmer'} 🌿</p>
+                        <h1 className={styles.greetTitle}>My Aranya Dashboard</h1>
+                    </div>
                 </div>
                 <button className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
                     <Plus size={20} /> Add New Animal
                 </button>
             </header>
+
 
             {/* USER DASHBOARD VIEW */}
             {!loading && total > 0 && (
@@ -223,7 +247,7 @@ export default function Dashboard() {
             )}
 
             <div className={styles.statsGrid}>
-                <div className={styles.statCard}>
+                <div className={styles.statCard} onClick={() => setFilterStatus('all')} style={{ cursor: 'pointer', border: filterStatus === 'all' ? '2px solid var(--primary)' : '' }}>
                     <div className={styles.statIcon}><Activity size={24} /></div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Total Aranya</span>
@@ -231,7 +255,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className={styles.statCard}>
+                <div className={styles.statCard} onClick={() => setFilterStatus('healthy')} style={{ cursor: 'pointer', border: filterStatus === 'healthy' ? '2px solid var(--success)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)' }}>
                         <CheckCircle size={24} />
                     </div>
@@ -241,17 +265,17 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className={styles.statCard}>
+                <div className={styles.statCard} onClick={() => setFilterStatus('warning')} style={{ cursor: 'pointer', border: filterStatus === 'warning' ? '2px solid var(--warning)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'var(--warning)' }}>
                         <ShieldAlert size={24} />
                     </div>
                     <div className={styles.statInfo}>
-                        <span className={styles.statLabel}>Needs Attention</span>
+                        <span className={styles.statLabel}>Warning</span>
                         <span className={styles.statValue}>{alert}</span>
                     </div>
                 </div>
 
-                <div className={styles.statCard}>
+                <div className={styles.statCard} onClick={() => setFilterStatus('critical')} style={{ cursor: 'pointer', border: filterStatus === 'critical' ? '2px solid var(--error)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)' }}>
                         <Flame size={24} />
                     </div>
@@ -261,6 +285,9 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
+
+
+
 
             <section className={styles.animalsSection}>
                 <div className={styles.animalsHeader}>
@@ -281,7 +308,7 @@ export default function Dashboard() {
                             type="text"
                             placeholder="Search by name or ID..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                             className={styles.searchInput}
                         />
                     </div>
@@ -316,62 +343,89 @@ export default function Dashboard() {
                     ) : filteredAnimals.length === 0 ? (
                         <p className={styles.emptyText}>No animals found matching your search.</p>
                     ) : (
-                        filteredAnimals.map((animal, idx) => (
-                            <motion.div
-                                key={animal._id || animal.id || Math.random()}
-                                className={`${styles.animalCard} ${selectedAnimals.includes(animal._id || animal.id) ? styles.animalCardSelected : ''}`}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.1 }}
-                                onClick={() => navigate(`/animal/${animal._id || animal.id}`)}
-                            >
-                                <div
-                                    className={styles.cardSelectOverlay}
-                                    onClick={(e) => handleToggleSelection(e, animal._id || animal.id)}
+                        filteredAnimals
+                            .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+                            .map((animal, idx) => (
+                                <motion.div
+                                    key={animal._id || animal.id || Math.random()}
+                                    className={`${styles.animalCard} ${selectedAnimals.includes(animal._id || animal.id) ? styles.animalCardSelected : ''}`}
+                                    style={{
+                                        borderLeft: `5px solid ${(animal.status || '').toLowerCase() === 'healthy' ? '#22c55e' :
+                                            ((animal.status || '').toLowerCase() === 'warning' || (animal.status || '').toLowerCase() === 'alert') ? '#f59e0b' : '#ef4444'}`
+                                    }}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.1 }}
+                                    onClick={() => navigate(`/animal/${animal._id || animal.id}`)}
                                 >
-                                    {selectedAnimals.includes(animal._id || animal.id) ?
-                                        <CheckSquare size={20} className={styles.checkIcon} /> :
-                                        <Square size={20} className={styles.squareIcon} />
-                                    }
-                                </div>
-
-                                {!selectedAnimals.includes(animal._id || animal.id) && (
-                                    <button
-                                        className={styles.cardDeleteBtn}
-                                        onClick={(e) => handleDeleteAnimal(e, animal._id || animal.id, animal.name)}
-                                        title="Quick Delete"
+                                    <div
+                                        className={styles.cardSelectOverlay}
+                                        onClick={(e) => handleToggleSelection(e, animal._id || animal.id)}
                                     >
-                                        <Trash2 size={16} />
-                                    </button>
-                                )}
-                                <div className={styles.animalContent}>
-                                    <div className={styles.animalHeader}>
-                                        <div>
-                                            <h3 className={styles.animalName}>{animal.name}</h3>
-                                            <p className={styles.animalBreed}>{animal.breed}</p>
-                                        </div>
-                                        <span className={`badge badge-${(animal.status || '').toLowerCase() === 'healthy' ? 'success' :
-                                            ((animal.status || '').toLowerCase() === 'warning' || (animal.status || '').toLowerCase() === 'alert') ? 'warning' : 'error'
-                                            }`}>
-                                            {animal.status}
-                                        </span>
+                                        {selectedAnimals.includes(animal._id || animal.id) ?
+                                            <CheckSquare size={20} className={styles.checkIcon} /> :
+                                            <Square size={20} className={styles.squareIcon} />
+                                        }
                                     </div>
 
-                                    <div className={styles.vitalGrid}>
-                                        <div className={styles.vital}>
-                                            <ThermometerSun size={18} />
-                                            <span><span className={styles.vitalValue}>{animal.recentVitals?.temperature ?? '--'}°C</span> Temp</span>
+                                    {!selectedAnimals.includes(animal._id || animal.id) && (
+                                        <button
+                                            className={styles.cardDeleteBtn}
+                                            onClick={(e) => handleDeleteAnimal(e, animal._id || animal.id, animal.name)}
+                                            title="Quick Delete"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
+                                    <div className={styles.animalContent}>
+                                        <div className={styles.animalHeader}>
+                                            <div>
+                                                <h3 className={styles.animalName}>{animal.name}</h3>
+                                                <p className={styles.animalBreed}>{animal.breed}</p>
+                                            </div>
+                                            <span className={`badge badge-${(animal.status || '').toLowerCase() === 'healthy' ? 'success' :
+                                                ((animal.status || '').toLowerCase() === 'warning' || (animal.status || '').toLowerCase() === 'alert') ? 'warning' : 'error'
+                                                }`}>
+                                                {animal.status}
+                                            </span>
                                         </div>
-                                        <div className={styles.vital}>
-                                            <HeartPulse size={18} />
-                                            <span><span className={styles.vitalValue}>{animal.recentVitals?.heartRate ?? '--'}</span> BPM</span>
+
+                                        <div className={styles.vitalGrid}>
+                                            <div className={styles.vital}>
+                                                <ThermometerSun size={18} />
+                                                <span><span className={styles.vitalValue}>{animal.recentVitals?.temperature ?? '--'}°C</span> Temp</span>
+                                            </div>
+                                            <div className={styles.vital}>
+                                                <HeartPulse size={18} />
+                                                <span><span className={styles.vitalValue}>{animal.recentVitals?.heartRate ?? '--'}</span> BPM</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        ))
+                                </motion.div>
+                            ))
                     )}
                 </div>
+
+                {/* Pagination — only shown when > 8 animals */}
+                {filteredAnimals.length > PAGE_SIZE && (
+                    <div className={styles.pagination}>
+                        <button
+                            className={styles.pageBtn}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            ‹ Prev
+                        </button>
+                        <span className={styles.pageLabel}>Page {currentPage} of {Math.ceil(filteredAnimals.length / PAGE_SIZE)}</span>
+                        <button
+                            className={styles.pageBtn}
+                            onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredAnimals.length / PAGE_SIZE), p + 1))}
+                            disabled={currentPage === Math.ceil(filteredAnimals.length / PAGE_SIZE)}
+                        >
+                            Next ›
+                        </button>
+                    </div>
+                )}
             </section>
 
             <AddAnimalDialog

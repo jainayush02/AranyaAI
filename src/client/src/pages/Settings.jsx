@@ -187,7 +187,7 @@ export default function Settings() {
                 </h1>
                 <p className={styles.pageSubtitle}>
                     {role === 'admin'
-                        ? (activeTab === 'pricing' ? 'Manage global subscription tiers, platform pricing, and support contact channels.' : 'Manage platform-level security protocols, firewall rules, and high-availability system settings.')
+                        ? (activeTab === 'pricing' ? 'Manage global subscription tiers and platform pricing models.' : 'Manage platform security, firewall rules, and support contact channels.')
                         : 'Customize your experience, notification preferences, and regional settings.'}
                 </p>
             </motion.div>
@@ -205,40 +205,6 @@ export default function Settings() {
                         <div className={styles.adminContainer} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                             {activeTab === 'pricing' ? (
                                 <>
-                                    {/* Support Section */}
-                                    <section className={styles.card}>
-                                        <div className={styles.cardHeader}>
-                                            <div className={styles.cardIcon} style={{ background: '#f59e0b' }}>
-                                                <Mail size={24} />
-                                            </div>
-                                            <h2 className={styles.cardTitle}>Support Channels</h2>
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                                            <div className={styles.formItem}>
-                                                <label className={styles.label}>Support Email</label>
-                                                <div className={styles.selectWrapper}>
-                                                    <Mail size={18} />
-                                                    <input
-                                                        className={styles.plainInput}
-                                                        value={adminSettings.supportEmail}
-                                                        onChange={e => setAdminSettings({ ...adminSettings, supportEmail: e.target.value })}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className={styles.formItem}>
-                                                <label className={styles.label}>Contact Phone</label>
-                                                <div className={styles.selectWrapper}>
-                                                    <Phone size={18} />
-                                                    <input
-                                                        className={styles.plainInput}
-                                                        value={adminSettings.supportPhone}
-                                                        onChange={e => setAdminSettings({ ...adminSettings, supportPhone: e.target.value })}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </section>
-
                                     {/* Plan Editor Section */}
                                     <section className={styles.card}>
                                         <div className={styles.cardHeader} style={{ justifyContent: 'space-between', marginBottom: '2rem' }}>
@@ -382,6 +348,40 @@ export default function Settings() {
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    </section>
+
+                                    {/* Support Section */}
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#f59e0b' }}>
+                                                <Mail size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Support Channels</h2>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Support Email</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <Mail size={18} />
+                                                    <input
+                                                        className={styles.plainInput}
+                                                        value={adminSettings.supportEmail}
+                                                        onChange={e => setAdminSettings({ ...adminSettings, supportEmail: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Contact Phone</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <Phone size={18} />
+                                                    <input
+                                                        className={styles.plainInput}
+                                                        value={adminSettings.supportPhone}
+                                                        onChange={e => setAdminSettings({ ...adminSettings, supportPhone: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </section>
 

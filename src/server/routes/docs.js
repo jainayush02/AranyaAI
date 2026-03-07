@@ -101,10 +101,11 @@ router.get('/admin/all', authenticate, adminOnly, async (req, res) => {
 // POST create new article
 router.post('/', authenticate, adminOnly, async (req, res) => {
     try {
-        const { title, category, content, steps, order, published } = req.body;
+        const { title, category, content, steps, order, published, videoUrl } = req.body;
         const doc = await DocArticle.create({
             title, category, content, steps: steps || [],
             order: order || 0, published: published !== false,
+            videoUrl: videoUrl || '',
             createdBy: req.user._id
         });
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Created doc article: "${title}"`);
@@ -117,10 +118,10 @@ router.post('/', authenticate, adminOnly, async (req, res) => {
 // PUT update article
 router.put('/:id', authenticate, adminOnly, async (req, res) => {
     try {
-        const { title, category, content, steps, order, published } = req.body;
+        const { title, category, content, steps, order, published, videoUrl } = req.body;
         const doc = await DocArticle.findByIdAndUpdate(
             req.params.id,
-            { title, category, content, steps, order, published, updatedAt: new Date() },
+            { title, category, content, steps, order, published, videoUrl, updatedAt: new Date() },
             { new: true }
         );
         if (!doc) return res.status(404).json({ message: 'Not found' });

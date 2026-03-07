@@ -3,7 +3,8 @@ import {
     MessageSquare, X, Send, Bot,
     Camera, Image as ImageIcon,
     Plus, History, Trash2, Edit3,
-    Check, ChevronRight, ChevronLeft
+    Check, ChevronRight, ChevronLeft, Copy,
+    CheckSquare, Square
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -11,20 +12,37 @@ import ReactMarkdown from 'react-markdown';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
 
-const SUGGESTIONS_POOL = [
-    { id: 's1', text: 'Livestock Symptom Checker', query: 'My livestock has been showing symptoms of fever and loss of appetite. What could it be?' },
-    { id: 's2', text: 'Diet Optimization', query: 'Suggest an optimized diet plan for a 3-year-old heifer for better milk yield.' },
-    { id: 's3', text: 'Vaccination Guide', query: 'What are the essential vaccines for livestock in the current tropical season?' },
-    { id: 's4', text: 'Milk Quality Tips', query: 'How can I improve the fat content and quality of the milk produced by my herd?' },
-    { id: 's5', text: 'Calf Care Advice', query: 'Provide a health and nutrition checklist for newborn calves during the first 30 days.' },
-    { id: 's6', text: 'Heat Stress Management', query: 'How should I manage livestock during extreme heat to prevent drop in productivity?' },
-    { id: 's7', text: 'Disease Prevention', query: 'What are the main signs of Foot and Mouth Disease (FMD) I should look for?' },
-    { id: 's8', text: 'Breed Information', query: 'Tell me about the best livestock breeds for high-altitude dairy farming.' }
-];
+const AILogo = ({ size = 24, className }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`${className} ${styles.rotatingLogo}`}
+    >
+        <path
+            d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            opacity="0.15"
+        />
+        <path
+            d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+        />
+        <path d="M12 2V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M12 19V22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M22 12H19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M5 12H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </svg>
+);
+
 
 export default function ChatBot() {
     const [isOpen, setIsOpen] = useState(false);
-    const [randomSuggestions, setRandomSuggestions] = useState([]);
     const [conversations, setConversations] = useState([]);
 
     const [activeChatId, setActiveChatId] = useState(null);
@@ -36,6 +54,7 @@ export default function ChatBot() {
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
         title: '',
@@ -43,6 +62,8 @@ export default function ChatBot() {
         onConfirm: () => { },
         type: 'danger'
     });
+
+    const [copiedId, setCopiedId] = useState(null);
 
     // Header Animation States
     const [headerVisible, setHeaderVisible] = useState(true);
@@ -68,8 +89,6 @@ export default function ChatBot() {
     useEffect(() => {
         if (isOpen) {
             fetchConversations();
-            const shuffled = [...SUGGESTIONS_POOL].sort(() => 0.5 - Math.random());
-            setRandomSuggestions(shuffled.slice(0, 3));
         }
     }, [isOpen]);
 
@@ -183,6 +202,56 @@ export default function ChatBot() {
         }
     };
 
+    const handleCopy = (content, id) => {
+        navigator.clipboard.writeText(content);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const toggleSelectChat = (e, id) => {
+        e.stopPropagation();
+        setSelectedChatIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAll = (e) => {
+        e.stopPropagation();
+        if (selectedChatIds.length === conversations.length && conversations.length > 0) {
+            setSelectedChatIds([]);
+        } else {
+            setSelectedChatIds(conversations.map(c => c._id));
+        }
+    };
+
+    const handleDeleteSelected = () => {
+        if (selectedChatIds.length === 0) return;
+
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Delete Selected Chats',
+            message: `Are you sure you want to delete ${selectedChatIds.length} selected chats? This action cannot be undone.`,
+            type: 'danger',
+            onConfirm: async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    await Promise.all(selectedChatIds.map(id =>
+                        axios.delete(`/api/chat/conversations/${id}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        })
+                    ));
+                    setConversations(conversations.filter(c => !selectedChatIds.includes(c._id)));
+                    if (selectedChatIds.includes(activeChatId)) {
+                        setActiveChatId(null);
+                    }
+                    setSelectedChatIds([]);
+                } catch (err) {
+                    console.error('Bulk delete failed', err);
+                }
+            }
+        });
+    };
+
     const handleSend = async (query = null) => {
         const messageText = query || input;
         if (!messageText.trim() && !imagePreview) return;
@@ -239,6 +308,8 @@ export default function ChatBot() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 30 }}
                         >
+
+
                             {/* Sidebar */}
                             <motion.aside
                                 className={`${styles.sidebar} ${!isSidebarOpen ? styles.sidebarCollapsed : ''}`}
@@ -255,7 +326,29 @@ export default function ChatBot() {
                                     </button>
                                 </div>
 
-                                <div className={styles.historyLabel}>History</div>
+                                <div className={styles.historyLabelRow}>
+                                    <div className={styles.historyLabel}>History</div>
+                                    {isSidebarOpen && conversations.length > 0 && (
+                                        <div className={styles.bulkActionsHeader}>
+                                            <button
+                                                className={styles.bulkActionBtn}
+                                                onClick={handleSelectAll}
+                                                title={selectedChatIds.length === conversations.length ? "Deselect All" : "Select All"}
+                                            >
+                                                {selectedChatIds.length === conversations.length ? <CheckSquare size={14} /> : <Square size={14} />}
+                                            </button>
+                                            {selectedChatIds.length > 0 && (
+                                                <button
+                                                    className={`${styles.bulkActionBtn} ${styles.bulkDeleteIcon}`}
+                                                    onClick={handleDeleteSelected}
+                                                    title="Delete Selected"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
 
                                 <div className={styles.historyList}>
                                     {conversations.map(chat => (
@@ -266,6 +359,14 @@ export default function ChatBot() {
                                             title={!isSidebarOpen ? chat.title : ''}
                                         >
                                             <div className={styles.chatItemContent}>
+                                                {isSidebarOpen && (
+                                                    <div
+                                                        className={`${styles.checkbox} ${selectedChatIds.includes(chat._id) ? styles.checkboxChecked : ''}`}
+                                                        onClick={(e) => toggleSelectChat(e, chat._id)}
+                                                    >
+                                                        {selectedChatIds.includes(chat._id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                    </div>
+                                                )}
                                                 <MessageSquare size={16} className={styles.chatListIcon} />
                                                 <MessageSquare size={20} className={styles.collapsedChatIcon} />
                                                 {editingId === chat._id ? (
@@ -325,23 +426,10 @@ export default function ChatBot() {
                                         <div className={styles.emptyContent}>
                                             <div className={styles.emptyState}>
                                                 <div className={styles.botGlow}>
-                                                    <Bot size={32} />
+                                                    <AILogo size={44} />
                                                 </div>
                                                 <h3>How can Aranya AI help today?</h3>
                                                 <p>I can analyze symptoms, predict risks, and optimize livestock health.</p>
-                                            </div>
-                                            <div className={styles.suggestionGrid}>
-                                                {randomSuggestions.map(s => (
-                                                    <motion.div
-                                                        key={s.id}
-                                                        className={styles.suggestionCard}
-                                                        whileHover={{ y: -3 }}
-                                                        whileTap={{ scale: 0.98 }}
-                                                        onClick={() => setInput(s.query)}
-                                                    >
-                                                        <span>{s.text}</span>
-                                                    </motion.div>
-                                                ))}
                                             </div>
                                         </div>
                                     )}
@@ -349,7 +437,18 @@ export default function ChatBot() {
                                         <div key={i} className={`${styles.messageRow} ${msg.role === 'user' ? styles.userRow : styles.aiRow}`}>
                                             <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}>
                                                 {msg.image_url && <img src={msg.image_url} alt="upload" className={styles.msgImage} />}
-                                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                <div className={styles.messageContent}>
+                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                    {msg.role === 'ai' && (
+                                                        <button
+                                                            className={styles.copyBtn}
+                                                            onClick={() => handleCopy(msg.content, msg._id || i)}
+                                                            title="Copy to clipboard"
+                                                        >
+                                                            {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -418,7 +517,13 @@ export default function ChatBot() {
             </AnimatePresence>
 
             <button className={styles.chatToggle} onClick={() => setIsOpen(true)}>
-                <MessageSquare size={28} />
+                <span className={styles.chatToggleIcon}>
+                    <AILogo size={22} />
+                    <span className={styles.chatToggleDot} />
+                </span>
+                <span className={styles.chatToggleLabel}>
+                    <span className={styles.chatToggleName}>Aranya AI</span>
+                </span>
             </button>
 
             <ConfirmDialog

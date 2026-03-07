@@ -6,10 +6,10 @@ import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import Billing from './pages/Billing'
 import HelpCenter from './pages/HelpCenter'
-import Documentation from './pages/Documentation'
 import AnimalProfile from './pages/AnimalProfile'
 import AdminPortal from './pages/AdminPortal'
 import Layout from './components/Layout'
+import Docs from './pages/Docs'
 import axios from 'axios'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 
@@ -64,7 +64,7 @@ function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="billing" element={<Billing />} />
             <Route path="help" element={<HelpCenter />} />
-            <Route path="docs" element={<Documentation />} />
+            <Route path="docs" element={<Docs />} />
             <Route path="animal/:id" element={<AnimalProfile />} />
           </Route>
         </Routes>

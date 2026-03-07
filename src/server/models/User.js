@@ -20,7 +20,10 @@ const userSchema = new mongoose.Schema({
     blocked: { type: Boolean, default: false },
     lastLoginAt: { type: Date, default: null },
     plan: { type: String, enum: ['free', 'pro', 'enterprise'], default: 'free' },
-    loginCount: { type: Number, default: 0 }
+    loginCount: { type: Number, default: 0 },
+    gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say', ''], default: '' },
+    dateOfBirth: { type: Date, default: null },
+    age: { type: Number, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
