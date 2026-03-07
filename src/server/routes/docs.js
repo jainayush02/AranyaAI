@@ -7,10 +7,23 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const DocArticle = require('../models/DocArticle');
 const ActivityLog = require('../models/ActivityLog');
+const ImageKit = require('imagekit');
+
+// ── ImageKit Config ─────────────────────────────────────
+const imagekit = new ImageKit({
+    publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+    privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+});
+
 
 // ── File Upload Config ──────────────────────────────────
-const uploadDir = path.join(__dirname, '..', 'uploads', 'videos');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = path.join(process.cwd(), 'src', 'server', 'uploads', 'videos');
+try {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+} catch (err) {
+    console.warn('⚠️ Warning: Could not create upload directory. This is expected on read-only environments like Vercel.');
+}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
@@ -98,6 +111,16 @@ router.get('/admin/all', authenticate, adminOnly, async (req, res) => {
     }
 });
 
+// GET ImageKit Auth Parameters
+router.get('/admin/imagekit-auth', authenticate, adminOnly, (req, res) => {
+    try {
+        const result = imagekit.getAuthenticationParameters();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to get auth params' });
+    }
+});
+
 // POST create new article
 router.post('/', authenticate, adminOnly, async (req, res) => {
     try {
@@ -172,15 +195,31 @@ router.delete('/:id/video', authenticate, adminOnly, async (req, res) => {
     try {
         const doc = await DocArticle.findById(req.params.id);
         if (!doc) return res.status(404).json({ message: 'Not found' });
-        if (doc.videoUrl) {
+
+        // Only try to delete local file if it's a relative path starting with /uploads
+        if (doc.videoUrl && doc.videoUrl.startsWith('/uploads')) {
             const filePath = path.join(__dirname, '..', doc.videoUrl);
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
+
+        // Remote delete from ImageKit if we have a fileId
+        if (doc.ikFileId) {
+            try {
+                await imagekit.deleteFile(doc.ikFileId);
+                console.log('✅ ImageKit: File deleted successfully');
+            } catch (ikErr) {
+                console.error('⚠️ ImageKit: Deletion failed or file already gone:', ikErr.message);
+            }
+        }
+
         doc.videoUrl = null;
         doc.videoTitle = null;
+        doc.ikFileId = null;
         await doc.save();
-        res.json({ message: 'Video removed', doc });
+
+        res.json({ message: 'Video removed successfully', doc });
     } catch (err) {
+        console.error('Delete video error:', err);
         res.status(500).json({ message: err.message });
     }
 });

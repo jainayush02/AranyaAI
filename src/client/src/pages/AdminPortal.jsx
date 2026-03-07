@@ -7,7 +7,7 @@ import {
     RefreshCw, CheckCircle, AlertCircle, Loader2,
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
-    Megaphone, FolderOpen, Menu, Video, Calendar, User,
+    Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
     ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,7 +17,7 @@ import s from './AdminPortal.module.css';
 const API = '/api';
 const authH = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-const fmtTime = d => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 const ago = d => { if (!d) return '—'; const s = Math.floor((Date.now() - new Date(d)) / 1000); if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago`; };
 const DOT = { registration: '#22c55e', price: '#3b82f6', alert: '#ef4444', doc: '#7c3aed', admin: '#f59e0b', animal: '#06b6d4' };
 
@@ -159,8 +159,12 @@ export default function AdminPortal() {
     const [adminAuditLog, setAdminAuditLog] = useState([]);
     const [expandedAdmin, setExpandedAdmin] = useState(null);
     const [adminLogs, setAdminLogs] = useState({});  // { [userId]: [...logs] }
-    const [docForm, setDocForm] = useState({ title: '', category: 'getting-started', content: '', steps: '', published: true, videoFile: null });
+    const [docForm, setDocForm] = useState({ title: '', category: 'getting-started', content: '', steps: '', published: true, videoFile: null, videoUrl: null });
     const [docDeleteTarget, setDocDeleteTarget] = useState(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadSuccess, setUploadSuccess] = useState(false);
+    const [videoPreview, setVideoPreview] = useState(null);
 
     // ── Fetch helpers ────────────────────────────
     const fetchOverview = useCallback(async () => {
@@ -355,8 +359,60 @@ export default function AdminPortal() {
     };
 
     // ── Doc actions ──────────────────────────────
-    const openDocEdit = doc => { setDocForm({ title: doc.title, category: doc.category, content: doc.content || '', steps: doc.steps ? doc.steps.join('\n') : '', published: doc.published !== false, videoFile: null }); setDocModal(doc); };
-    const openDocCreate = () => { setDocForm({ title: '', category: subTab || 'getting-started', content: '', steps: '', published: true, videoFile: null }); setDocModal('create'); };
+    const openDocEdit = doc => {
+        setDocForm({
+            title: doc.title,
+            category: doc.category,
+            content: doc.content || '',
+            steps: doc.steps ? doc.steps.join('\n') : '',
+            published: doc.published !== false,
+            videoFile: null,
+            videoUrl: doc.videoUrl || null
+        });
+        setVideoPreview(null);
+        setDocModal(doc);
+    };
+    const openDocCreate = () => {
+        setDocForm({ title: '', category: subTab || 'getting-started', content: '', steps: '', published: true, videoFile: null, videoUrl: null });
+        setVideoPreview(null);
+        setDocModal('create');
+    };
+
+    const handleVideoSelect = (file) => {
+        if (videoPreview) URL.revokeObjectURL(videoPreview);
+        setDocForm(p => ({ ...p, videoFile: file }));
+        if (file) setVideoPreview(URL.createObjectURL(file));
+        else setVideoPreview(null);
+    };
+
+    const removeVideo = async () => {
+        // If it's a new file selected but not saved
+        if (docForm.videoFile) {
+            setDocForm(p => ({ ...p, videoFile: null }));
+            if (videoPreview) URL.revokeObjectURL(videoPreview);
+            setVideoPreview(null);
+            return;
+        }
+
+        // If it's an existing video on the server
+        if (docForm.videoUrl) {
+            if (!window.confirm("Are you sure you want to delete this video permanently?")) return;
+
+            try {
+                // If it's an existing article, delete from server
+                if (docModal && docModal._id) {
+                    await axios.delete(`${API}/docs/${docModal._id}/video`, authH());
+                }
+
+                setDocForm(p => ({ ...p, videoUrl: null }));
+                push('Video removed');
+                fetchArticles();
+            } catch (err) {
+                console.error('Remove video error:', err);
+                push('Failed to remove video', 'err');
+            }
+        }
+    };
 
     const saveDoc = async () => {
         if (!docForm.title.trim()) return push('Title is required', 'err');
@@ -375,17 +431,60 @@ export default function AdminPortal() {
             }
 
             if (docForm.videoFile && savedId) {
-                const fd = new FormData();
-                fd.append('video', docForm.videoFile);
-                await axios.post(`${API}/docs/${savedId}/upload-video`, fd, {
-                    headers: { ...authH().headers, 'Content-Type': 'multipart/form-data' }
-                });
+                setIsUploading(true);
+                try {
+                    // 1. Get ImageKit Auth parameters from backend
+                    const authR = await axios.get(`${API}/docs/admin/imagekit-auth`, authH());
+                    const { token, expire, signature } = authR.data;
+
+                    // 2. Upload directly to ImageKit
+                    const fd = new FormData();
+                    fd.append('file', docForm.videoFile);
+                    fd.append('fileName', docForm.videoFile.name);
+                    fd.append('publicKey', 'public_YHr7km+CX79vEjrA6vs11E85QIw=');
+                    fd.append('signature', signature);
+                    fd.append('expire', expire);
+                    fd.append('token', token);
+                    fd.append('folder', '/aranya-tutorials/');
+
+                    const ikUrl = 'https://upload.imagekit.io/api/v1/files/upload';
+                    const uploadR = await axios.post(ikUrl, fd, {
+                        onUploadProgress: (pe) => {
+                            const pct = Math.round((pe.loaded * 100) / pe.total);
+                            setUploadProgress(pct);
+                        }
+                    });
+
+                    const videoUrl = uploadR.data.url;
+                    const ikFileId = uploadR.data.fileId;
+
+                    // 3. Update the article in MongoDB with the new video URL
+                    await axios.put(`${API}/docs/${savedId}`, {
+                        videoUrl,
+                        videoTitle: docForm.videoFile.name,
+                        ikFileId
+                    }, authH());
+
+                    setUploadSuccess(true);
+                    setTimeout(() => setUploadSuccess(false), 3500);
+                } catch (err) {
+                    console.error('ImageKit Upload error:', err);
+                    push('Video upload failed. Check file size or connection.', 'err');
+                } finally {
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                }
             }
 
             push(docModal === 'create' ? 'Article created!' : 'Article updated!');
             setDocModal(null);
             fetchArticles();
-        } catch (err) { console.error('Save doc err:', err); push('Save failed', 'err'); }
+        } catch (err) {
+            console.error('Save doc err:', err);
+            push(err.response?.data?.message || 'Save failed', 'err');
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const deleteDoc = async doc => {
@@ -540,15 +639,42 @@ export default function AdminPortal() {
                                 </select>
 
                                 {docForm.category === 'video-tutorials' && (
-                                    <>
-                                        <label>Tutorial Video Upload</label>
-                                        {docModal && docModal.videoUrl && (
-                                            <div style={{ marginBottom: '1rem' }}>
-                                                <video src={docModal.videoUrl} controls style={{ width: '100%', borderRadius: '12px', background: '#000', maxHeight: '300px' }} />
+                                    <div className={s.videoUploadSection}>
+                                        <label>Tutorial Video</label>
+
+                                        {/* Preview Area */}
+                                        {(videoPreview || docForm.videoUrl) && (
+                                            <div className={s.videoPreviewWrap}>
+                                                <video
+                                                    src={videoPreview || docForm.videoUrl}
+                                                    controls
+                                                    className={s.videoPreviewObj}
+                                                />
+                                                <div className={s.videoPreviewBadge}>
+                                                    {videoPreview ? 'New Selection' : 'Currently Saved'}
+                                                </div>
+                                                <button className={s.removeVideoBtn} onClick={removeVideo} type="button">
+                                                    <Trash2 size={14} /> Remove Video
+                                                </button>
                                             </div>
                                         )}
-                                        <input type="file" accept="video/*" className={s.field} onChange={e => setDocForm(p => ({ ...p, videoFile: e.target.files[0] }))} />
-                                    </>
+
+                                        {!videoPreview && !docForm.videoUrl && (
+                                            <div className={s.dropZone}>
+                                                <Video size={40} className={s.dropIcon} />
+                                                <p>Upload a tutorial video to help your users</p>
+                                                <label className={s.fileLabel}>
+                                                    <Upload size={14} /> Choose Video File
+                                                    <input
+                                                        type="file"
+                                                        accept="video/*"
+                                                        hidden
+                                                        onChange={e => handleVideoSelect(e.target.files[0])}
+                                                    />
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 <label>Content (HTML supported)</label>
@@ -563,10 +689,47 @@ export default function AdminPortal() {
                                         {docForm.published ? <><Eye size={13} /> Visible</> : <><EyeOff size={13} /> Hidden</>}
                                     </button>
                                 </div>
+                                {isUploading && (
+                                    <div className={s.progressRow}>
+                                        <div className={s.progressInfo}>
+                                            <span>Uploading Video...</span>
+                                            <span>{uploadProgress}%</span>
+                                        </div>
+                                        <div className={s.progressTrack}>
+                                            <motion.div
+                                                className={s.progressBar}
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${uploadProgress}%` }}
+                                                transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                {uploadSuccess && (
+                                    <motion.div
+                                        className={s.successMsg}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ type: 'spring' }}
+                                    >
+                                        <CheckCircle size={16} /> Video Uploaded Successfully!
+                                    </motion.div>
+                                )}
                             </div>
                             <div className={s.editorFoot} style={{ justifyContent: 'center' }}>
-                                <button className={s.cancelSm} onClick={() => setDocModal(null)}>Cancel</button>
-                                <button className={s.saveBtn} onClick={saveDoc} style={{ background: '#2d5f3f', color: '#fff' }}><Save size={14} /> Save Article</button>
+                                <button className={s.cancelSm} onClick={() => setDocModal(null)} disabled={isUploading}>Cancel</button>
+                                <button
+                                    className={`${s.saveBtn} ${isUploading ? s.btnLoading : ''}`}
+                                    onClick={saveDoc}
+                                    style={{ background: '#2d5f3f', color: '#fff' }}
+                                    disabled={isUploading}
+                                >
+                                    {isUploading ? (
+                                        <><Loader2 size={14} className={s.spin} /> Uploading...</>
+                                    ) : (
+                                        <><Save size={14} /> Save Article</>
+                                    )}
+                                </button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -889,7 +1052,7 @@ export default function AdminPortal() {
                                                                             <p style={{ color: '#64748b', fontWeight: 600 }}>No animals registered in this account</p>
                                                                         </div>
                                                                     ) : (
-                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem' }}>
+                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
                                                                             {(focusedUser.animals || []).map((a, idx) => (
                                                                                 <motion.div
                                                                                     key={a._id}
@@ -931,7 +1094,7 @@ export default function AdminPortal() {
                                                                             <p style={{ color: '#64748b', fontWeight: 600 }}>No activities recorded yet for this profile</p>
                                                                         </div>
                                                                     ) : (
-                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem' }}>
+                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
                                                                             {(focusedUser.logs || []).map((log, idx) => (
                                                                                 <motion.div
                                                                                     key={log._id}
@@ -941,8 +1104,8 @@ export default function AdminPortal() {
                                                                                     style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '1.25rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) 100px 120px', alignItems: 'center', gap: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', transition: 'all 0.3s ease' }}
                                                                                     whileHover={{ scale: 1.01, borderColor: '#2d5f3f', boxShadow: '0 10px 15px -3px rgba(45, 95, 63, 0.05)' }}
                                                                                 >
-                                                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                                                                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: log.type === 'admin' ? '#f59e0b' : log.type === 'animal_registry' ? '#10b981' : '#3b82f6', marginTop: '6px', flexShrink: 0, boxShadow: `0 0 10px ${log.type === 'admin' ? 'rgba(245,158,11,0.3)' : log.type === 'animal_registry' ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}` }} />
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: log.type === 'admin' ? '#f59e0b' : log.type === 'animal_registry' ? '#10b981' : '#3b82f6', flexShrink: 0, boxShadow: `0 0 10px ${log.type === 'admin' ? 'rgba(245,158,11,0.3)' : log.type === 'animal_registry' ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}` }} />
                                                                                         <span style={{ fontSize: '0.95rem', color: '#0f172a', fontWeight: 600, lineHeight: 1.5 }}>{log.detail}</span>
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'center' }}>

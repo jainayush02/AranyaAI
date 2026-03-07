@@ -19,24 +19,29 @@ const AILogo = ({ size = 24, className }) => (
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className={`${className} ${styles.rotatingLogo}`}
+        className={`${className || ''} ${styles.aiLogoAnimation}`}
     >
         <path
-            d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            opacity="0.15"
-        />
-        <path
-            d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z"
+            d="M12 2L12.949 9.051L20 10L12.949 10.949L12 18L11.051 10.949L4 10L11.051 9.051L12 2Z"
+            fill="currentColor"
             stroke="currentColor"
             strokeWidth="1.5"
+            strokeLinejoin="round"
         />
-        <path d="M12 2V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M12 19V22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M22 12H19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M5 12H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="12" cy="12" r="1" fill="currentColor" />
+        <path
+            d="M18.5 16L18.8163 18.1837L21 18.5L18.8163 18.8163L18.5 21L18.1837 18.8163L16 18.5L18.1837 18.1837L18.5 16Z"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth="1"
+            strokeLinejoin="round"
+        />
+        <path
+            d="M5.5 17L5.65817 18.0918L6.75 18.25L5.65817 18.4082L5.5 19.5L5.34183 18.4082L4.25 18.25L5.34183 18.0918L5.5 17Z"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth="1"
+            strokeLinejoin="round"
+        />
     </svg>
 );
 
@@ -305,9 +310,10 @@ export default function ChatBot() {
                     <div className={styles.overlay}>
                         <motion.div
                             className={`${styles.chatWrapper} ${isMobileHistoryOpen ? styles.mobileHistoryOpen : ''}`}
-                            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
                         >
 
 
@@ -328,7 +334,7 @@ export default function ChatBot() {
                                 </div>
 
                                 <div className={styles.historyLabelRow}>
-                                    <div className={styles.historyLabel}>History</div>
+                                    <div className={styles.historyLabel}>Your Chat</div>
                                     {isSidebarOpen && conversations.length > 0 && (
                                         <div className={styles.bulkActionsHeader}>
                                             <button
@@ -455,14 +461,32 @@ export default function ChatBot() {
                                                 {msg.image_url && <img src={msg.image_url} alt="upload" className={styles.msgImage} />}
                                                 <div className={styles.messageContent}>
                                                     <ReactMarkdown>{msg.content}</ReactMarkdown>
+
                                                     {msg.role === 'ai' && (
-                                                        <button
-                                                            className={styles.copyBtn}
-                                                            onClick={() => handleCopy(msg.content, msg._id || i)}
-                                                            title="Copy to clipboard"
-                                                        >
-                                                            {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                                                        </button>
+                                                        <div className={styles.messageActionRow}>
+                                                            <button
+                                                                className={styles.messageActionBtn}
+                                                                onClick={() => handleCopy(msg.content, msg._id || i)}
+                                                                title="Copy to clipboard"
+                                                            >
+                                                                {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={16} />}
+                                                            </button>
+                                                            <button className={styles.messageActionBtn} title="Helpful response">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                            </button>
+                                                            <button className={styles.messageActionBtn} title="Not helpful">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+                                                            </button>
+                                                            <button className={styles.messageActionBtn} title="Export">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                                            </button>
+                                                            <button className={styles.messageActionBtn} title="Regenerate">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+                                                            </button>
+                                                            <button className={styles.messageActionBtn} title="More actions">
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -535,10 +559,10 @@ export default function ChatBot() {
             <button className={styles.chatToggle} onClick={() => setIsOpen(true)}>
                 <span className={styles.chatToggleIcon}>
                     <AILogo size={22} />
-                    <span className={styles.chatToggleDot} />
                 </span>
                 <span className={styles.chatToggleLabel}>
                     <span className={styles.chatToggleName}>Aranya AI</span>
+                    <span className={styles.chatToggleDot} />
                 </span>
             </button>
 

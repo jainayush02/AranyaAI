@@ -18,8 +18,10 @@ env/
 logs/
 npm-debug.log*
 yarn-debug.log*
+*.log
 
-# Databases / local sets
+# Project specific
+src/server/uploads/
 *.sqlite
 *.sqlite3
 

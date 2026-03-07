@@ -85,15 +85,17 @@ export default function Layout() {
                     <motion.button
                         className={styles.globalBack}
                         onClick={() => navigate(-1)}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.15 }}
-                        whileTap={{ scale: 0.95 }}
-                        transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                         title="Go Back"
                     >
-                        <ArrowLeft size={18} />
+                        <div className={styles.backCircle}>
+                            <ArrowLeft size={18} />
+                        </div>
                     </motion.button>
                 )}
             </AnimatePresence>
@@ -105,9 +107,7 @@ export default function Layout() {
                 transition={{ duration: 0.35, ease: 'easeInOut' }}
             >
                 <div className={`container ${styles.headerContainer}`}>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-
+                    <div className={`${styles.leftGroup} ${!isHome ? styles.hasBackButton : ''}`}>
                         <Link to={role === 'admin' ? '/admin-portal' : '/'} className={styles.logoArea}>
                             <img src="/logo.png" alt="AranyaAi" className={styles.logoImage} onError={(e) => {
                                 e.target.style.display = 'none';

@@ -384,20 +384,58 @@
     }
 }
 
-/* Feedback section */
-.feedbackSection {
-    margin-top: 4rem;
-    padding-top: 2rem;
-    border-top: 1px solid #e2e8f0;
+/* Loading State */
+.loading {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    justify-content: center;
+    min-height: 400px;
+    gap: 1.5rem;
+    color: #475569;
 }
 
-.feedbackText {
-    color: #475569;
-    font-size: 0.95rem;
+.loading p {
     font-weight: 600;
+    font-size: 1.1rem;
+    color: #2d5f3f;
+}
+
+/* Skeleton Loader */
+.skeletonGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.skeletonCard {
+    height: 180px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.skeletonCard::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0) 0,
+            rgba(255, 255, 255, 0.2) 20%,
+            rgba(255, 255, 255, 0.5) 60%,
+            rgba(255, 255, 255, 0));
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 .feedbackBtn {
@@ -414,4 +452,18 @@
 .feedbackBtn:hover {
     background: #f8fafc;
     border-color: #cbd5e1;
+}
+.feedbackSection {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.feedbackText {
+    color: #475569;
+    font-size: 0.95rem;
+    font-weight: 600;
 }

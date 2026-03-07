@@ -188,7 +188,7 @@ export default function Dashboard() {
     if (loading) return <AdvancedLoader message="Syncing your herd data with Aranya AI..." />;
 
     return (
-        <div className={`${styles.dashboard} animate-fade-in`}>
+        <div className={`container ${styles.dashboard} animate-fade-in`}>
 
             {/* ── Header ── */}
             <header className={styles.greetHeader}>

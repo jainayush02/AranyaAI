@@ -11,6 +11,7 @@ export default function Billing() {
         freeLimit: 5,
         plans: []
     });
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const fetchPricing = async () => {
@@ -23,6 +24,8 @@ export default function Billing() {
 
             } catch (err) {
                 console.error("Failed to fetch platform pricing:", err);
+            } finally {
+                setIsLoading(false);
             }
         };
         fetchPricing();
@@ -36,35 +39,42 @@ export default function Billing() {
             </div>
 
             <div className={styles.plansGrid}>
-                {(prices.plans.length > 0 ? prices.plans : [
-                    { id: 'free', name: 'Free Plan', price: '0', isRecommended: false, features: `Up to ${prices.freeLimit} animals\nBasic health tracking\nAI veterinary assistant\nWeekly reports`, cta: 'Current Plan' },
-                    { id: 'pro', name: 'Pro Plan', price: prices.proPrice, isRecommended: true, features: 'Unlimited animals\nAdvanced analytics\nPriority support\nCustom reports\nMultiple users', cta: 'Upgrade to this Plan' },
-                    { id: 'enterprise', name: 'Enterprise Plan', price: 'Custom', isRecommended: false, features: 'Everything in Pro\nDedicated support\nCustom integrations\nAPI access\nOn-site training', cta: 'Contact Sales' }
-                ]).map((plan) => (
-                    <div key={plan.id} className={`${styles.planCard} ${plan.isRecommended ? styles.recommended : ''}`}>
-                        {plan.isRecommended && <div className={styles.recommendedBadge}>Recommended</div>}
-                        <div className={styles.planName}>{plan.name}</div>
-                        <div className={styles.planPrice}>
-                            {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
-                            {!isNaN(Number(plan.price)) && <span className={styles.month}>/month</span>}
-                        </div>
-
-                        <ul className={styles.featureList}>
-                            {plan.features.split('\n').filter(f => f.trim()).map((feature, i) => (
-                                <li key={i} className={styles.featureItem}>
-                                    <Check className={styles.featureIcon} size={18} /> {feature}
-                                </li>
-                            ))}
-                        </ul>
-
-                        <button
-                            className={`${styles.btnPlan} ${plan.isRecommended ? styles.btnPro : (plan.price === '0' ? styles.btnCurrent : styles.btnEnterprise)}`}
-                            disabled={plan.price === '0'}
-                        >
-                            {plan.price !== '0' && <Zap size={16} />} {plan.cta || 'Select Plan'}
-                        </button>
+                {isLoading ? (
+                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '2rem', height: '2rem', border: '3px solid #e2e8f0', borderTopColor: '#166534', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
+                        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                        <span>Loading billing plans...</span>
                     </div>
-                ))}
+                ) : (
+                    (prices.plans.length > 0 ? prices.plans : [
+                        { id: 'free', name: 'Free Plan', price: '0', isRecommended: false, features: `Up to ${prices.freeLimit} animals\nBasic health tracking\nAI veterinary assistant\nWeekly reports`, cta: 'Current Plan' },
+                        { id: 'pro', name: 'Pro Plan', price: prices.proPrice, isRecommended: true, features: 'Unlimited animals\nAdvanced analytics\nPriority support\nCustom reports\nMultiple users', cta: 'Upgrade to this Plan' },
+                        { id: 'enterprise', name: 'Enterprise Plan', price: 'Custom', isRecommended: false, features: 'Everything in Pro\nDedicated support\nCustom integrations\nAPI access\nOn-site training', cta: 'Contact Sales' }
+                    ]).map((plan) => (
+                        <div key={plan.id} className={`${styles.planCard} ${plan.isRecommended ? styles.recommended : ''}`}>
+                            {plan.isRecommended && <div className={styles.recommendedBadge}>Recommended</div>}
+                            <div className={styles.planName}>{plan.name}</div>
+                            <div className={styles.planPrice}>
+                                {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
+                                {!isNaN(Number(plan.price)) && <span className={styles.month}>/month</span>}
+                            </div>
+
+                            <ul className={styles.featureList}>
+                                {plan.features.split('\n').filter(f => f.trim()).map((feature, i) => (
+                                    <li key={i} className={styles.featureItem}>
+                                        <Check className={styles.featureIcon} size={18} /> {feature}
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <button
+                                className={`${styles.btnPlan} ${plan.isRecommended ? styles.btnPro : (plan.price === '0' ? styles.btnCurrent : styles.btnEnterprise)}`}
+                                disabled={plan.price === '0'}
+                            >
+                                {plan.price !== '0' && <Zap size={16} />} {plan.cta || 'Select Plan'}
+                            </button>
+                        </div>
+                    )))}
             </div>
 
             <div className={styles.card}>

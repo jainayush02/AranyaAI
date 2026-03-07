@@ -94,7 +94,13 @@ export default function Docs() {
     if (loading) {
         return (
             <div className={s.page}>
-                <div className={s.loading}><Loader2 size={32} className={s.spin} /></div>
+                <div className={s.hero}>
+                    <h1>Documentation</h1>
+                    <p>Fetching the latest guides and tutorials...</p>
+                </div>
+                <div className={s.skeletonGrid}>
+                    {[1, 2, 3].map(i => <div key={i} className={s.skeletonCard} />)}
+                </div>
             </div>
         );
     }

@@ -7,4 +7,7 @@ const ActivityLogSchema = new mongoose.Schema({
     detail: { type: String, required: true },
 }, { timestamps: true });
 
+// Auto-delete records older than 10 days (864,000 seconds)
+ActivityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 864000 });
+
 module.exports = mongoose.model('ActivityLog', ActivityLogSchema);

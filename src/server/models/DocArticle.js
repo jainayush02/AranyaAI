@@ -7,6 +7,7 @@ const DocArticleSchema = new mongoose.Schema({
     steps: [{ type: String }],
     videoUrl: { type: String, default: null }, // Path or URL to the video file
     videoTitle: { type: String, default: null },
+    ikFileId: { type: String, default: null }, // Unique ID from ImageKit for deletion
     order: { type: Number, default: 0 },
     published: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

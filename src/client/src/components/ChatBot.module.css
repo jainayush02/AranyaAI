@@ -1,8 +1,7 @@
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -343,8 +342,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(12px) saturate(160%);
+    background: rgba(248, 250, 252, 0.95);
     position: absolute;
     top: 0;
     left: 0;
@@ -417,10 +415,10 @@
 
 .bubble {
     max-width: 85%;
-    padding: 1rem 1.25rem;
+    padding: 0.85rem 1.15rem;
     border-radius: 18px;
-    font-size: 0.92rem;
-    line-height: 1.5;
+    font-size: 0.85rem;
+    line-height: 1.55;
     position: relative;
     letter-spacing: 0.01em;
     word-wrap: break-word;
@@ -435,12 +433,13 @@
 }
 
 .aiBubble {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(8px);
+    background: #ffffff;
     color: #334155;
     border: 1px solid rgba(0, 0, 0, 0.04);
     border-bottom-left-radius: 4px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    padding: 0.85rem 1.15rem 0.4rem 1.15rem;
+    /* Different padding to fit action row perfectly */
 }
 
 .messageContent {
@@ -448,38 +447,31 @@
     width: 100%;
 }
 
-.copyBtn {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(4px);
-    border: 1px solid #e2e8f0;
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
+.messageActionRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.messageActionBtn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #64748b;
+    color: #94a3b8;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    opacity: 0;
-    transform: translateY(-5px);
 }
 
-.aiBubble:hover .copyBtn {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.copyBtn:hover {
+.messageActionBtn:hover {
     color: var(--primary);
-    border-color: var(--primary);
-    background: #ffffff;
-    box-shadow: 0 6px 15px rgba(45, 95, 63, 0.15);
-    transform: scale(1.05);
+    background: rgba(45, 95, 63, 0.06);
 }
 
 /* Ensure basic markdown elements look good inside AI bubble */
@@ -627,27 +619,23 @@
     right: 2rem;
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    padding: 0 1.4rem 0 0.8rem;
-    height: 50px;
+    gap: 0.6rem;
+    padding: 0.4rem 1.25rem 0.4rem 0.4rem;
+    height: 48px;
     background: linear-gradient(135deg, #1c3a2a 0%, #11261a 100%);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: none;
     border-radius: 100px;
     cursor: pointer;
-    box-shadow:
-        0 15px 35px -8px rgba(0, 0, 0, 0.35),
-        0 8px 15px -4px rgba(28, 58, 42, 0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     z-index: 500;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
 }
 
 .chatToggle:hover {
-    transform: translateY(-5px) scale(1.02);
+    transform: translateY(-4px) scale(1.02);
     background: linear-gradient(135deg, #224733 0%, #152f20 100%);
-    box-shadow:
-        0 30px 60px -12px rgba(0, 0, 0, 0.5),
-        0 15px 30px -8px rgba(34, 71, 51, 0.4);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
 }
 
 .chatToggleIcon {
@@ -661,19 +649,52 @@
     flex-shrink: 0;
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+/* Fluid Smoke/Water Animation behind the icon */
+.chatToggleIcon::before {
+    content: '';
+    position: absolute;
+    inset: -30px;
+    background: radial-gradient(circle at 40% 40%, rgba(34, 197, 94, 0.5) 0%, transparent 50%),
+        radial-gradient(circle at 60% 60%, rgba(16, 185, 129, 0.4) 0%, transparent 50%),
+        radial-gradient(circle at 40% 70%, rgba(5, 250, 150, 0.3) 0%, transparent 50%);
+    animation: fluidRotate 5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+    z-index: 0;
+    opacity: 0.9;
+}
+
+.chatToggleIcon>* {
+    z-index: 1;
+    position: relative;
+    mix-blend-mode: screen;
+}
+
+@keyframes fluidRotate {
+    0% {
+        transform: rotate(0deg) scale(1) translate(0px, 0px);
+        filter: blur(2px);
+    }
+
+    100% {
+        transform: rotate(180deg) scale(1.4) translate(10px, 5px);
+        filter: blur(4px);
+    }
 }
 
 .chatToggleLabel {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    /* Changes from column to flex-row */
+    gap: 0.4rem;
     line-height: 1.15;
 }
 
 .chatToggleName {
-    font-size: 0.92rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
 }
 
 .chatToggleSub {
@@ -685,36 +706,32 @@
 
 /* live dot */
 .chatToggleDot {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 4px;
-    height: 4px;
+    position: relative;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
-    z-index: -1;
-    opacity: 0.4;
+    background: #10b981;
+    /* bright green */
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
 }
 
 .chatToggleDot::after {
     content: '';
     position: absolute;
-    inset: -15px;
+    inset: -4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    animation: statusRipple 4s infinite;
+    border: 1.5px solid rgba(16, 185, 129, 0.4);
+    animation: pingRipple 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
-@keyframes statusRipple {
+@keyframes pingRipple {
     0% {
-        transform: translate(-50%, -50%) scale(0.5);
-        opacity: 0.6;
+        transform: scale(0.5);
+        opacity: 1;
     }
 
     100% {
-        transform: translate(-50%, -50%) scale(1.8);
+        transform: scale(2.5);
         opacity: 0;
     }
 }
@@ -743,20 +760,26 @@
     }
 }
 
-.rotatingLogo {
-    animation: logoRotate 10s linear infinite;
+.aiLogoAnimation {
+    animation: breathingFloat 4s ease-in-out infinite;
     transform-origin: center;
 }
 
-@keyframes logoRotate {
-    from {
-        transform: rotate(0deg);
+@keyframes breathingFloat {
+
+    0%,
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 0.9;
     }
 
-    to {
-        transform: rotate(360deg);
+    50% {
+        transform: scale(1.15) translateY(-2px);
+        opacity: 1;
     }
 }
+
+
 
 .closeMainBtn {
     background: #f1f5f9;
