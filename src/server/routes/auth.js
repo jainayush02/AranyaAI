@@ -88,25 +88,14 @@ function clearAdminAttempts(ip) {
 // Helper to generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-// Multer config
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, `profile_${Date.now()}${path.extname(file.originalname)}`);
-    }
-});
+// Multer config - Use memory storage for serverless compatibility (Vercel/Netlify)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit for Base64 efficiency
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png/;
+        const filetypes = /jpeg|jpg|png|webp/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = filetypes.test(file.mimetype);
         if (extname && mimetype) {
@@ -530,7 +519,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 });
 
 // @route POST /api/auth/profile/upload
-// @desc  Upload profile picture
+// @desc  Upload profile picture (Memory Storage + Base64 for Vercel/Cloud compatibility)
 router.post('/profile/upload', authMiddleware, upload.single('profilePic'), async (req, res) => {
     try {
         const { email, mobile } = req.body;
@@ -549,16 +538,19 @@ router.post('/profile/upload', authMiddleware, upload.single('profilePic'), asyn
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Save path to DB (relative path to be served)
-        user.profilePic = `/uploads/${req.file.filename}`;
+        // Convert Buffer to Base64 data URL for database storage
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
+        // Save Base64 to DB (Bypasses read-only filesystem issues on Vercel)
+        user.profilePic = base64Image;
         await user.save();
 
         try {
-            await logActivity('profile', user, `Updated profile picture`);
+            await logActivity('profile', user, `Updated profile picture (Cloud optimized)`);
         } catch (_) { }
 
         res.status(200).json({
-            message: 'Profile picture uploaded',
+            message: 'Profile picture updated',
             profilePic: user.profilePic,
             user: {
                 id: user.id,
@@ -570,8 +562,8 @@ router.post('/profile/upload', authMiddleware, upload.single('profilePic'), asyn
             }
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server Error' });
+        console.error('[Upload Error]', error);
+        res.status(500).json({ message: 'Server error during upload. Please ensure image size is under 2MB.' });
     }
 });
 
