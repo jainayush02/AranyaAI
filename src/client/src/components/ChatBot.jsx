@@ -54,6 +54,7 @@ export default function ChatBot() {
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
     const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
@@ -303,7 +304,7 @@ export default function ChatBot() {
                 {isOpen && (
                     <div className={styles.overlay}>
                         <motion.div
-                            className={styles.chatWrapper}
+                            className={`${styles.chatWrapper} ${isMobileHistoryOpen ? styles.mobileHistoryOpen : ''}`}
                             initial={{ opacity: 0, scale: 0.9, y: 30 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 30 }}
@@ -355,7 +356,7 @@ export default function ChatBot() {
                                         <div
                                             key={chat._id}
                                             className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''} ${!isSidebarOpen ? styles.historyItemCollapsed : ''}`}
-                                            onClick={() => setActiveChatId(chat._id)}
+                                            onClick={() => { setActiveChatId(chat._id); setIsMobileHistoryOpen(false); }}
                                             title={!isSidebarOpen ? chat.title : ''}
                                         >
                                             <div className={styles.chatItemContent}>
@@ -409,11 +410,26 @@ export default function ChatBot() {
                                     className={`${styles.chatHeader} ${!headerVisible ? styles.chatHeaderCompact : ''}`}
                                 >
                                     <div className={styles.headerInfo}>
-                                        <h2>
-                                            {activeChatId
-                                                ? conversations.find(c => c._id === activeChatId)?.title
-                                                : 'Aranya AI Assistant'}
-                                        </h2>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <button
+                                                className={styles.mobileOnly}
+                                                style={{
+                                                    display: 'none',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: '5px',
+                                                    color: '#64748b'
+                                                }}
+                                                onClick={() => setIsMobileHistoryOpen(!isMobileHistoryOpen)}
+                                            >
+                                                <History size={20} />
+                                            </button>
+                                            <h2>
+                                                {activeChatId
+                                                    ? conversations.find(c => c._id === activeChatId)?.title
+                                                    : 'Aranya AI Assistant'}
+                                            </h2>
+                                        </div>
                                         <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
                                     </div>
                                     <button className={styles.closeMainBtn} onClick={() => setIsOpen(false)}>
@@ -426,7 +442,7 @@ export default function ChatBot() {
                                         <div className={styles.emptyContent}>
                                             <div className={styles.emptyState}>
                                                 <div className={styles.botGlow}>
-                                                    <AILogo size={44} />
+                                                    <AILogo size={32} />
                                                 </div>
                                                 <h3>How can Aranya AI help today?</h3>
                                                 <p>I can analyze symptoms, predict risks, and optimize livestock health.</p>
