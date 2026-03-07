@@ -8,7 +8,10 @@ const helmet = require('helmet');
 const app = express();
 
 // Security headers
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false
+}));
 
 // CORS — only allow known origins
 const allowedOrigins = [

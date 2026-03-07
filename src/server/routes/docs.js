@@ -174,6 +174,10 @@ router.delete('/:id', authenticate, adminOnly, async (req, res) => {
 
 // POST upload video tutorial
 router.post('/:id/upload-video', authenticate, adminOnly, upload.single('video'), async (req, res) => {
+    // Disable local uploads on Vercel
+    if (process.env.VERCEL) {
+        return res.status(403).json({ message: 'Local uploads are disabled on Vercel. Please use the Admin Portal Cloud Upload feature.' });
+    }
     try {
         if (!req.file) return res.status(400).json({ message: 'No video file provided' });
         const videoPath = `/uploads/videos/${req.file.filename}`;

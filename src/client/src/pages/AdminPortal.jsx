@@ -648,10 +648,13 @@ export default function AdminPortal() {
                                                 <video
                                                     src={videoPreview || docForm.videoUrl}
                                                     controls
+                                                    playsInline
+                                                    preload="metadata"
+                                                    crossOrigin="anonymous"
                                                     className={s.videoPreviewObj}
                                                 />
                                                 <div className={s.videoPreviewBadge}>
-                                                    {videoPreview ? 'New Selection' : 'Currently Saved'}
+                                                    {videoPreview ? 'New Selection' : (docForm.videoUrl?.startsWith('/uploads') ? 'Local Save (Vercel Incompatible)' : 'Saved to Cloud')}
                                                 </div>
                                                 <button className={s.removeVideoBtn} onClick={removeVideo} type="button">
                                                     <Trash2 size={14} /> Remove Video
@@ -1417,7 +1420,17 @@ export default function AdminPortal() {
                                                         ) : (
                                                             articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === subTab).map(art => (
                                                                 <tr key={art._id}>
-                                                                    <td style={{ fontWeight: 600 }}>{art.title}</td>
+                                                                    <td style={{ fontWeight: 600 }}>
+                                                                        {art.title}
+                                                                        {art.videoUrl && (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.65rem' }}>
+                                                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: art.videoUrl?.startsWith('/uploads') ? '#f43f5e' : '#10b981' }} />
+                                                                                <span style={{ color: art.videoUrl?.startsWith('/uploads') ? '#f43f5e' : '#64748b' }}>
+                                                                                    {art.videoUrl?.startsWith('/uploads') ? 'Local Video (Needs Re-upload)' : 'Cloud Managed'}
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
                                                                     <td>
                                                                         <span className={`${s.pill} ${art.published ? s.pillActive : s.pillGray}`}>
                                                                             {art.published ? 'Live' : 'Draft'}

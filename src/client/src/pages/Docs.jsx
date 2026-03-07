@@ -109,6 +109,12 @@ export default function Docs() {
         <div className={s.page}>
 
 
+            {(activeCategory || activeArticle) && (
+                <button onClick={handleBack} className={s.backBtn} style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', padding: '0.6rem 1.25rem', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', transition: '0.2s', color: '#475569' }}>
+                    <ArrowLeft size={18} /> Back {activeArticle ? 'to Articles' : 'to Guides'}
+                </button>
+            )}
+
             <AnimatePresence mode="wait">
                 {/* ── TOP LEVEL: CATEGORIES ── */}
                 {!activeCategory && !activeArticle && (
@@ -195,19 +201,87 @@ export default function Docs() {
 
                             {activeArticle.videoUrl ? (
                                 <div className={s.videoWrap}>
-                                    <video controls src={activeArticle.videoUrl} className={s.videoPlayer} />
-                                    {activeArticle.videoTitle && <p className={s.videoTitle}>{activeArticle.videoTitle}</p>}
+                                    <video
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        crossOrigin="anonymous"
+                                        src={activeArticle.videoUrl}
+                                        className={s.videoPlayer}
+                                        onError={(e) => {
+                                            if (activeArticle.videoUrl?.startsWith('/uploads')) {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                                // Hide the title bar if it exists
+                                                const titleBar = e.target.parentElement.querySelector('#video-title-bar');
+                                                if (titleBar) titleBar.style.display = 'none';
+                                            }
+                                        }}
+                                    />
+                                    <div className={s.videoErrorFallback} style={{
+                                        display: 'none',
+                                        padding: '5rem 2rem',
+                                        textAlign: 'center',
+                                        background: '#fff',
+                                        borderRadius: '24px',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '2rem'
+                                    }}>
+                                        <div style={{ padding: '1.5rem', borderRadius: '24px', background: '#fff1f2', color: '#f43f5e' }}>
+                                            <Video size={36} />
+                                        </div>
+                                        <div style={{ maxWidth: '400px' }}>
+                                            <h3 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>Tutorial requires update</h3>
+                                            <p style={{ fontSize: '1.05rem', color: '#64748b', lineHeight: '1.6' }}>
+                                                This tutorial was saved locally. To view it on the cloud, please re-upload the file in the portal.
+                                            </p>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            {role === 'admin' && (
+                                                <button
+                                                    onClick={() => navigate('/admin-portal?tab=docs')}
+                                                    style={{
+                                                        padding: '1rem 2.5rem',
+                                                        background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                                                        color: '#fff',
+                                                        borderRadius: '14px',
+                                                        fontWeight: 800,
+                                                        fontSize: '0.95rem',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        boxShadow: '0 10px 20px rgba(15, 23, 42, 0.1)'
+                                                    }}
+                                                >
+                                                    Update in Admin Portal
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={handleBack}
+                                                style={{
+                                                    padding: '1rem 2.5rem',
+                                                    background: '#fff',
+                                                    color: '#0f172a',
+                                                    borderRadius: '14px',
+                                                    fontWeight: 800,
+                                                    fontSize: '0.95rem',
+                                                    border: '1px solid #e2e8f0',
+                                                    cursor: 'pointer',
+                                                    transition: '0.2s'
+                                                }}
+                                            >
+                                                Back to Guides
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {activeArticle.videoTitle && <p className={s.videoTitle} id="video-title-bar">{activeArticle.videoTitle}</p>}
                                 </div>
                             ) : (
                                 role === 'admin' && (
-                                    <div className={s.videoUploadBox}>
-                                        <Video size={30} color="#475569" style={{ marginBottom: '1rem' }} />
-                                        <p>No video attached. Upload a tutorial video:</p>
-                                        <label className={s.uploadBtn}>
-                                            {uploading ? <Loader2 className={s.spin} size={16} /> : <Upload size={16} />}
-                                            Upload Video
-                                            <input type="file" accept="video/*" hidden onChange={handleVideoUpload} />
-                                        </label>
+                                    <div className={s.videoUploadBox} onClick={() => navigate('/admin-portal?tab=docs')} style={{ cursor: 'pointer' }}>
+                                        <Video size={30} color="#2d5f3f" style={{ marginBottom: '1rem' }} />
+                                        <p style={{ fontWeight: 600 }}>No video tutorial attached.</p>
+                                        <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '-10px' }}>Click here to manage your media in the Admin Portal</p>
                                     </div>
                                 )
                             )}

@@ -321,6 +321,13 @@ export default function Login() {
 
         /* ── Regular user ── */
         try {
+            // Prevent accidental submit for mobile/OTP before OTP is requested
+            if ((loginType === 'mobile' || (isSignUp && loginType === 'mobile')) && !showOTP) {
+                // If they hit enter or submit button, trigger OTP request instead
+                await handleRequestOTP();
+                return;
+            }
+
             const endpoint = isSignUp
                 ? `${API_BASE_URL}/register`
                 : `${API_BASE_URL}/login`;
@@ -676,7 +683,7 @@ export default function Login() {
                                     )}
 
                                     {/* Password — shown for email login + admin login (when NOT in forgot password) */}
-                                    {!showOTP && !isForgotPassword && !isAdminForgot && loginType === 'email' && (
+                                    {!showOTP && !isForgotPassword && !isAdminForgot && (loginType === 'email' || isAdminPortal) && (
                                         <Field icon={<Lock size={16} />} type="password" placeholder="Password"
                                             value={password} onChange={e => setPassword(e.target.value)}
                                             required={!isSignUp} />
@@ -899,7 +906,7 @@ export default function Login() {
                                         </span>
                                     )}
                                     <button type="button" className={styles.adminBtn}
-                                        onClick={() => { setIsAdminPortal(!isAdminPortal); setIsSignUp(false); setIsForgotPassword(false); resetState(); }}>
+                                        onClick={() => { setIsAdminPortal(!isAdminPortal); setLoginType('email'); setIsSignUp(false); setIsForgotPassword(false); resetState(); }}>
                                         {isAdminPortal ? '← Back to User Login' : 'Admin Portal →'}
                                     </button>
                                 </div>
