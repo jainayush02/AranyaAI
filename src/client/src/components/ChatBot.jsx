@@ -4,7 +4,8 @@ import {
     Camera, Image as ImageIcon,
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
-    CheckSquare, Square, StopCircle, Sparkles, CornerDownRight
+    CheckSquare, Square, StopCircle, Sparkles, CornerDownRight,
+    MoreVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -66,20 +67,8 @@ const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
 };
 
 const parseMessage = (content) => {
-    if (typeof content !== 'string') return { cleanContent: '', suggestions: [] };
-
-    // Convert various tag formats to a standard delimiter
-    const tempContent = content.replace(/(\|\||II|\|\| |II )\s*SUGGESTION\s*(\|\||II| \|\|| II)/gi, '###SUGGESTION###');
-    const parts = tempContent.split('###SUGGESTION###');
-
-    // Clean up the main content
-    let cleanContent = parts[0];
-
-    // Glitch fix: Hide trailing partial tags like "||SUGG" during typing
-    cleanContent = cleanContent.replace(/(\|\||II|\|\| |II )\s*[S?U?G?G?E?S?T?I?O?N?]*$/i, '').trim();
-
-    const suggestions = parts.slice(1).map(s => s.trim()).filter(s => s.length > 0);
-    return { cleanContent, suggestions };
+    if (typeof content !== 'string') return { cleanContent: '' };
+    return { cleanContent: content.trim() };
 };
 
 export default function ChatBot() {
@@ -90,13 +79,23 @@ export default function ChatBot() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [selectedImage, setSelectedImage] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [imagePreviews, setImagePreviews] = useState([]);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
     const [selectedChatIds, setSelectedChatIds] = useState([]);
+    const [menuOpenId, setMenuOpenId] = useState(null);
+
+    useEffect(() => {
+        const handleClickOutside = () => setMenuOpenId(null);
+        if (menuOpenId) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [menuOpenId]);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
         title: '',
@@ -161,7 +160,7 @@ export default function ChatBot() {
             scrollToBottom();
         }, 100);
         return () => clearTimeout(timeoutId);
-    }, [messages, isTyping]);
+    }, [messages, isTyping, isGenerating]);
 
     const fetchConversations = async () => {
         try {
@@ -202,16 +201,79 @@ export default function ChatBot() {
         }
     };
 
-    const handleImageSelect = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setSelectedImage(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result);
-            };
-            reader.readAsDataURL(file);
+    const handleImageSelect = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        // Limit to 4 images total
+        const remainingSlots = 4 - imagePreviews.length;
+        const filesToProcess = files.slice(0, remainingSlots);
+
+        if (files.length > remainingSlots) {
+            alert(`You can only upload up to 4 images. Added ${remainingSlots} images.`);
         }
+
+        setIsUploadingImage(true);
+
+        const processFile = (file) => {
+            return new Promise((resolve) => {
+                if (!file.type.startsWith('image/')) {
+                    resolve(null);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const MAX_SIZE = 600; // Efficient size for multi-image
+
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        resolve({ base64: optimizedBase64, file });
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        };
+
+        try {
+            const results = await Promise.all(filesToProcess.map(processFile));
+            const validResults = results.filter(r => r !== null);
+
+            setImagePreviews(prev => [...prev, ...validResults.map(r => r.base64)]);
+            setSelectedImages(prev => [...prev, ...validResults.map(r => r.file)]);
+        } catch (err) {
+            console.error('Image processing failed', err);
+        } finally {
+            setIsUploadingImage(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const removeImage = (index) => {
+        setImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setSelectedImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleDeleteChat = async (e, id) => {
@@ -340,8 +402,13 @@ export default function ChatBot() {
 
     const handleSend = async (query = null) => {
         const messageText = query || input;
-        if (!messageText.trim() && !imagePreview) return;
+        if (!messageText.trim() && imagePreviews.length === 0) return;
+        if (isSendingRef.current) {
+            console.warn("Attempted to send message while another is in progress.");
+            return;
+        }
 
+        isSendingRef.current = true;
         setIsTyping(true);
         setIsGenerating(true);
         abortControllerRef.current = new AbortController();
@@ -350,35 +417,43 @@ export default function ChatBot() {
 
         // Auto-create chat if none exists
         if (!chatId) {
+            console.log("No active chat, attempting to create a new one.");
             chatId = await handleNewChat();
             if (!chatId) {
+                console.error("Chat creation failed, cannot send message.");
                 setIsTyping(false);
                 setIsGenerating(false);
+                isSendingRef.current = false;
+                setInput('');
+                setImagePreviews([]);
+                setSelectedImages([]);
                 return;
             }
+            console.log(`New chat created with ID: ${chatId}`);
         }
 
         const tempMsgId = Date.now();
         const userMsg = {
             role: 'user',
             content: messageText || 'Image Analysis',
-            image_url: imagePreview,
+            image_url: imagePreviews.length > 0 ? imagePreviews[0] : null, // Fallback for single image_url
+            image_urls: imagePreviews, // New field for multiple images
             tempId: tempMsgId,
             createdAt: new Date()
         };
 
         setMessages(prev => [...prev, userMsg]);
-        scrollToBottom(true);
+        setTimeout(() => scrollToBottom(true), 50);
         setInput('');
-        setImagePreview(null);
-        setSelectedImage(null);
+        setImagePreviews([]);
+        setSelectedImages([]);
 
-        isSendingRef.current = true;
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`/api/chat/conversations/${chatId}/messages`, {
                 content: userMsg.content,
-                image_url: userMsg.image_url
+                image_url: userMsg.image_url,
+                image_urls: userMsg.image_urls
             }, {
                 headers: { Authorization: `Bearer ${token}` },
                 signal: abortControllerRef.current.signal
@@ -391,14 +466,14 @@ export default function ChatBot() {
             });
 
             fetchConversations();
+            // setIsGenerating(false); // DO NOT set here, let Typewriter.onFinish handle it
         } catch (err) {
             if (axios.isCancel(err)) {
                 console.log('Request canceled');
             } else {
                 console.error('Send failed', err);
             }
-            // If failed, remove the user message or handle appropriately
-            setIsGenerating(false);
+            setIsGenerating(false); // Set to false only on error
         } finally {
             setIsTyping(false);
             isSendingRef.current = false;
@@ -409,8 +484,8 @@ export default function ChatBot() {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
-        setIsGenerating(false);
         setIsTyping(false);
+        setIsGenerating(false);
         // Also remove the "isNew" flag from the last message to stop typewriter
         setMessages(prev => {
             const lastMsg = prev[prev.length - 1];
@@ -419,6 +494,25 @@ export default function ChatBot() {
             }
             return prev;
         });
+    };
+
+    const ImageGrid = ({ images }) => {
+        if (!images || images.length === 0) return null;
+
+        const count = images.length;
+        if (count === 1) {
+            return <img src={images[0]} alt="attachment" className={styles.messageImage} />;
+        }
+
+        return (
+            <div className={`${styles.imageGrid} ${styles[`grid-${count}`]}`}>
+                {images.map((img, i) => (
+                    <div key={i} className={styles.gridItem}>
+                        <img src={img} alt={`attachment-${i}`} />
+                    </div>
+                ))}
+            </div>
+        );
     };
 
     return (
@@ -456,20 +550,21 @@ export default function ChatBot() {
                                             <div className={styles.historyLabel}>Your Chat</div>
                                             {conversations.length > 0 && (
                                                 <div className={styles.bulkActionsHeader}>
-                                                    <button
-                                                        className={styles.bulkActionBtn}
+                                                    <div
+                                                        className={`${styles.checkbox} ${selectedChatIds.length === conversations.length && conversations.length > 0 ? styles.checkboxChecked : ''}`}
                                                         onClick={handleSelectAll}
                                                         title={selectedChatIds.length === conversations.length ? "Deselect All" : "Select All"}
+                                                        style={{ cursor: 'pointer' }}
                                                     >
-                                                        {selectedChatIds.length === conversations.length ? <CheckSquare size={14} /> : <Square size={14} />}
-                                                    </button>
+                                                        {selectedChatIds.length === conversations.length && conversations.length > 0 && <Check size={10} strokeWidth={4} />}
+                                                    </div>
                                                     {selectedChatIds.length > 0 && (
                                                         <button
                                                             className={`${styles.bulkActionBtn} ${styles.bulkDeleteIcon}`}
                                                             onClick={handleDeleteSelected}
                                                             title="Delete Selected"
                                                         >
-                                                            <Trash2 size={14} />
+                                                            <Trash2 size={16} />
                                                         </button>
                                                     )}
                                                 </div>
@@ -480,21 +575,20 @@ export default function ChatBot() {
                                             {conversations.map(chat => (
                                                 <div
                                                     key={chat._id}
-                                                    className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''} ${!isSidebarOpen ? styles.historyItemCollapsed : ''}`}
+                                                    className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''}`}
                                                     onClick={() => { setActiveChatId(chat._id); setIsMobileHistoryOpen(false); }}
-                                                    title={!isSidebarOpen ? chat.title : ''}
                                                 >
                                                     <div className={styles.chatItemContent}>
-                                                        {isSidebarOpen && (
+                                                        {selectedChatIds.includes(chat._id) && (
                                                             <div
-                                                                className={`${styles.checkbox} ${selectedChatIds.includes(chat._id) ? styles.checkboxChecked : ''}`}
+                                                                className={`${styles.checkbox} ${styles.checkboxChecked}`}
                                                                 onClick={(e) => toggleSelectChat(e, chat._id)}
                                                             >
-                                                                {selectedChatIds.includes(chat._id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                                <Check size={10} strokeWidth={4} />
                                                             </div>
                                                         )}
                                                         <MessageSquare size={16} className={styles.chatListIcon} />
-                                                        <MessageSquare size={20} className={styles.collapsedChatIcon} />
+
                                                         {editingId === chat._id ? (
                                                             <input
                                                                 autoFocus
@@ -510,13 +604,41 @@ export default function ChatBot() {
                                                         )}
                                                     </div>
 
-                                                    <div className={styles.chatActions}>
-                                                        <button className={styles.actionIcon} onClick={(e) => startRename(e, chat)}>
-                                                            <Edit3 size={14} />
+                                                    <div className={styles.moreMenuWrapper} onClick={(e) => e.stopPropagation()}>
+                                                        <button
+                                                            className={`${styles.moreBtn} ${menuOpenId === chat._id ? styles.moreBtnOpen : ''}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setMenuOpenId(menuOpenId === chat._id ? null : chat._id);
+                                                            }}
+                                                        >
+                                                            <MoreVertical size={16} />
                                                         </button>
-                                                        <button className={`${styles.actionIcon} ${styles.deleteIcon}`} onClick={(e) => handleDeleteChat(e, chat._id)}>
-                                                            <Trash2 size={14} />
-                                                        </button>
+
+                                                        <AnimatePresence>
+                                                            {menuOpenId === chat._id && (
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                                    className={styles.dropdownMenu}
+                                                                >
+                                                                    <button className={styles.dropdownItem} onClick={(e) => { startRename(e, chat); setMenuOpenId(null); }}>
+                                                                        <Edit3 size={14} />
+                                                                        <span>Rename</span>
+                                                                    </button>
+                                                                    <button className={styles.dropdownItem} onClick={(e) => { toggleSelectChat(e, chat._id); setMenuOpenId(null); }}>
+                                                                        {selectedChatIds.includes(chat._id) ? <Square size={14} /> : <CheckSquare size={14} />}
+                                                                        <span>{selectedChatIds.includes(chat._id) ? 'Deselect' : 'Select'}</span>
+                                                                    </button>
+                                                                    <div className={styles.dropdownDivider} />
+                                                                    <button className={`${styles.dropdownItem} ${styles.dropdownItemDelete}`} onClick={(e) => { handleDeleteChat(e, chat._id); setMenuOpenId(null); }}>
+                                                                        <Trash2 size={14} />
+                                                                        <span>Delete</span>
+                                                                    </button>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
                                                     </div>
                                                 </div>
                                             ))}
@@ -584,10 +706,10 @@ export default function ChatBot() {
                                                 </div>
                                             )}
                                             <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}>
-                                                {msg.image_url && <img src={msg.image_url} alt="upload" className={styles.msgImage} />}
                                                 <div className={styles.messageContent}>
+                                                    <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
-                                                        const { cleanContent, suggestions } = parseMessage(msg.content);
+                                                        const { cleanContent } = parseMessage(msg.content);
                                                         return (
                                                             <>
                                                                 {msg.role === 'ai' && msg.isNew ? (
@@ -598,36 +720,24 @@ export default function ChatBot() {
                                                                             setIsGenerating(false);
                                                                             setMessages(prev => {
                                                                                 const newMsgs = [...prev];
-                                                                                if (newMsgs.length > 0 && newMsgs[newMsgs.length - 1].role === 'ai') {
-                                                                                    newMsgs[newMsgs.length - 1].isNew = false;
+                                                                                const targetIndex = newMsgs.findIndex(m => m === msg);
+                                                                                if (targetIndex !== -1) {
+                                                                                    newMsgs[targetIndex] = { ...msg, isNew: false };
                                                                                 }
                                                                                 return newMsgs;
                                                                             });
                                                                         }}
                                                                     />
                                                                 ) : (
-                                                                    <ReactMarkdown>{cleanContent}</ReactMarkdown>
-                                                                )}
-
-                                                                {msg.role === 'ai' && !msg.isNew && suggestions.length > 0 && (
-                                                                    <div className={styles.suggestionsContainer}>
-                                                                        {suggestions.map((s, idx) => (
-                                                                            <button
-                                                                                key={idx}
-                                                                                className={styles.suggestionBtn}
-                                                                                onClick={() => handleSend(s)}
-                                                                            >
-                                                                                <CornerDownRight size={12} className={styles.suggestionIcon} />
-                                                                                <span>{s}</span>
-                                                                            </button>
-                                                                        ))}
+                                                                    <div className={styles.markdownContent}>
+                                                                        <ReactMarkdown>{cleanContent}</ReactMarkdown>
                                                                     </div>
                                                                 )}
                                                             </>
                                                         );
                                                     })()}
 
-                                                    {msg.role === 'ai' && (
+                                                    {msg.role === 'ai' && !msg.isNew && (
                                                         <div className={styles.messageActionRow}>
                                                             <button
                                                                 className={styles.messageActionBtn}
@@ -641,20 +751,21 @@ export default function ChatBot() {
                                                                 onClick={() => handleFeedback(msg._id || i, 'helpful')}
                                                                 title="Helpful response"
                                                             >
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'helpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'helpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
                                                             </button>
                                                             <button
                                                                 className={`${styles.messageActionBtn} ${feedback[msg._id || i] === 'unhelpful' ? styles.actionBtnActive : ''}`}
                                                                 onClick={() => handleFeedback(msg._id || i, 'unhelpful')}
                                                                 title="Not helpful"
                                                             >
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'unhelpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'unhelpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
                                                             </button>
+                                                            <div className={styles.actionDivider} />
                                                             <button className={styles.messageActionBtn} onClick={() => handleExport(msg.content)} title="Export">
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                                             </button>
                                                             <button className={styles.messageActionBtn} onClick={() => handleRegenerate(i)} disabled={isGenerating} title="Regenerate">
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
                                                             </button>
                                                         </div>
                                                     )}
@@ -666,21 +777,40 @@ export default function ChatBot() {
                                     <div ref={messagesEndRef} />
                                 </div>
 
-                                {imagePreview && (
-                                    <div className={styles.previewBar}>
-                                        <div style={{ position: 'relative', width: 'fit-content' }}>
-                                            <img src={imagePreview} alt="upload" className={styles.previewThumb} />
-                                            <button
-                                                className={styles.removeImgBtn}
-                                                onClick={() => { setImagePreview(null); setSelectedImage(null); }}
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
                                 <footer className={styles.chatFooter}>
+                                    {imagePreviews.length > 0 && (
+                                        <div className={styles.previewBar}>
+                                            {imagePreviews.map((preview, idx) => (
+                                                <div key={idx} className={styles.previewContainer}>
+                                                    <img src={preview} alt="upload" className={styles.previewThumb} />
+                                                    <div className={styles.previewActions}>
+                                                        <button
+                                                            className={`${styles.previewActionBtn} ${styles.removeBtn}`}
+                                                            onClick={() => removeImage(idx)}
+                                                            title="Remove image"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {isUploadingImage && (
+                                                <div className={styles.imageLoadingContainer}>
+                                                    <div className={styles.imageLoaderSpinner}></div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {!imagePreviews.length && isUploadingImage && (
+                                        <div className={styles.previewBar}>
+                                            <div className={styles.imageLoadingContainer}>
+                                                <div className={styles.imageLoaderSpinner}></div>
+                                                <span className={styles.imageLoadingText}>Optimizing...</span>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {isTyping && (
                                         <div className={styles.globalTypingContainer}>
                                             <AILogo size={18} className={styles.typingLogoGlobal} />
@@ -691,20 +821,14 @@ export default function ChatBot() {
                                         </div>
                                     )}
 
-                                    {isGenerating && (
-                                        <div className={styles.stopButtonContainer}>
-                                            <button className={styles.stopBtn} onClick={handleStopGeneration}>
-                                                <StopCircle size={14} />
-                                                <span>Stop</span>
-                                            </button>
-                                        </div>
-                                    )}
+
                                     <div className={styles.inputWrapper}>
                                         <input
                                             type="file"
                                             ref={fileInputRef}
                                             style={{ display: 'none' }}
                                             accept="image/*"
+                                            multiple
                                             onChange={handleImageSelect}
                                         />
                                         <button
@@ -726,13 +850,24 @@ export default function ChatBot() {
                                             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                                         />
                                         <div className={styles.inputActions}>
-                                            <button
-                                                className={styles.sendBtn}
-                                                onClick={handleSend}
-                                                disabled={!input.trim() && !imagePreview}
-                                            >
-                                                <Send size={18} />
-                                            </button>
+                                            {isGenerating ? (
+                                                <button
+                                                    className={styles.stopBtnInInput}
+                                                    onClick={handleStopGeneration}
+                                                    title="Stop generating"
+                                                >
+                                                    <StopCircle size={16} />
+                                                    <span>Stop</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className={styles.sendBtn}
+                                                    onClick={() => handleSend()}
+                                                    disabled={!input.trim() && imagePreviews.length === 0}
+                                                >
+                                                    <Send size={18} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                     <div className={styles.disclaimerText}>

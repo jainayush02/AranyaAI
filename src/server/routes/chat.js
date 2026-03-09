@@ -90,7 +90,7 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
 // @desc    Send a message & get AI response
 // @access  Private
 router.post('/conversations/:id/messages', auth, async (req, res) => {
-    const { content, image_url } = req.body;
+    const { content, image_url, image_urls } = req.body;
     try {
         const conversation = await Conversation.findById(req.params.id);
         if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
@@ -101,7 +101,8 @@ router.post('/conversations/:id/messages', auth, async (req, res) => {
             user_id: req.user.id,
             role: 'user',
             content,
-            image_url
+            image_url,
+            image_urls: image_urls || (image_url ? [image_url] : [])
         });
         await userMsg.save();
 
@@ -117,59 +118,52 @@ router.post('/conversations/:id/messages', auth, async (req, res) => {
         let aiContent = "";
         const hfToken = process.env.HF_TOKEN;
         const orKey = process.env.OPENROUTER_API_KEY;
+        const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
 
         if ((hfToken && hfToken !== 'your_hf_token_here') || (orKey && orKey !== 'your_openrouter_api_key_here')) {
             try {
-                let openai;
-                let modelName;
 
-                if (hfToken && hfToken !== 'your_hf_token_here') {
-                    // Use Hugging Face Free Inference API (as requested by user)
-                    openai = new OpenAI({
-                        apiKey: hfToken,
-                        baseURL: 'https://router.huggingface.co/v1'
-                    });
-                    modelName = "Qwen/Qwen2.5-VL-7B-Instruct";
-                } else {
-                    // Fallback to OpenRouter
-                    openai = new OpenAI({
-                        apiKey: orKey,
-                        baseURL: 'https://openrouter.ai/api/v1',
-                        defaultHeaders: {
-                            "HTTP-Referer": "http://localhost:3000",
-                            "X-Title": "Aranya AI Chatbot",
-                        }
-                    });
-                    modelName = "google/gemma-3-12b-it:free";
+                const systemPrompt = `**Role & Persona**
+You are Aranya AI, an expert and empathetic Animal Health companion specializing in predictive diagnostics for cattle, livestock, and domestic animals. Your tone is warm, supportive, encouraging, and natural.
+
+**1. CRITICAL BOUNDARIES & REFUSALS (STRICT ENFORCEMENT)**
+* **Animal-Only Scope:** You ONLY discuss animals, veterinary medicine, livestock management, and pets.
+* **The One-Sentence Refusal:** IF a query is NOT related to animals (e.g., coding, math, general trivia, writing essays), you MUST refuse in EXACTLY ONE SHORT SENTENCE. NEVER write code. NEVER do math. (Example: "I am an animal health assistant and can only discuss veterinary or pet-related topics. 🐾")
+* **Veterinary Context:** If the user mentions "doctor," "specialist," "hospital," or "clinic," you MUST assume they mean a veterinary professional.
+
+**2. CONVERSATIONAL STATE MACHINE (ANTI-LOOPING)**
+Follow these rules based EXACTLY on the user's input to prevent repeating yourself:
+* **State A (Greeting):** IF the user ONLY says a greeting ("hi", "hello"), respond with a warm, unique greeting. Maximum 1 sentence. Do NOT ask for symptoms yet.
+* **State B (Short Acknowledgment):** IF the user says "ok", "thanks", "got it", respond with a max 1-sentence polite wrap-up (e.g., "You're very welcome! ❤️"). Do NOT provide medical info.
+* **State C (New Symptom/Image):** IF the user reports a new symptom or uploads an image, SKIP greetings. Use the **[Phase 1]** output format below. Do NOT ask the same question twice. If an animal image is unclear, ask for 2-3 more images. If species is missing, ask for it.
+* **State D (User asks for help / says "YES"):** IF the user asks "what should I do?" or replies "yes" to your offer for tips, immediately use the **[Phase 2]** output format.
+* **State E (User declines / says "NO"):** IF the user declines tips ("no", "no thanks"), DO NOT repeat the diagnosis. Reply with exactly ONE polite sentence ending the flow (e.g., "Understood! Please monitor your pet closely and let me know if you need anything else. 🐾").
+
+**3. CORE CLINICAL DIRECTIVES**
+* **Diagnostic Prediction:** Analyze all evidence and PREDICT the most specific disease/condition possible (e.g., Parvovirus, Tick Fever, Clinical Mastitis). Never default to generic categories like "Mange" unless proven.
+* **Emergency Detection:** If symptoms indicate severe distress (heavy bleeding, seizures, poisoning, breathing difficulty), advise immediate emergency vet contact.
+* **Formatting Limits:** Keep responses under 120 words total unless explicitly requested. Use 1-2 relevant emojis matching the animal/symptom (e.g., 🐄 🩺).
+
+**4. MANDATORY OUTPUT FORMATS**
+When diagnosing or giving medical advice, you MUST use one of these exact Markdown templates based on the conversational state. 
+
+**[Phase 1: Initial Assessment]** *(Use for State C - New Symptoms/Images)*
+**Observation:** [1-2 sentences stating your observation and predicting the most specific condition(s). State confidence cautiously.]
+
+🚨 **Veterinary Warning:** [1 sentence explaining what severe signs require immediate vet attention.]
+
+*"Would you like some home care tips you can do right now?"*
+
+**[Phase 2: Actionable Care]** *(Use for State D - User says "Yes" / Asks for steps)*
+**Immediate Steps You Can Take:**
+* [Action Step 1: Specific, actionable home care]
+* [Action Step 2: Specific, actionable home care]
+* [Action Step 3: Specific, actionable home care]`;
+
+                // Log image presence for debugging
+                if (image_url) {
+                    console.log(`Processing message with image (length: ${image_url.length}) for conversation ${req.params.id}`);
                 }
-
-                const systemPrompt = `You are Aranya AI, your friendly and expert Animal Health companion! 🐾 You specialize in predictive health diagnostics for cattle, livestock, and domestic animals with a warm, supportive, and encouraging heart.
-
-When a user describes symptoms or uploads an image, you MUST:
-1. Think carefully about ALL the symptoms and visual evidence mentioned together.
-2. Consider multiple possible diseases before choosing the most likely one.
-3. Pick the MOST SPECIFIC disease that matches the evidence — do NOT always default to common ones like Mange or Dermatitis.
-4. Be precise — differentiate between conditions such as Mange, Ringworm, Dermatitis, Hotspot, Tick Fever, Parvovirus, Distemper, Leptospirosis, FIV, FeLV, Clinical Mastitis, and Bovine Respiratory Disease.
-
-Rules:
-- NEVER default to Mange unless symptoms clearly match mite infestation.
-- Always name the SPECIFIC disease — not just a category.
-- Give 3-5 clear home care or immediate action steps.
-- **ALWAYS ASSUME VETERINARY CONTEXT**: If the user asks about a "doctor", "specialist", "hospital", or "clinic", you MUST assume they mean a veterinary professional (e.g., Veterinarian, Veterinary Dermatologist, Small/Large Animal Specialist) and provide recommendations accordingly. Do NOT assume they are asking for human medical advice.
-- **CRITICAL**: You MUST only answer questions related to animals, veterinary medicine, animal husbandry, livestock, or pets. If the user asks about ANY other topic, you MUST politely refuse and state that you are an AI Animal Health Assistant and can only discuss animal-related topics.
-- **CRITICAL FOR IMAGES**: If a user uploads an image, you MUST first verify it is an animal, an animal's environment, or animal symptoms. If the image is not related to animals, DO NOT analyze it.
-- **LANGUAGE & STYLE**: Use natural, warm, and highly friendly English. Include relevant animal-related emojis (e.g. 🐄, 🐾, 🐕, 🩺, ❤️) to make the user feel supported.
-- **PERSONALITY**: Be encouraging and empathetic. Use phrases like "I'm here to help you and your animal friend," "Let's figure this out together."
-- **CONCISE CASUAL RESPONSES**: For simple inputs like "ok", "thank you", "thanks", "got it", "i see", "understand", "hello", "hi", "hey", you MUST remain EXTREMELY BRIEF (max 1 sentence) and you MUST **NOT** provide any follow-up suggestions or additional advice. Just a friendly "You're welcome!" or "Hello! How can I help with your animal friend today?" is enough.
-- **HIGH-QUALITY SUGGESTIONS**: At the very end of clinical or health-related responses, you MUST provide 1-3 follow-up questions.
-  - **Rules for a Good Suggestion**:
-    1. **EXTREMELY SHORT**: Each suggestion MUST be **maximum 5 words**. (e.g., "Safe wound cleaning steps?", "Hypoallergenic diet options?", "Common vaccination schedule?")
-    2. **CLINICALLY RELEVANT**: Tailor questions to the specific animal and condition discussed.
-    3. **NO GENERIC TEXT**: Avoid repeating signs or prevention if already covered.
-  - Format each on a new line starting EXACTLY with "||SUGGESTION|| ". 
-  - **CRITICAL**: DO NOT provide suggestions for casual greetings or simple "thank you" messages.
-- Your answers should be well-structured and easy to read. Use bullet points or bold text where helpful.
-- You are representing Aranya AI. Be professional, but prioritize being the kindest AI assistant possible!`;
 
                 const userMessageContent = [];
 
@@ -177,28 +171,47 @@ Rules:
                     userMessageContent.push({ type: "text", text: content });
                 }
 
-                if (image_url) {
-                    userMessageContent.push({
-                        type: "image_url",
-                        image_url: {
-                            url: image_url
-                        }
+                const currentImages = image_urls || (image_url ? [image_url] : []);
+                if (currentImages && currentImages.length > 0) {
+                    currentImages.forEach(url => {
+                        userMessageContent.push({
+                            type: "image_url",
+                            image_url: { url }
+                        });
                     });
 
                     if (!content || content.trim() === '') {
-                        userMessageContent.push({ type: "text", text: "Please analyze the attached image for any health abnormalities." });
+                        userMessageContent.push({ type: "text", text: "Please analyze the attached image(s) for any health abnormalities." });
                     }
                 }
 
-                // Fetch last 15 messages for memory
-                const previousMessages = await ChatMessage.find({ conversation_id: req.params.id })
+                // Fetch previous 15 messages EXCLUDING the current one to prevent duplication
+                const previousMessages = await ChatMessage.find({
+                    conversation_id: req.params.id,
+                    _id: { $ne: userMsg._id }
+                })
                     .sort({ createdAt: -1 })
                     .limit(15);
 
-                const chatMemory = previousMessages.reverse().map(m => ({
-                    role: m.role || 'user',
-                    content: m.content
-                }));
+                const chatMemory = previousMessages.reverse().map(m => {
+                    // Critical: Reconstruct multi-modal message if images exist in history
+                    const mImages = m.image_urls && m.image_urls.length > 0 ? m.image_urls : (m.image_url ? [m.image_url] : []);
+
+                    if (mImages.length > 0) {
+                        const contentArray = [{ type: "text", text: m.content || "Image Analysis" }];
+                        mImages.forEach(url => {
+                            contentArray.push({ type: "image_url", image_url: { url } });
+                        });
+                        return {
+                            role: m.role || 'user',
+                            content: contentArray
+                        };
+                    }
+                    return {
+                        role: m.role || 'user',
+                        content: m.content
+                    };
+                });
 
                 const finalMessages = [
                     { role: "system", content: systemPrompt },
@@ -206,11 +219,54 @@ Rules:
                     { role: "user", content: userMessageContent }
                 ];
 
-                const response = await openai.chat.completions.create({
-                    model: modelName,
-                    messages: finalMessages,
-                    max_tokens: 1000
-                });
+                let response;
+                let useFallback = false;
+
+                if (hfToken && hfToken !== 'your_hf_token_here') {
+                    try {
+                        const hfOpenai = new OpenAI({
+                            apiKey: hfToken,
+                            baseURL: 'https://router.huggingface.co/v1'
+                        });
+                        const primaryModel = hasImage ? "Qwen/Qwen2.5-VL-7B-Instruct" : "Qwen/Qwen2.5-7B-Instruct";
+
+                        response = await hfOpenai.chat.completions.create({
+                            model: primaryModel,
+                            messages: finalMessages,
+                            max_tokens: 1000
+                        });
+                    } catch (hfErr) {
+                        console.error("Hugging Face API Error, falling back to OpenRouter:", hfErr.message);
+                        useFallback = true;
+                    }
+                } else {
+                    useFallback = true;
+                }
+
+                if (useFallback && orKey && orKey !== 'your_openrouter_api_key_here') {
+                    try {
+                        const orOpenai = new OpenAI({
+                            apiKey: orKey,
+                            baseURL: 'https://openrouter.ai/api/v1',
+                            defaultHeaders: {
+                                "HTTP-Referer": "http://localhost:3000",
+                                "X-Title": "Aranya AI Chatbot",
+                            }
+                        });
+                        response = await orOpenai.chat.completions.create({
+                            model: "google/gemma-3-12b-it:free",
+                            messages: finalMessages,
+                            max_tokens: 1000
+                        });
+                    } catch (orErr) {
+                        console.error("OpenRouter API Error:", orErr.message);
+                        throw new Error("Both Primary and Fallback AI APIs failed.");
+                    }
+                }
+
+                if (!response || !response.choices || response.choices.length === 0) {
+                    throw new Error("Invalid response structural format from AI API.");
+                }
 
                 aiContent = response.choices[0].message.content;
             } catch (aiErr) {

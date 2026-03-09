@@ -23,6 +23,10 @@ const ChatMessageSchema = new mongoose.Schema({
     image_url: {
         type: String
     },
+    image_urls: {
+        type: [String],
+        default: []
+    },
     createdAt: {
         type: Date,
         default: Date.now
