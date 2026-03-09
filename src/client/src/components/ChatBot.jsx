@@ -4,7 +4,7 @@ import {
     Camera, Image as ImageIcon,
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
-    CheckSquare, Square
+    CheckSquare, Square, StopCircle, Sparkles, CornerDownRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -45,6 +45,42 @@ const AILogo = ({ size = 24, className }) => (
     </svg>
 );
 
+const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
+    const [displayedText, setDisplayedText] = useState('');
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+        if (currentIndex < text.length) {
+            const timeout = setTimeout(() => {
+                setDisplayedText(prev => prev + text[currentIndex]);
+                setCurrentIndex(prev => prev + 1);
+                if (onType) onType();
+            }, speed);
+            return () => clearTimeout(timeout);
+        } else if (onFinish) {
+            onFinish();
+        }
+    }, [currentIndex, text, speed, onType, onFinish]);
+
+    return <ReactMarkdown>{displayedText}</ReactMarkdown>;
+};
+
+const parseMessage = (content) => {
+    if (typeof content !== 'string') return { cleanContent: '', suggestions: [] };
+
+    // Convert various tag formats to a standard delimiter
+    const tempContent = content.replace(/(\|\||II|\|\| |II )\s*SUGGESTION\s*(\|\||II| \|\|| II)/gi, '###SUGGESTION###');
+    const parts = tempContent.split('###SUGGESTION###');
+
+    // Clean up the main content
+    let cleanContent = parts[0];
+
+    // Glitch fix: Hide trailing partial tags like "||SUGG" during typing
+    cleanContent = cleanContent.replace(/(\|\||II|\|\| |II )\s*[S?U?G?G?E?S?T?I?O?N?]*$/i, '').trim();
+
+    const suggestions = parts.slice(1).map(s => s.trim()).filter(s => s.length > 0);
+    return { cleanContent, suggestions };
+};
 
 export default function ChatBot() {
     const [isOpen, setIsOpen] = useState(false);
@@ -58,7 +94,7 @@ export default function ChatBot() {
     const [imagePreview, setImagePreview] = useState(null);
     const [editingId, setEditingId] = useState(null);
     const [editTitle, setEditTitle] = useState('');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
     const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [confirmConfig, setConfirmConfig] = useState({
@@ -87,27 +123,44 @@ export default function ChatBot() {
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
+    const chatContainerRef = useRef(null);
+    const abortControllerRef = useRef(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [feedback, setFeedback] = useState({});
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (force = false) => {
+        if (!chatContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+        if (isNearBottom || force) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
     };
+
+    const isSendingRef = useRef(false);
 
     useEffect(() => {
         if (isOpen) {
             fetchConversations();
+            setActiveChatId(null);
+            setMessages([]);
         }
     }, [isOpen]);
 
     useEffect(() => {
-        if (activeChatId) {
-            fetchMessages(activeChatId);
-        } else {
-            setMessages([]);
+        if (activeChatId && !isSendingRef.current) {
+            fetchMessages(activeChatId).then(() => {
+                setTimeout(() => scrollToBottom(true), 150);
+            });
         }
     }, [activeChatId]);
 
     useEffect(() => {
-        scrollToBottom();
+        const timeoutId = setTimeout(() => {
+            scrollToBottom();
+        }, 100);
+        return () => clearTimeout(timeoutId);
     }, [messages, isTyping]);
 
     const fetchConversations = async () => {
@@ -117,9 +170,6 @@ export default function ChatBot() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setConversations(res.data);
-            if (res.data.length > 0 && !activeChatId) {
-                setActiveChatId(res.data[0]._id);
-            }
         } catch (err) {
             console.error('Failed to fetch conversations', err);
         }
@@ -208,6 +258,36 @@ export default function ChatBot() {
         }
     };
 
+    const handleDeleteMessage = (index) => {
+        setMessages(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleFeedback = (id, type) => {
+        setFeedback(prev => ({ ...prev, [id]: prev[id] === type ? null : type }));
+    };
+
+    const handleExport = (content) => {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'aranya_ai_response.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleRegenerate = (index) => {
+        if (isGenerating) return;
+        let prevUserMsg = 'Can you provide more details?';
+        for (let j = index - 1; j >= 0; j--) {
+            if (messages[j].role === 'user') {
+                prevUserMsg = messages[j].content;
+                break;
+            }
+        }
+        handleSend(prevUserMsg);
+    };
+
     const handleCopy = (content, id) => {
         navigator.clipboard.writeText(content);
         setCopiedId(id);
@@ -262,45 +342,83 @@ export default function ChatBot() {
         const messageText = query || input;
         if (!messageText.trim() && !imagePreview) return;
 
+        setIsTyping(true);
+        setIsGenerating(true);
+        abortControllerRef.current = new AbortController();
+
         let chatId = activeChatId;
 
         // Auto-create chat if none exists
         if (!chatId) {
             chatId = await handleNewChat();
-            if (!chatId) return;
+            if (!chatId) {
+                setIsTyping(false);
+                setIsGenerating(false);
+                return;
+            }
         }
 
+        const tempMsgId = Date.now();
         const userMsg = {
             role: 'user',
             content: messageText || 'Image Analysis',
             image_url: imagePreview,
+            tempId: tempMsgId,
             createdAt: new Date()
         };
 
-        setMessages([...messages, userMsg]);
+        setMessages(prev => [...prev, userMsg]);
+        scrollToBottom(true);
         setInput('');
         setImagePreview(null);
         setSelectedImage(null);
-        setIsTyping(true);
 
+        isSendingRef.current = true;
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`/api/chat/conversations/${chatId}/messages`, {
                 content: userMsg.content,
                 image_url: userMsg.image_url
             }, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                signal: abortControllerRef.current.signal
             });
 
-            setMessages(prev => [...prev.filter(m => m.createdAt !== userMsg.createdAt), res.data.userMessage, res.data.aiMessage]);
+            const aiMsg = { ...res.data.aiMessage, isNew: true };
+            setMessages(prev => {
+                // Remove the optimistic message and replace with official ones
+                return [...prev.filter(m => m.tempId !== tempMsgId), res.data.userMessage, aiMsg];
+            });
 
-            // Refresh conversation list for new titles/order
             fetchConversations();
         } catch (err) {
-            console.error('Send failed', err);
+            if (axios.isCancel(err)) {
+                console.log('Request canceled');
+            } else {
+                console.error('Send failed', err);
+            }
+            // If failed, remove the user message or handle appropriately
+            setIsGenerating(false);
         } finally {
             setIsTyping(false);
+            isSendingRef.current = false;
         }
+    };
+
+    const handleStopGeneration = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        setIsGenerating(false);
+        setIsTyping(false);
+        // Also remove the "isNew" flag from the last message to stop typewriter
+        setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.role === 'ai') {
+                return [...prev.slice(0, -1), { ...lastMsg, isNew: false }];
+            }
+            return prev;
+        });
     };
 
     return (
@@ -318,9 +436,8 @@ export default function ChatBot() {
 
 
                             {/* Sidebar */}
-                            <motion.aside
+                            <aside
                                 className={`${styles.sidebar} ${!isSidebarOpen ? styles.sidebarCollapsed : ''}`}
-                                layout
                             >
                                 <div className={styles.sidebarHeader}>
                                     <button
@@ -333,82 +450,86 @@ export default function ChatBot() {
                                     </button>
                                 </div>
 
-                                <div className={styles.historyLabelRow}>
-                                    <div className={styles.historyLabel}>Your Chat</div>
-                                    {isSidebarOpen && conversations.length > 0 && (
-                                        <div className={styles.bulkActionsHeader}>
-                                            <button
-                                                className={styles.bulkActionBtn}
-                                                onClick={handleSelectAll}
-                                                title={selectedChatIds.length === conversations.length ? "Deselect All" : "Select All"}
-                                            >
-                                                {selectedChatIds.length === conversations.length ? <CheckSquare size={14} /> : <Square size={14} />}
-                                            </button>
-                                            {selectedChatIds.length > 0 && (
-                                                <button
-                                                    className={`${styles.bulkActionBtn} ${styles.bulkDeleteIcon}`}
-                                                    onClick={handleDeleteSelected}
-                                                    title="Delete Selected"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
+                                {isSidebarOpen && (
+                                    <>
+                                        <div className={styles.historyLabelRow}>
+                                            <div className={styles.historyLabel}>Your Chat</div>
+                                            {conversations.length > 0 && (
+                                                <div className={styles.bulkActionsHeader}>
+                                                    <button
+                                                        className={styles.bulkActionBtn}
+                                                        onClick={handleSelectAll}
+                                                        title={selectedChatIds.length === conversations.length ? "Deselect All" : "Select All"}
+                                                    >
+                                                        {selectedChatIds.length === conversations.length ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                    </button>
+                                                    {selectedChatIds.length > 0 && (
+                                                        <button
+                                                            className={`${styles.bulkActionBtn} ${styles.bulkDeleteIcon}`}
+                                                            onClick={handleDeleteSelected}
+                                                            title="Delete Selected"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
 
-                                <div className={styles.historyList}>
-                                    {conversations.map(chat => (
-                                        <div
-                                            key={chat._id}
-                                            className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''} ${!isSidebarOpen ? styles.historyItemCollapsed : ''}`}
-                                            onClick={() => { setActiveChatId(chat._id); setIsMobileHistoryOpen(false); }}
-                                            title={!isSidebarOpen ? chat.title : ''}
-                                        >
-                                            <div className={styles.chatItemContent}>
-                                                {isSidebarOpen && (
-                                                    <div
-                                                        className={`${styles.checkbox} ${selectedChatIds.includes(chat._id) ? styles.checkboxChecked : ''}`}
-                                                        onClick={(e) => toggleSelectChat(e, chat._id)}
-                                                    >
-                                                        {selectedChatIds.includes(chat._id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                                        <div className={styles.historyList}>
+                                            {conversations.map(chat => (
+                                                <div
+                                                    key={chat._id}
+                                                    className={`${styles.historyItem} ${activeChatId === chat._id ? styles.historyItemActive : ''} ${!isSidebarOpen ? styles.historyItemCollapsed : ''}`}
+                                                    onClick={() => { setActiveChatId(chat._id); setIsMobileHistoryOpen(false); }}
+                                                    title={!isSidebarOpen ? chat.title : ''}
+                                                >
+                                                    <div className={styles.chatItemContent}>
+                                                        {isSidebarOpen && (
+                                                            <div
+                                                                className={`${styles.checkbox} ${selectedChatIds.includes(chat._id) ? styles.checkboxChecked : ''}`}
+                                                                onClick={(e) => toggleSelectChat(e, chat._id)}
+                                                            >
+                                                                {selectedChatIds.includes(chat._id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                                                            </div>
+                                                        )}
+                                                        <MessageSquare size={16} className={styles.chatListIcon} />
+                                                        <MessageSquare size={20} className={styles.collapsedChatIcon} />
+                                                        {editingId === chat._id ? (
+                                                            <input
+                                                                autoFocus
+                                                                className={styles.renameInput}
+                                                                value={editTitle}
+                                                                onChange={(e) => setEditTitle(e.target.value)}
+                                                                onBlur={() => handleRename(chat._id)}
+                                                                onKeyPress={(e) => e.key === 'Enter' && handleRename(chat._id)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
+                                                        ) : (
+                                                            <span className={styles.chatTitle}>{chat.title}</span>
+                                                        )}
                                                     </div>
-                                                )}
-                                                <MessageSquare size={16} className={styles.chatListIcon} />
-                                                <MessageSquare size={20} className={styles.collapsedChatIcon} />
-                                                {editingId === chat._id ? (
-                                                    <input
-                                                        autoFocus
-                                                        className={styles.renameInput}
-                                                        value={editTitle}
-                                                        onChange={(e) => setEditTitle(e.target.value)}
-                                                        onBlur={() => handleRename(chat._id)}
-                                                        onKeyPress={(e) => e.key === 'Enter' && handleRename(chat._id)}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    />
-                                                ) : (
-                                                    <span className={styles.chatTitle}>{chat.title}</span>
-                                                )}
-                                            </div>
 
-                                            <div className={styles.chatActions}>
-                                                <button className={styles.actionIcon} onClick={(e) => startRename(e, chat)}>
-                                                    <Edit3 size={14} />
-                                                </button>
-                                                <button className={`${styles.actionIcon} ${styles.deleteIcon}`} onClick={(e) => handleDeleteChat(e, chat._id)}>
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
+                                                    <div className={styles.chatActions}>
+                                                        <button className={styles.actionIcon} onClick={(e) => startRename(e, chat)}>
+                                                            <Edit3 size={14} />
+                                                        </button>
+                                                        <button className={`${styles.actionIcon} ${styles.deleteIcon}`} onClick={(e) => handleDeleteChat(e, chat._id)}>
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
+                                    </>
+                                )}
                                 <button
                                     className={styles.toggleSidebarBtn}
                                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                                 >
                                     {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
                                 </button>
-                            </motion.aside>
+                            </aside>
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>
@@ -443,7 +564,7 @@ export default function ChatBot() {
                                     </button>
                                 </header>
 
-                                <div className={styles.chatMessages} onScroll={handleChatScroll}>
+                                <div className={styles.chatMessages} ref={chatContainerRef} onScroll={handleChatScroll}>
                                     {messages.length === 0 && (
                                         <div className={styles.emptyContent}>
                                             <div className={styles.emptyState}>
@@ -457,10 +578,54 @@ export default function ChatBot() {
                                     )}
                                     {messages.map((msg, i) => (
                                         <div key={i} className={`${styles.messageRow} ${msg.role === 'user' ? styles.userRow : styles.aiRow}`}>
+                                            {msg.role === 'ai' && (
+                                                <div className={styles.minimalLogoWrapper}>
+                                                    <AILogo size={20} />
+                                                </div>
+                                            )}
                                             <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}>
                                                 {msg.image_url && <img src={msg.image_url} alt="upload" className={styles.msgImage} />}
                                                 <div className={styles.messageContent}>
-                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                    {(() => {
+                                                        const { cleanContent, suggestions } = parseMessage(msg.content);
+                                                        return (
+                                                            <>
+                                                                {msg.role === 'ai' && msg.isNew ? (
+                                                                    <Typewriter
+                                                                        text={cleanContent}
+                                                                        onType={scrollToBottom}
+                                                                        onFinish={() => {
+                                                                            setIsGenerating(false);
+                                                                            setMessages(prev => {
+                                                                                const newMsgs = [...prev];
+                                                                                if (newMsgs.length > 0 && newMsgs[newMsgs.length - 1].role === 'ai') {
+                                                                                    newMsgs[newMsgs.length - 1].isNew = false;
+                                                                                }
+                                                                                return newMsgs;
+                                                                            });
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <ReactMarkdown>{cleanContent}</ReactMarkdown>
+                                                                )}
+
+                                                                {msg.role === 'ai' && !msg.isNew && suggestions.length > 0 && (
+                                                                    <div className={styles.suggestionsContainer}>
+                                                                        {suggestions.map((s, idx) => (
+                                                                            <button
+                                                                                key={idx}
+                                                                                className={styles.suggestionBtn}
+                                                                                onClick={() => handleSend(s)}
+                                                                            >
+                                                                                <CornerDownRight size={12} className={styles.suggestionIcon} />
+                                                                                <span>{s}</span>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
 
                                                     {msg.role === 'ai' && (
                                                         <div className={styles.messageActionRow}>
@@ -471,20 +636,25 @@ export default function ChatBot() {
                                                             >
                                                                 {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={16} />}
                                                             </button>
-                                                            <button className={styles.messageActionBtn} title="Helpful response">
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                            <button
+                                                                className={`${styles.messageActionBtn} ${feedback[msg._id || i] === 'helpful' ? styles.actionBtnActive : ''}`}
+                                                                onClick={() => handleFeedback(msg._id || i, 'helpful')}
+                                                                title="Helpful response"
+                                                            >
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'helpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
                                                             </button>
-                                                            <button className={styles.messageActionBtn} title="Not helpful">
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+                                                            <button
+                                                                className={`${styles.messageActionBtn} ${feedback[msg._id || i] === 'unhelpful' ? styles.actionBtnActive : ''}`}
+                                                                onClick={() => handleFeedback(msg._id || i, 'unhelpful')}
+                                                                title="Not helpful"
+                                                            >
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'unhelpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
                                                             </button>
-                                                            <button className={styles.messageActionBtn} title="Export">
+                                                            <button className={styles.messageActionBtn} onClick={() => handleExport(msg.content)} title="Export">
                                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                                             </button>
-                                                            <button className={styles.messageActionBtn} title="Regenerate">
+                                                            <button className={styles.messageActionBtn} onClick={() => handleRegenerate(i)} disabled={isGenerating} title="Regenerate">
                                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
-                                                            </button>
-                                                            <button className={styles.messageActionBtn} title="More actions">
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
                                                             </button>
                                                         </div>
                                                     )}
@@ -492,13 +662,7 @@ export default function ChatBot() {
                                             </div>
                                         </div>
                                     ))}
-                                    {isTyping && (
-                                        <div className={styles.aiRow}>
-                                            <div className={`${styles.bubble} ${styles.aiBubble} ${styles.typing}`}>
-                                                <span></span><span></span><span></span>
-                                            </div>
-                                        </div>
-                                    )}
+
                                     <div ref={messagesEndRef} />
                                 </div>
 
@@ -517,6 +681,24 @@ export default function ChatBot() {
                                 )}
 
                                 <footer className={styles.chatFooter}>
+                                    {isTyping && (
+                                        <div className={styles.globalTypingContainer}>
+                                            <AILogo size={18} className={styles.typingLogoGlobal} />
+                                            <div className={styles.typingTextContainerGlobal}>
+                                                <span className={styles.typingTextGlobal}></span>
+                                                <span className={styles.typingDotsGlobal}>...</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isGenerating && (
+                                        <div className={styles.stopButtonContainer}>
+                                            <button className={styles.stopBtn} onClick={handleStopGeneration}>
+                                                <StopCircle size={14} />
+                                                <span>Stop</span>
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className={styles.inputWrapper}>
                                         <input
                                             type="file"
@@ -536,7 +718,11 @@ export default function ChatBot() {
                                             className={styles.inputField}
                                             placeholder="Message Aranya AI..."
                                             value={input}
-                                            onChange={(e) => setInput(e.target.value)}
+                                            onChange={(e) => {
+                                                setInput(e.target.value);
+                                                scrollToBottom();
+                                            }}
+                                            onFocus={() => scrollToBottom(true)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                                         />
                                         <div className={styles.inputActions}>
@@ -548,6 +734,9 @@ export default function ChatBot() {
                                                 <Send size={18} />
                                             </button>
                                         </div>
+                                    </div>
+                                    <div className={styles.disclaimerText}>
+                                        Aranya AI is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.
                                     </div>
                                 </footer>
                             </main>

@@ -54,7 +54,8 @@
     flex-direction: column;
     padding: 1.5rem;
     position: relative;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: width, padding;
 }
 
 .sidebarCollapsed {
@@ -110,14 +111,12 @@
     justify-content: center;
     color: #64748b;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     z-index: 10;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .toggleSidebarBtn:hover {
     color: var(--primary);
-    transform: translateY(-50%) scale(1.1);
     background: #f0fdf4;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
 }
@@ -413,8 +412,17 @@
     justify-content: flex-start;
 }
 
+.minimalLogoWrapper {
+    margin-top: 1rem;
+    margin-right: 0.5rem;
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
 .bubble {
     max-width: 85%;
+    width: fit-content;
+    min-width: 60px;
     padding: 0.85rem 1.15rem;
     border-radius: 18px;
     font-size: 0.85rem;
@@ -433,13 +441,11 @@
 }
 
 .aiBubble {
-    background: #ffffff;
+    background: transparent;
     color: #334155;
-    border: 1px solid rgba(0, 0, 0, 0.04);
-    border-bottom-left-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    padding: 0.85rem 1.15rem 0.4rem 1.15rem;
-    /* Different padding to fit action row perfectly */
+    border: none;
+    box-shadow: none;
+    padding: 0.85rem 1.15rem 0.4rem 0rem;
 }
 
 .messageContent {
@@ -472,6 +478,17 @@
 .messageActionBtn:hover {
     color: var(--primary);
     background: rgba(45, 95, 63, 0.06);
+    transform: translateY(-1px);
+}
+
+.actionBtnActive {
+    color: var(--primary) !important;
+    background: rgba(45, 95, 63, 0.1) !important;
+    box-shadow: inset 0 0 0 1px rgba(45, 95, 63, 0.1);
+}
+
+.actionBtnActive:hover {
+    background: rgba(45, 95, 63, 0.15) !important;
 }
 
 /* Ensure basic markdown elements look good inside AI bubble */
@@ -508,22 +525,184 @@
 }
 
 .msgImage {
-    max-width: 100%;
-    max-height: 280px;
-    width: auto;
-    object-fit: contain;
+    max-width: 200px;
+    max-height: 120px;
+    width: 100%;
+    object-fit: cover;
     border-radius: 12px;
     margin-bottom: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    background: rgba(0, 0, 0, 0.01);
+}
+
+.suggestionsContainer {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(45, 95, 63, 0.1);
+}
+
+.suggestionBtn {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(236, 253, 245, 0.9) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: #065f46;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.suggestionBtn:hover {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.2);
+}
+
+.suggestionIcon {
+    color: #10b981;
+    opacity: 0.9;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    transition: color 0.2s ease;
+}
+
+.suggestionBtn:hover .suggestionIcon {
+    color: #ffffff;
 }
 
 .chatFooter {
-    padding: 1rem 2rem;
+    padding: 0.5rem 2rem 1rem 2rem;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     background: rgba(255, 255, 255, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 }
+
+.globalTypingContainer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 10px 10px;
+}
+
+.typingLogoGlobal {
+    color: var(--primary);
+    animation: breathingFloat 3s ease-in-out infinite;
+}
+
+.typingTextContainerGlobal {
+    display: flex;
+    align-items: baseline;
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.typingTextGlobal {
+    background: linear-gradient(90deg, var(--primary), #64748b, var(--primary));
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textShine 3s linear infinite;
+}
+
+@keyframes textShine {
+    to {
+        background-position: 200% center;
+    }
+}
+
+.typingTextGlobal::after {
+    content: "Aranya AI is analyzing";
+    animation: cycleTextGlobal 8s infinite;
+}
+
+@keyframes cycleTextGlobal {
+
+    0%,
+    25% {
+        content: "Consulting AI Models";
+    }
+
+    30%,
+    55% {
+        content: "Aranya AI is analyzing";
+    }
+
+    60%,
+    85% {
+        content: "Identifying condition";
+    }
+
+    90%,
+    100% {
+        content: "Generating insights";
+    }
+}
+
+.typingDotsGlobal {
+    display: inline-block;
+    width: 14px;
+    text-align: left;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: dots 1.5s infinite steps(4, end);
+    color: #64748b;
+}
+
+.disclaimerText {
+    text-align: center;
+    font-size: 0.70rem;
+    color: #94a3b8;
+    margin-top: 10px;
+    letter-spacing: 0.02em;
+}
+
+.stopButtonContainer {
+    display: flex;
+    justify-content: center;
+    padding: 0 0 10px 0;
+}
+
+.stopBtn {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stopBtn:hover {
+    background: #f8fafc;
+    border-color: rgba(0, 0, 0, 0.2);
+    color: #0f172a;
+}
+
 
 .inputWrapper {
     background: #ffffff;
@@ -590,26 +769,184 @@
     transform: none;
 }
 
-.typing {
+.previewBar {
+    padding: 10px 2.5rem;
     display: flex;
-    gap: 5px;
-    padding: 16px 20px;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.5);
+    border-top: 1px solid rgba(0, 0, 0, 0.03);
 }
 
-.typing span {
-    width: 8px;
-    height: 8px;
-    background: var(--primary);
+.previewThumb {
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 2px solid #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.removeImgBtn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ff4d4f;
+    color: white;
+    border: none;
     border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out both;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s;
+    z-index: 5;
 }
 
-.typing span:nth-child(1) {
-    animation-delay: -0.32s;
+.removeImgBtn:hover {
+    background: #ff7875;
+    transform: scale(1.1);
 }
 
-.typing span:nth-child(2) {
-    animation-delay: -0.16s;
+.typingContainer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: linear-gradient(90deg, #f8fafc, #f1f5f9, #f8fafc);
+    background-size: 200% 100%;
+    animation: shimmerBg 2s infinite linear;
+    border-radius: 18px;
+    border: 1px solid rgba(45, 95, 63, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+@keyframes shimmerBg {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
+}
+
+.pulseRing {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.15);
+    animation: pingBg 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    left: 16px;
+}
+
+@keyframes pingBg {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(2.2);
+        opacity: 0;
+    }
+}
+
+.typingLogo {
+    color: var(--primary);
+    animation: pulseLogo 2s ease-in-out infinite;
+    z-index: 2;
+}
+
+@keyframes pulseLogo {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.typingTextContainer {
+    display: flex;
+    align-items: flex-end;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155;
+    letter-spacing: 0.02em;
+    z-index: 2;
+}
+
+.typingText {
+    color: var(--primary);
+}
+
+.typingText::after {
+    content: "Analyzing symptoms";
+    animation: cycleText 7s infinite;
+}
+
+@keyframes cycleText {
+
+    0%,
+    25% {
+        content: "Analyzing records";
+    }
+
+    30%,
+    55% {
+        content: "Consulting AI Models";
+    }
+
+    60%,
+    85% {
+        content: "Formulating response";
+    }
+
+    90%,
+    100% {
+        content: "Generating insights";
+    }
+}
+
+.typingDots {
+    display: inline-block;
+    width: 16px;
+    text-align: left;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: dots 1.5s infinite steps(4, end);
+    color: var(--primary);
+}
+
+@keyframes dots {
+
+    0%,
+    20% {
+        width: 0px;
+    }
+
+    40% {
+        width: 4px;
+    }
+
+    60% {
+        width: 8px;
+    }
+
+    80%,
+    100% {
+        width: 12px;
+    }
 }
 
 /* Floating Toggle Button — Premium Pill */
