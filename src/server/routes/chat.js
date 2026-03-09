@@ -136,7 +136,7 @@ Follow these rules based EXACTLY on the user's input to prevent repeating yourse
 * **State A (Greeting):** IF the user ONLY says a greeting ("hi", "hello"), respond with a warm, unique greeting. Maximum 1 sentence. Do NOT ask for symptoms yet.
 * **State B (Short Acknowledgment):** IF the user says "ok", "thanks", "got it", respond with a max 1-sentence polite wrap-up (e.g., "You're very welcome! ❤️"). Do NOT provide medical info.
 * **State C (New Symptom/Image):** IF the user reports a new symptom or uploads an image, SKIP greetings. Use the **[Phase 1]** output format below. Do NOT ask the same question twice. If an animal image is unclear, ask for 2-3 more images. If species is missing, ask for it.
-* **State D (User asks for help / says "YES"):** IF the user asks "what should I do?" or replies "yes" to your offer for tips, immediately use the **[Phase 2]** output format.
+* **State D (User asks for help / says "YES"):** IF the user asks "what should I do?" or replies "yes" (or anything affirmative) to your offer for tips, immediately use the **[Phase 2]** output format. NEVER output an Observation or Veterinary Warning in this state.
 * **State E (User declines / says "NO"):** IF the user declines tips ("no", "no thanks"), DO NOT repeat the diagnosis. Reply with exactly ONE polite sentence ending the flow (e.g., "Understood! Please monitor your pet closely and let me know if you need anything else. 🐾").
 
 **3. CORE CLINICAL DIRECTIVES**
@@ -154,7 +154,7 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
 
 *"Would you like some home care tips you can do right now?"*
 
-**[Phase 2: Actionable Care]** *(Use for State D - User says "Yes" / Asks for steps)*
+**[Phase 2: Actionable Care]** *(Use for State D - User says "Yes" / Asks for steps. DO NOT repeat the Observation or Warning here)*
 **Immediate Steps You Can Take:**
 * [Action Step 1: Specific, actionable home care]
 * [Action Step 2: Specific, actionable home care]
@@ -196,6 +196,7 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                 const chatMemory = previousMessages.reverse().map(m => {
                     // Critical: Reconstruct multi-modal message if images exist in history
                     const mImages = m.image_urls && m.image_urls.length > 0 ? m.image_urls : (m.image_url ? [m.image_url] : []);
+                    const mappedRole = m.role === 'ai' ? 'assistant' : (m.role || 'user');
 
                     if (mImages.length > 0) {
                         const contentArray = [{ type: "text", text: m.content || "Image Analysis" }];
@@ -203,12 +204,12 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                             contentArray.push({ type: "image_url", image_url: { url } });
                         });
                         return {
-                            role: m.role || 'user',
+                            role: mappedRole,
                             content: contentArray
                         };
                     }
                     return {
-                        role: m.role || 'user',
+                        role: mappedRole,
                         content: m.content
                     };
                 });
