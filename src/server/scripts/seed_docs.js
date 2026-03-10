@@ -158,14 +158,14 @@ const SEED_DOCS = [
         ]
     },
     {
-        title: 'AI Assistant Guide',
+        title: 'Arion Assistant Guide',
         category: 'features',
         order: 4,
         published: true,
         content: `
-<p>The Aranya AI Assistant is an intelligent chatbot powered by Gemini AI that can answer questions about livestock health, farm management, diet, and the Aranya platform itself.</p>
+<p>The Arion Assistant is an intelligent chatbot powered by Gemini AI that can answer questions about livestock health, farm management, diet, and the Aranya platform itself.</p>
 <h3>How to Access</h3>
-<p>Click the green chat bubble icon in the bottom-right corner of any page to open the AI Assistant. It's available on all pages except the Admin console.</p>
+<p>Click the green chat bubble icon in the bottom-right corner of any page to open the Arion Assistant. It's available on all pages except the Admin console.</p>
 <h3>What You Can Ask</h3>
 <p>The assistant can help with: symptoms of common cattle diseases, dietary recommendations, vaccination schedules, interpreting health readings, and how to use Aranya AI features.</p>
 <h3>Chat History</h3>
@@ -205,12 +205,12 @@ const SEED_DOCS = [
         steps: []
     },
     {
-        title: 'Using the AI Assistant',
+        title: 'Using Arion',
         category: 'video-tutorials',
         order: 3,
         published: true,
         content: `
-<p>A deep-dive tutorial on using the Aranya AI chatbot. Learn how to ask effective questions, use image uploads for visual analysis, and manage your conversation history.</p>
+<p>A deep-dive tutorial on using the Arion chatbot. Learn how to ask effective questions, use image uploads for visual analysis, and manage your conversation history.</p>
 <p>This video also covers tips for getting the most accurate and helpful responses from the AI assistant.</p>
         `.trim(),
         steps: []

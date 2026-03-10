@@ -735,31 +735,7 @@
 }
 
 .typingTextGlobal::after {
-    content: "Aranya AI is analyzing";
-    animation: cycleTextGlobal 8s infinite;
-}
-
-@keyframes cycleTextGlobal {
-
-    0%,
-    25% {
-        content: "Consulting AI Models";
-    }
-
-    30%,
-    55% {
-        content: "Aranya AI is analyzing";
-    }
-
-    60%,
-    85% {
-        content: "Identifying condition";
-    }
-
-    90%,
-    100% {
-        content: "Generating insights";
-    }
+    content: "";
 }
 
 .typingDotsGlobal {

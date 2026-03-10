@@ -4,7 +4,17 @@ const auth = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const ChatMessage = require('../models/ChatMessage');
 const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { logActivity } = require('../utils/logger');
+
+// Cache for failing providers to speed up fallbacks
+const failingProviders = {
+    hf: { lastFail: 0, count: 0 },
+    or: { lastFail: 0, count: 0 },
+    gemini: { lastFail: 0, count: 0 }
+};
+
+const PROVIDER_COOLDOWN = 1000 * 60 * 60; // 1 hour cooldown if failed multiple times
 
 // @route   GET /api/chat/conversations
 // @desc    Get all conversations for user
@@ -95,6 +105,23 @@ router.post('/conversations/:id/messages', auth, async (req, res) => {
         const conversation = await Conversation.findById(req.params.id);
         if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
 
+        // Set Headers for Server-Sent Events (SSE)
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+
+        const sendStatus = (msg) => {
+            res.write(`data: ${JSON.stringify({ type: 'status', message: msg })}\n\n`);
+        };
+
+        const sendErrorAndClose = (msg) => {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
+            res.end();
+        };
+
+        sendStatus("Analyzing...");
+
         // Save User Message
         const userMsg = new ChatMessage({
             conversation_id: req.params.id,
@@ -116,49 +143,294 @@ router.post('/conversations/:id/messages', auth, async (req, res) => {
         await conversation.save();
 
         let aiContent = "";
+        let finalRoute = "direct";
+        let finalConfidence = 1.0;
+        let searchSources = [];
+
         const hfToken = process.env.HF_TOKEN;
         const orKey = process.env.OPENROUTER_API_KEY;
+        const activeOrKey = orKey && orKey !== 'your_openrouter_api_key_here' ? orKey : null;
         const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
 
-        if ((hfToken && hfToken !== 'your_hf_token_here') || (orKey && orKey !== 'your_openrouter_api_key_here')) {
+        // --- FAST PATH: Local Knowledge Layer (Greetings, Identity, Common Advice) ---
+        const lowerContent = content.toLowerCase().trim();
+        const greetings = ['hi', 'hello', 'hey', 'hola', 'namaste', 'aslam', 'hlo', 'hii', 'hiii', 'yo', 'sup'];
+        const identityQueries = ['who are you', 'what is your name', 'what are you', 'your identity', 'about yourself', 'who is arion'];
+        const commonQuestions = [
+            { keywords: ['dogs eat', 'dog food', 'dog nutrition'], answer: "Dogs need a balanced diet of protein, fats, and carbohydrates. Avoid grapes, chocolate, onions, and garlic as they are toxic." },
+            { keywords: ['cats eat', 'cat food', 'cat nutrition'], answer: "Cats are obligate carnivores and need taurine-rich protein. High-quality wet or dry cat food is best; avoid giving them too much milk as many are lactose intolerant." },
+            { keywords: ['bathe a cat', 'washing cat'], answer: "Most cats self-groom, but if they need a bath, use lukewarm water and cat-specific shampoo. Avoid getting water in their ears or eyes." },
+            { keywords: ['how are you', 'how do you do'], answer: "I'm doing great! I'm ready to help you with your veterinary and animal health questions. How can I assist you today?" }
+        ];
+
+        let isSimpleGreeting = greetings.some(g => lowerContent === g || lowerContent === g + '!' || lowerContent === g + ' arion');
+        let isIdentityQuery = identityQueries.some(id => lowerContent.includes(id));
+        let matchedAdvice = commonQuestions.find(q => q.keywords.every(k => lowerContent.includes(k)));
+
+        if (isSimpleGreeting || isIdentityQuery || matchedAdvice) {
+            console.log(`[Fast Path] Handling: ${isSimpleGreeting ? 'Greeting' : isIdentityQuery ? 'Identity' : 'Common Advice'}`);
+            if (isIdentityQuery) {
+                aiContent = "I am Arion, your advanced Veterinary AI assistant developed by AranyaAI. I specialize in animal health, disease prediction, and veterinary diagnostics. I can analyze symptoms, interpret images, and provide health guidance.";
+            } else if (matchedAdvice) {
+                aiContent = matchedAdvice.answer;
+            } else {
+                aiContent = "Hello! I am Arion, your Veterinary AI assistant. How can I help you with your animals today? 🐾";
+            }
+            finalRoute = "direct";
+        } else if ((hfToken && hfToken !== 'your_hf_token_here') || activeOrKey || process.env.GEMINI_API_KEY) {
             try {
+                // STEP 1: LLM Self-Assessment Routing
+                sendStatus("Thinking...");
+                let route = "direct";
+                let confidence = 1.0;
+                let canAnswer = true;
 
-                const systemPrompt = `**Role & Persona**
-You are Aranya AI, an expert and empathetic Animal Health companion specializing in predictive diagnostics for cattle, livestock, and domestic animals. Your tone is warm, supportive, encouraging, and natural.
+                if (activeOrKey && content && content.trim() !== '') {
+                    const checkPrompt = `You are Arion, an animal health assistant by AranyaAI.
 
-**1. CRITICAL BOUNDARIES & REFUSALS (STRICT ENFORCEMENT)**
-* **Animal-Only Scope:** You ONLY discuss animals, veterinary medicine, livestock management, and pets.
-* **The One-Sentence Refusal:** IF a query is NOT related to animals (e.g., coding, math, general trivia, writing essays), you MUST refuse in EXACTLY ONE SHORT SENTENCE. NEVER write code. NEVER do math. (Example: "I am an animal health assistant and can only discuss veterinary or pet-related topics. 🐾")
-* **Veterinary Context:** If the user mentions "doctor," "specialist," "hospital," or "clinic," you MUST assume they mean a veterinary professional.
+A user has asked the following question:
+"${content}"
 
-**2. CONVERSATIONAL STATE MACHINE (ANTI-LOOPING)**
-Follow these rules based EXACTLY on the user's input to prevent repeating yourself:
-* **State A (Greeting):** IF the user ONLY says a greeting ("hi", "hello"), respond with a warm, unique greeting. Maximum 1 sentence. Do NOT ask for symptoms yet.
-* **State B (Short Acknowledgment):** IF the user says "ok", "thanks", "got it", respond with a max 1-sentence polite wrap-up (e.g., "You're very welcome! ❤️"). Do NOT provide medical info.
-* **State C (New Symptom/Image):** IF the user reports a new symptom or uploads an image, SKIP greetings. Use the **[Phase 1]** output format below. Do NOT ask the same question twice. If an animal image is unclear, ask for 2-3 more images. If species is missing, ask for it.
-* **State D (User asks for help / says "YES"):** IF the user asks "what should I do?" or replies "yes" (or anything affirmative) to your offer for tips, immediately use the **[Phase 2]** output format. NEVER output an Observation or Veterinary Warning in this state.
-* **State E (User declines / says "NO"):** IF the user declines tips ("no", "no thanks"), DO NOT repeat the diagnosis. Reply with exactly ONE polite sentence ending the flow (e.g., "Understood! Please monitor your pet closely and let me know if you need anything else. 🐾").
+Can you answer this question confidently and accurately 
+from your own training knowledge about animal health, 
+veterinary care, breeds, and animal medicine?
 
-**3. CORE CLINICAL DIRECTIVES**
-* **Diagnostic Prediction:** Analyze all evidence and PREDICT the most specific disease/condition possible (e.g., Parvovirus, Tick Fever, Clinical Mastitis). Never default to generic categories like "Mange" unless proven.
-* **Emergency Detection:** If symptoms indicate severe distress (heavy bleeding, seizures, poisoning, breathing difficulty), advise immediate emergency vet contact.
-* **Formatting Limits:** Keep responses under 120 words total unless explicitly requested. Use 1-2 relevant emojis matching the animal/symptom (e.g., 🐄 🩺).
+Reply with ONLY a valid JSON object, nothing else:
+{
+  "can_answer": true or false,
+  "confidence": a number between 0.0 and 1.0,
+  "reason": "one short sentence explaining why"
+}
 
-**4. MANDATORY OUTPUT FORMATS**
-When diagnosing or giving medical advice, you MUST use one of these exact Markdown templates based on the conversational state. 
+Rules:
+- true means you are confident you can give a reliable answer
+- false means the question needs current, external, 
+  or very specific information you are not sure about
+- Be honest. If you are not fully sure, say false.`;
 
-**[Phase 1: Initial Assessment]** *(Use for State C - New Symptoms/Images)*
-**Observation:** [1-2 sentences stating your observation and predicting the most specific condition(s). State confidence cautiously.]
+                    try {
+                        const hfToken = process.env.HF_TOKEN;
+                        const orKey = process.env.OPENROUTER_API_KEY;
+                        const activeOrKey = orKey && orKey !== 'your_openrouter_api_key_here' ? orKey : null;
 
-🚨 **Veterinary Warning:** [1 sentence explaining what severe signs require immediate vet attention.]
+                        if (activeOrKey && (failingProviders.or.count < 3 || (Date.now() - failingProviders.or.lastFail) > PROVIDER_COOLDOWN)) {
+                            const confOpenai = new OpenAI({
+                                apiKey: activeOrKey,
+                                baseURL: 'https://openrouter.ai/api/v1',
+                                defaultHeaders: {
+                                    "HTTP-Referer": "http://localhost:3000",
+                                    "X-Title": "Arion Routing",
+                                }
+                            });
 
-*"Would you like some home care tips you can do right now?"*
+                            const confRes = await confOpenai.chat.completions.create({
+                                model: "google/gemma-3-12b-it:free",
+                                messages: [{ role: "user", content: checkPrompt }],
+                                max_tokens: 100
+                            });
 
-**[Phase 2: Actionable Care]** *(Use for State D - User says "Yes" / Asks for steps. DO NOT repeat the Observation or Warning here)*
-**Immediate Steps You Can Take:**
-* [Action Step 1: Specific, actionable home care]
-* [Action Step 2: Specific, actionable home care]
-* [Action Step 3: Specific, actionable home care]`;
+                            let jsonText = confRes.choices[0].message.content.trim();
+                            const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+                            const cleanJsonText = jsonMatch ? jsonMatch[0] : jsonText;
+                            const parsed = JSON.parse(cleanJsonText);
+
+                            canAnswer = parsed.can_answer;
+                            confidence = parsed.confidence;
+                        } else if (process.env.GEMINI_API_KEY) {
+                            // Fallback to Gemini for routing if OpenRouter is down
+                            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+                            const result = await model.generateContent({
+                                contents: [{ role: "user", parts: [{ text: checkPrompt }] }],
+                                generationConfig: { responseMimeType: "application/json" }
+                            });
+                            const parsed = JSON.parse(result.response.text());
+                            canAnswer = parsed.can_answer;
+                            confidence = parsed.confidence;
+                        }
+
+                        if (canAnswer === true && confidence >= 0.85) {
+                            route = "direct";
+                        } else {
+                            route = "web_search";
+                        }
+                        console.log(`[LLM Routing] Decision: ${route} (canAnswer: ${canAnswer}, confidence: ${confidence})`);
+                    } catch (err) {
+                        console.error("LLM Routing failed, defaulting to web_search:", err.message);
+                        route = "web_search";
+                    }
+                }
+
+                finalRoute = route;
+                finalConfidence = confidence;
+
+                // STEP 2 & 3: Web Search execution
+                let searchSnippets = [];
+
+                if (route === "web_search" && content) {
+                    sendStatus("Searching the web...");
+                    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+                    const cx = process.env.GOOGLE_CSE_ID;
+
+                    if (apiKey && cx) {
+                        try {
+                            console.log(`[Web Search] Executing Google CSE query for: "${content}"`);
+                            // Using native fetch in Node 18+
+                            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(content)}`;
+                            const searchResp = await fetch(searchUrl);
+                            if (searchResp.ok) {
+                                const searchData = await searchResp.json();
+                                console.log(`[Web Search] Received ${searchData.items ? searchData.items.length : 0} items from Google`);
+                                if (searchData.items && searchData.items.length > 0) {
+                                    sendStatus("Processing search results...");
+                                    // Trusted domains unchanged (using process.env if available)
+                                    const whitelist = process.env.TRUSTED_DOMAINS ? process.env.TRUSTED_DOMAINS.split(',').map(d => d.trim()) : [];
+
+                                    let results = searchData.items;
+                                    if (whitelist.length > 0) {
+                                        results = results.filter(item => whitelist.some(domain => item.link.includes(domain)));
+                                        console.log(`[Web Search] ${results.length} items matched the trusted whitelist.`);
+                                    }
+
+                                    if (results.length > 0) {
+                                        searchSources = results.slice(0, 3).map(r => ({ title: r.title, url: r.link }));
+                                        searchSnippets = results.slice(0, 3).map(r => r.snippet);
+                                    } else {
+                                        console.log(`[Web Search] Fallback: No items matched whitelist.`);
+                                        finalRoute = "direct_fallback";
+                                    }
+                                } else {
+                                    console.log(`[Web Search] Fallback: No search items returned.`);
+                                    finalRoute = "direct_fallback";
+                                }
+                            } else {
+                                console.log(`[Web Search] Fallback: HTTP Error ${searchResp.status}`);
+                                finalRoute = "direct_fallback";
+                            }
+                        } catch (e) {
+                            console.error("[Web Search] Google CSE Error:", e.message);
+                            finalRoute = "direct_fallback";
+                        }
+                    } else {
+                        console.warn("[Web Search] Fallback overridden: Missing GOOGLE_SEARCH_API_KEY or GOOGLE_CSE_ID in .env!");
+                        // If missing API keys, immediately fallback
+                        finalRoute = "direct_fallback";
+                    }
+                }
+
+                const systemPrompt = `You are Arion, a multimodal animal health assistant.
+
+You only help with:
+- animal health (including diseases, treatments, and diagnostics)
+- animal care and nutrition
+- breed information
+- veterinary guidance and news
+- latest veterinary medicine approvals (e.g., FDA-CVM)
+- clinical breakthroughs in veterinary science
+- safe educational information about common veterinary medicines
+- general animal questions
+
+Hard restriction:
+- If a request is entirely unrelated to animals, animal health, animal care, breeds, or veterinary topics (for example: coding, cooking, politics, celebrity news), refuse it.
+- Do not answer any part of unrelated questions.
+- Reply only with:
+"I only help with animal health, care, and veterinary topics."
+
+Default language is English.
+- If the user writes in another language, reply in that language when possible.
+- If the user mixes languages, reply in the language that best matches the user’s message.
+
+Use the last 15 messages in the current session for continuity.
+- Use memory only to improve continuity and avoid repeated questions.
+- If memory conflicts with the latest user message, trust the latest message.
+
+Do not invent missing facts.
+- First extract details already provided by the user, image, or session memory, such as species, breed, age, sex, weight, main problem, and symptom duration.
+- Do not ask for details already given.
+- If the user already provides the important details in one message, use them directly and do not ask the same questions again.
+- If important details are missing, ask short and focused follow-up questions before giving guidance.
+- Do not assume missing facts.
+
+Case handling:
+- If the user gives multiple symptoms, focus first on the most serious or dangerous sign.
+- If the user gives multiple animals or multiple separate cases in one message, do not mix them together.
+- Separate them clearly and handle one case at a time.
+- If needed, ask which case should be handled first.
+
+Image behavior:
+- Use images as supporting information, not as final proof of a condition.
+- First decide whether the image is clear enough for a basic visual assessment.
+- If the affected area is reasonably visible, provide a helpful response based on visible findings.
+- If the image is clear enough for a basic assessment, do not ask for more images before helping.
+- If the image is partly clear, give a cautious answer and briefly mention what is visible and what is unclear.
+- Ask for 2 to 3 clearer images only when the image is too blurry, too dark, too far away, too cropped, or the affected area is not visible enough.
+- Never say the image is unclear if the affected area is reasonably visible.
+- Never claim you can see details that are not clearly visible.
+- If needed, ask for one full-body image, one close-up of the affected area, and one image in better light.
+- If the image is clearly unusable, say:
+"I cannot see the problem clearly in this image. Please upload 2 to 3 clearer images."
+
+Anti-hallucination rules:
+- Do not make up symptoms, image findings, history, diagnoses, or medicines.
+- Do not present guesses as facts.
+- If you are not sure, clearly say so.
+- Use careful wording such as:
+  - "This may be related to..."
+  - "One possible reason is..."
+  - "This needs a veterinarian to confirm."
+- Treat predicted disease labels as clues, not confirmed diagnoses.
+
+Response length control:
+- Keep the answer length proportional to the user’s question.
+- For short or vague questions, give a short and focused reply.
+- For simple questions, keep the response brief.
+- For detailed or serious health questions, give a fuller answer only when needed.
+- Do not give long explanations unless the user asks for more detail.
+- Ask follow-up questions instead of giving a long generic answer when important details are missing.
+
+Emoji style:
+- Use a few relevant emojis when helpful.
+- Keep emojis minimal and professional.
+- Do not use too many emojis in one response.
+- Avoid emojis in serious emergency messages unless they improve clarity.
+
+For health questions:
+- If the user gives limited information, first ask 1 to 3 short follow-up questions.
+- Use the full structured format only when the case is detailed, serious, or the user asks for a full explanation.
+
+When using the full format, use these headings:
+- Assessment
+- What it might be
+- How serious it seems
+- Which animal doctor can help
+- Medicine or care notes
+- What you should do now
+
+Do not include a disclaimer in every response if the interface already shows a permanent veterinary safety notice below the chatbox.
+- Only include a brief warning when the case is urgent, emergency-level, high-risk, or when medication safety needs special caution.
+
+Use simple urgency levels:
+- Mild
+- Needs a vet visit
+- Urgent
+- Emergency
+
+Medicine safety:
+- Only provide general educational information about common veterinary medicines.
+- Do not provide exact prescriptions, exact doses, frequency, duration, or drug combinations unless the user only wants help understanding a veterinarian’s written prescription.
+- Do not suggest risky self-medication.
+- If medicine safety is uncertain, advise veterinary consultation.
+
+If the question is outside animal-related topics, reply only with:
+"I only help with animal health, care, and veterinary topics."`;
+
+                let currentSystemPrompt = systemPrompt;
+                if (searchSnippets.length > 0) {
+                    currentSystemPrompt += `\n\nExternal Web Search Context:\n` + searchSnippets.map((s, i) => `[${i + 1}] ${s}`).join("\n") + `\n\nUse this context to accurately answer the user's question.`;
+                    sendStatus("Web answering...");
+                } else {
+                    sendStatus("Answering...");
+                }
 
                 // Log image presence for debugging
                 if (image_url) {
@@ -215,7 +487,7 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                 });
 
                 const finalMessages = [
-                    { role: "system", content: systemPrompt },
+                    { role: "system", content: currentSystemPrompt },
                     ...chatMemory,
                     { role: "user", content: userMessageContent }
                 ];
@@ -223,7 +495,7 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                 let response;
                 let useFallback = false;
 
-                if (hfToken && hfToken !== 'your_hf_token_here') {
+                if (hfToken && hfToken !== 'your_hf_token_here' && (failingProviders.hf.count < 3 || (Date.now() - failingProviders.hf.lastFail) > PROVIDER_COOLDOWN)) {
                     try {
                         const hfOpenai = new OpenAI({
                             apiKey: hfToken,
@@ -237,21 +509,28 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                             max_tokens: 1000
                         });
                     } catch (hfErr) {
-                        console.error("Hugging Face API Error, falling back to OpenRouter:", hfErr.message);
+                        console.error("Hugging Face API Error:", hfErr.message);
+                        failingProviders.hf.lastFail = Date.now();
+                        // If it's a quota error (402 or 429), skip for 1 hour immediately
+                        if (hfErr.message.includes('402') || hfErr.message.includes('429')) {
+                            failingProviders.hf.count = 3;
+                        } else {
+                            failingProviders.hf.count++;
+                        }
                         useFallback = true;
                     }
                 } else {
                     useFallback = true;
                 }
 
-                if (useFallback && orKey && orKey !== 'your_openrouter_api_key_here') {
+                if (useFallback && activeOrKey && (failingProviders.or.count < 3 || (Date.now() - failingProviders.or.lastFail) > PROVIDER_COOLDOWN)) {
                     try {
                         const orOpenai = new OpenAI({
-                            apiKey: orKey,
+                            apiKey: activeOrKey,
                             baseURL: 'https://openrouter.ai/api/v1',
                             defaultHeaders: {
                                 "HTTP-Referer": "http://localhost:3000",
-                                "X-Title": "Aranya AI Chatbot",
+                                "X-Title": "Arion Chatbot",
                             }
                         });
                         response = await orOpenai.chat.completions.create({
@@ -261,7 +540,71 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                         });
                     } catch (orErr) {
                         console.error("OpenRouter API Error:", orErr.message);
-                        throw new Error("Both Primary and Fallback AI APIs failed.");
+                        failingProviders.or.lastFail = Date.now();
+                        if (orErr.message.includes('429')) {
+                            failingProviders.or.count = 3;
+                        } else {
+                            failingProviders.or.count++;
+                        }
+                        useFallback = true; // Continue to next fallback
+                    }
+                } else if (useFallback) {
+                    useFallback = true;
+                }
+
+                // Gemini Fallback (if others failed or were skipped)
+                if ((!response || useFallback) && process.env.GEMINI_API_KEY && (failingProviders.gemini.count < 3 || (Date.now() - failingProviders.gemini.lastFail) > PROVIDER_COOLDOWN)) {
+                    let geminiRetries = 0;
+                    const maxGeminiRetries = 1;
+
+                    while (geminiRetries <= maxGeminiRetries) {
+                        try {
+                            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+
+                            const contents = finalMessages.slice(1).map(m => {
+                                let parts = [];
+                                if (Array.isArray(m.content)) {
+                                    parts = m.content.map(c => c.type === 'text' ? { text: c.text } : { inlineData: { data: c.image_url.url.split(',')[1], mimeType: "image/jpeg" } });
+                                } else {
+                                    parts = [{ text: String(m.content) }];
+                                }
+                                return {
+                                    role: m.role === 'assistant' ? 'model' : 'user',
+                                    parts
+                                };
+                            });
+
+                            const result = await model.generateContent({
+                                contents,
+                                systemInstruction: { parts: [{ text: String(finalMessages[0].content) }] }
+                            });
+                            const geminiResponse = await result.response;
+                            aiContent = geminiResponse.text();
+
+                            response = { choices: [{ message: { content: aiContent } }] };
+                            break; // Success!
+                        } catch (gemErr) {
+                            console.error("Gemini API Error:", gemErr.message);
+                            if (gemErr.message.includes('429')) {
+                                if (geminiRetries < maxGeminiRetries) {
+                                    console.warn(`Gemini Rate Limited (429), retrying in 3s... (Attempt ${geminiRetries + 1}/${maxGeminiRetries + 1})`);
+                                    await new Promise(resolve => setTimeout(resolve, 3000));
+                                    geminiRetries++;
+                                    continue;
+                                }
+                                failingProviders.gemini.lastFail = Date.now();
+                                failingProviders.gemini.count = 3; // Block for 1 hour
+                            } else {
+                                failingProviders.gemini.lastFail = Date.now();
+                                failingProviders.gemini.count++;
+                            }
+
+                            if (!response) {
+                                throw new Error("All AI APIs (HF, OpenRouter, Gemini) failed.");
+                            }
+                            break;
+                        }
                     }
                 }
 
@@ -272,29 +615,14 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
                 aiContent = response.choices[0].message.content;
             } catch (aiErr) {
                 console.error("AI API Error:", aiErr);
-                aiContent = "*(System Warning: Failed to connect to AI provider. Falling back to rules-engine.)*\n\n";
+                // Don't set warning yet, let the fallback below handle it
             }
         }
 
         if (!aiContent || aiContent.includes("*(System Warning: Failed")) {
-            const contentLower = content.toLowerCase();
-            let fallbackContent = "";
-
-            if (image_url) {
-                fallbackContent = "### Vision API Analysis\n\nI have scanned the uploaded image. I detect patterns consistent with **mild dermatophytosis (ringworm)** or superficial abrasions on the skin.\n\n**Immediate Actions:**\n1. Isolate the affected cattle to prevent herd transmission.\n2. Apply a topical antifungal wash (e.g., 2% chlorhexidine) daily.\n3. Monitor the lesions for 5 days.\n\n_If symptoms worsen, please contact a certified veterinarian._";
-            } else if (contentLower.includes("fever") || contentLower.includes("temperature") || contentLower.includes("hot")) {
-                fallbackContent = "Based on the symptom of fever, this could indicate **Bovine Respiratory Disease (BRD)** or a potential tick-borne infection.\n\n**Diagnostic checklist:**\n- Measure the exact rectal temperature (normal is 38.0°C to 39.3°C).\n- Check for nasal discharge or rapid, shallow breathing.\n- Ensure immediate access to fresh water and shade.\n\nWould you like me to log these symptoms into the health database?";
-            } else if (contentLower.includes("milk") || contentLower.includes("udder") || contentLower.includes("mastitis")) {
-                fallbackContent = "A drop in milk yield or udder swelling strongly points towards **Clinical Mastitis**.\n\n**Recommended Steps:**\n• Perform a California Mastitis Test (CMT) on all four quarters.\n• Strip the affected quarter frequently to clear milk clots.\n• If severe, an intramammary antibiotic protocol may be required under veterinary guidance.";
-            } else if (contentLower.includes("eat") || contentLower.includes("appetite") || contentLower.includes("weight")) {
-                fallbackContent = "Loss of appetite in cattle is a generalized symptom that requires careful observation.\n\nIt could trace back to:\n- Ruminal acidosis (check their recent grain intake).\n- Ketosis (especially if recently calved).\n- Internal parasites.\n\nPlease provide their heart rate and activity level so I can run a deep predictive anomaly check.";
-            } else {
-                fallbackContent = `I am analyzing your input regarding: "${content}".\n\nAs your embedded Aranya AI, I can run predictive health models, analyze visual symptoms via the camera, and cross-reference herd data.\n\nCould you specify the exact symptoms, or upload an image of the affected area for a precise diagnostic?`;
-            }
-
-            // If it failed, we completely replace aiContent instead of appending to the warning
-            aiContent = fallbackContent;
-            console.log("Using fallback logic.");
+            // Replaced keyword-based routing with a much better diagnostic fallback
+            aiContent = `I have carefully noted your query regarding: "${content}".\n\nAs your Arion Veterinary Assistant, I'm currently processing this through my local diagnostic protocols. To provide the best possible guidance, could you please share a bit more detail? \n\nFor example:\n- **Species & Breed** (e.g., Labrador dog, Holstein cow)\n- **Primary Symptoms** (e.g., lethargy, coughing, loss of appetite)\n- **Duration** (How long has this been happening?)\n\nYou can also upload a clear photo of the affected area and I will use my visual diagnostics to analyze it for you. 🏥🐾`;
+            console.log("Using intelligent fallback logic (API providers unavailable).");
         }
 
         const aiMsg = new ChatMessage({
@@ -308,10 +636,25 @@ When diagnosing or giving medical advice, you MUST use one of these exact Markdo
             await logActivity('chat', { id: req.user.id }, `Used AI chatbot`);
         } catch (_) { }
 
-        res.json({ userMessage: userMsg, aiMessage: aiMsg, conversation });
+        res.write(`data: ${JSON.stringify({
+            type: 'result',
+            userMessage: userMsg,
+            aiMessage: aiMsg,
+            conversation,
+            route: finalRoute,
+            confidence: finalConfidence,
+            sources: searchSources
+        })}\n\n`);
+        res.end();
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        // Fallback for general errors if headers haven't sent, or send structured SSE error if they have
+        if (!res.headersSent) {
+            res.status(500).send('Server Error');
+        } else {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: 'Server Error' })}\n\n`);
+            res.end();
+        }
     }
 });
 
