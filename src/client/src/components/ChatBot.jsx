@@ -5,7 +5,7 @@ import {
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
     CheckSquare, Square, StopCircle, Sparkles, CornerDownRight,
-    MoreVertical
+    MoreVertical, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -88,6 +88,7 @@ export default function ChatBot() {
     const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
     const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [menuOpenId, setMenuOpenId] = useState(null);
+    const [chatMode, setChatMode] = useState('search'); // Default to Search mode for general answers
 
     useEffect(() => {
         const handleClickOutside = () => setMenuOpenId(null);
@@ -333,7 +334,7 @@ export default function ChatBot() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'aranya_ai_response.txt';
+        a.download = 'arion_response.txt';
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -676,7 +677,7 @@ export default function ChatBot() {
                                             <h2>
                                                 {activeChatId
                                                     ? conversations.find(c => c._id === activeChatId)?.title
-                                                    : 'Aranya AI Assistant'}
+                                                    : 'Aranya Assistant'}
                                             </h2>
                                         </div>
                                         <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
@@ -693,8 +694,8 @@ export default function ChatBot() {
                                                 <div className={styles.botGlow}>
                                                     <AILogo size={32} />
                                                 </div>
-                                                <h3>How can Aranya AI help today?</h3>
-                                                <p>I can analyze symptoms, predict risks, and optimize livestock health.</p>
+                                                <h3>How can I help today?</h3>
+                                                <p>I am in <strong>Search Mode</strong> for general answers. Aranya AI (Animal Data) mode is coming soon!</p>
                                             </div>
                                         </div>
                                     )}
@@ -831,16 +832,29 @@ export default function ChatBot() {
                                             multiple
                                             onChange={handleImageSelect}
                                         />
-                                        <button
-                                            className={styles.actionIcon}
-                                            onClick={() => fileInputRef.current?.click()}
-                                        >
-                                            <ImageIcon size={20} />
-                                        </button>
+                                        <div className={styles.inputLeftActions}>
+                                            <button
+                                                className={styles.actionIcon}
+                                                onClick={() => fileInputRef.current?.click()}
+                                                title="Upload Image"
+                                            >
+                                                <ImageIcon size={20} />
+                                            </button>
+
+                                            <button
+                                                className={`${styles.inlineModeBtn} ${chatMode === 'search' ? styles.modeSearchActive : styles.modeAranyaActive}`}
+                                                onClick={() => setChatMode(chatMode === 'aranya' ? 'search' : 'aranya')}
+                                                title={`Switch to ${chatMode === 'aranya' ? 'Search' : 'Aranya AI'} mode`}
+                                            >
+                                                {chatMode === 'aranya' ? <Sparkles size={16} /> : <Search size={16} />}
+                                                <span>{chatMode === 'aranya' ? 'Aranya AI' : 'Search'}</span>
+                                            </button>
+                                        </div>
+
                                         <input
                                             type="text"
                                             className={styles.inputField}
-                                            placeholder="Message Aranya AI..."
+                                            placeholder={chatMode === 'search' ? "Search and ask anything..." : "Message Aranya AI..."}
                                             value={input}
                                             onChange={(e) => {
                                                 setInput(e.target.value);
@@ -871,7 +885,8 @@ export default function ChatBot() {
                                         </div>
                                     </div>
                                     <div className={styles.disclaimerText}>
-                                        Aranya AI is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.
+                                        <span className={styles.pingEffect}></span>
+                                        Arion is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.
                                     </div>
                                 </footer>
                             </main>
@@ -885,7 +900,7 @@ export default function ChatBot() {
                     <AILogo size={22} />
                 </span>
                 <span className={styles.chatToggleLabel}>
-                    <span className={styles.chatToggleName}>Aranya AI</span>
+                    <span className={styles.chatToggleName}>Arion</span>
                     <span className={styles.chatToggleDot} />
                 </span>
             </button>
