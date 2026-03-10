@@ -79,7 +79,6 @@ export default function ChatBot() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [typingStatus, setTypingStatus] = useState('Analyzing...');
     const [selectedImages, setSelectedImages] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -334,7 +333,7 @@ export default function ChatBot() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'arion_response.txt';
+        a.download = 'aranya_ai_response.txt';
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -411,7 +410,6 @@ export default function ChatBot() {
 
         isSendingRef.current = true;
         setIsTyping(true);
-        setTypingStatus('Initializing...');
         setIsGenerating(true);
         abortControllerRef.current = new AbortController();
 
@@ -452,62 +450,25 @@ export default function ChatBot() {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`/api/chat/conversations/${chatId}/messages`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    content: userMsg.content,
-                    image_url: userMsg.image_url,
-                    image_urls: userMsg.image_urls
-                }),
+            const res = await axios.post(`/api/chat/conversations/${chatId}/messages`, {
+                content: userMsg.content,
+                image_url: userMsg.image_url,
+                image_urls: userMsg.image_urls
+            }, {
+                headers: { Authorization: `Bearer ${token}` },
                 signal: abortControllerRef.current.signal
             });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
-            }
+            const aiMsg = { ...res.data.aiMessage, isNew: true };
+            setMessages(prev => {
+                // Remove the optimistic message and replace with official ones
+                return [...prev.filter(m => m.tempId !== tempMsgId), res.data.userMessage, aiMsg];
+            });
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                let newlineIndex;
-                while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
-                    let line = buffer.slice(0, newlineIndex).trim();
-                    buffer = buffer.slice(newlineIndex + 1);
-
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.type === 'status') {
-                                console.log('[SSE Status]', data.message);
-                                setTypingStatus(data.message);
-                            } else if (data.type === 'result') {
-                                const aiMsg = { ...data.aiMessage, isNew: true };
-                                setMessages(prev => [...prev.filter(m => m.tempId !== tempMsgId), data.userMessage, aiMsg]);
-                                fetchConversations();
-                            } else if (data.type === 'error') {
-                                throw new Error(data.message);
-                            }
-                        } catch (e) {
-                            if (e.message !== "Unexpected end of JSON input" && !e.message.startsWith("Unexpected token")) {
-                                console.error("SSE parse error", e);
-                            }
-                        }
-                    }
-                }
-            }
+            fetchConversations();
+            // setIsGenerating(false); // DO NOT set here, let Typewriter.onFinish handle it
         } catch (err) {
-            if (err.name === 'AbortError') {
+            if (axios.isCancel(err)) {
                 console.log('Request canceled');
             } else {
                 console.error('Send failed', err);
@@ -715,7 +676,7 @@ export default function ChatBot() {
                                             <h2>
                                                 {activeChatId
                                                     ? conversations.find(c => c._id === activeChatId)?.title
-                                                    : 'Arion Assistant'}
+                                                    : 'Aranya AI Assistant'}
                                             </h2>
                                         </div>
                                         <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
@@ -732,7 +693,7 @@ export default function ChatBot() {
                                                 <div className={styles.botGlow}>
                                                     <AILogo size={32} />
                                                 </div>
-                                                <h3>How can Arion help today?</h3>
+                                                <h3>How can Aranya AI help today?</h3>
                                                 <p>I can analyze symptoms, predict risks, and optimize livestock health.</p>
                                             </div>
                                         </div>
@@ -851,29 +812,13 @@ export default function ChatBot() {
                                     )}
 
                                     {isTyping && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: 10 }}
-                                            className={styles.globalTypingContainer}
-                                        >
+                                        <div className={styles.globalTypingContainer}>
                                             <AILogo size={18} className={styles.typingLogoGlobal} />
                                             <div className={styles.typingTextContainerGlobal}>
-                                                <AnimatePresence mode="wait">
-                                                    <motion.span
-                                                        key={typingStatus}
-                                                        initial={{ opacity: 0, y: 5 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        exit={{ opacity: 0, y: -5 }}
-                                                        transition={{ duration: 0.2 }}
-                                                        className={styles.typingTextGlobal}
-                                                    >
-                                                        {typingStatus}
-                                                    </motion.span>
-                                                </AnimatePresence>
+                                                <span className={styles.typingTextGlobal}></span>
                                                 <span className={styles.typingDotsGlobal}>...</span>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     )}
 
 
@@ -895,7 +840,7 @@ export default function ChatBot() {
                                         <input
                                             type="text"
                                             className={styles.inputField}
-                                            placeholder="Message Arion..."
+                                            placeholder="Message Aranya AI..."
                                             value={input}
                                             onChange={(e) => {
                                                 setInput(e.target.value);
@@ -926,8 +871,7 @@ export default function ChatBot() {
                                         </div>
                                     </div>
                                     <div className={styles.disclaimerText}>
-                                        <span className={styles.chatToggleDot} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle', marginTop: '-2px' }} />
-                                        Arion is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.
+                                        Aranya AI is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.
                                     </div>
                                 </footer>
                             </main>
@@ -941,7 +885,7 @@ export default function ChatBot() {
                     <AILogo size={22} />
                 </span>
                 <span className={styles.chatToggleLabel}>
-                    <span className={styles.chatToggleName}>Arion</span>
+                    <span className={styles.chatToggleName}>Aranya AI</span>
                     <span className={styles.chatToggleDot} />
                 </span>
             </button>
