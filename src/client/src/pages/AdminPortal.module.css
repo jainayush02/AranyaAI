@@ -1373,31 +1373,65 @@
 }
 
 .contentCard {
-    background: #fff;
+    background: #ffffff;
+    background: linear-gradient(135deg, #ffffff 0%, #fcfdfe 100%);
     border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 1.5rem;
+    border-radius: 24px;
+    padding: 2.25rem;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.contentCard::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(45, 95, 63, 0.03) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.contentCard:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.08);
 }
 
 .contentCardHead {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding-bottom: 1rem;
-    margin-bottom: 1.25rem;
-    border-bottom: 1px solid #f1f5f9;
+    align-items: flex-start;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.75rem;
+    border-bottom: 2px solid #f1f5f9;
+    z-index: 1;
 }
 
 .contentCardTitle {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 1.05rem;
+    gap: 1rem;
+    font-size: 1.2rem;
     font-weight: 800;
-    color: #0f172a;
+    color: #1e293b;
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+}
+
+.countBadge {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-left: 0.5rem;
 }
 
 .countBadge {
@@ -1806,6 +1840,7 @@
         transform: translateY(0);
     }
 }
+
 .successMsg {
     margin-top: 1rem;
     padding: 1rem;
@@ -1931,3 +1966,198 @@
     transform: translateY(-1px);
 }
 
+
+/* -- AI CONFIG UI -- */
+/* -- AI CONFIG UI -- */
+.aiConfigGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.aiConfigGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.aiConfigRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.inputLabel {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.configInput {
+    flex: 1;
+    padding: 0.85rem 1.25rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: #f8fafc;
+    color: #1e293b;
+    outline: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.configInput:focus {
+    border-color: #2d5f3f;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(45, 95, 63, 0.08);
+}
+
+.inputToggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #f8fafc;
+    padding: 0.6rem 1rem;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #475569;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.inputToggle:hover {
+    border-color: #2d5f3f;
+    background: #fff;
+}
+
+/* Premium UI Enhancements */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(14px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal {
+    background: #ffffff;
+    border-radius: 32px;
+    box-shadow: 0 40px 80px -12px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.premiumTextarea {
+    width: 100%;
+    min-height: 400px;
+    padding: 1.75rem;
+    border: 2px solid #f1f5f9;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: #1e293b;
+    background: #fcfdfe;
+    resize: vertical;
+    outline: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premiumTextarea:focus {
+    border-color: #2d5f3f;
+    background: #ffffff;
+    box-shadow: 0 0 0 5px rgba(45, 95, 63, 0.1);
+}
+
+.premiumTextarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+.premiumTextarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.premiumTextarea::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+    border: 3px solid #ffffff;
+}
+
+.premiumTextarea::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+}
+
+
+.premiumButton {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 2.2rem;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    letter-spacing: 0.02em;
+}
+
+.btnPrimary {
+    background: linear-gradient(135deg, #2d5f3f 0%, #1e402a 100%);
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(45, 95, 63, 0.25);
+}
+
+.btnPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(45, 95, 63, 0.35);
+    filter: brightness(1.05);
+}
+
+.btnSecondary {
+    background: #ffffff;
+    color: #475569;
+    border: 1.5px solid #e2e8f0;
+}
+
+.btnSecondary:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #1e293b;
+    transform: translateY(-1px);
+}
+
+.badge {
+    padding: 0.3rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badgeSuccess {
+    background: #dcfce7;
+    color: #166534;
+}
+
+@media (max-width: 768px) {
+    .aiConfigRow {
+        grid-template-columns: 1fr;
+    }
+}
