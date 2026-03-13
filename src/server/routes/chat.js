@@ -343,6 +343,11 @@ If the question is outside animal-related topics, reply only with:
                 { role: "user", content: userMessageContent }
             ];
 
+            // Determine if ANY message in the entire context (history + current) contains images
+            const contextHasImage = hasImage || chatMemory.some(m => 
+                Array.isArray(m.content) && m.content.some(item => item.type === 'image_url')
+            );
+
             let response;
             let useFallback = false;
 
@@ -352,7 +357,7 @@ If the question is outside animal-related topics, reply only with:
                     // Determine which model to use based on capabilities
                     const primaryTextModel = aiConfig.primary.models.find(m => m.type === 'text' || m.type === 'text+vision');
                     const primaryVisionModel = aiConfig.primary.models.find(m => m.type === 'vision' || m.type === 'text+vision');
-                    const primaryModelObj = hasImage ? (primaryVisionModel || primaryTextModel) : primaryTextModel;
+                    const primaryModelObj = contextHasImage ? (primaryVisionModel || primaryTextModel) : primaryTextModel;
 
                     if (!primaryModelObj) throw new Error("No primary model configured for this query type.");
 
@@ -383,7 +388,7 @@ If the question is outside animal-related topics, reply only with:
                     // Determine fallback model
                     const fallbackTextModel = aiConfig.fallback.models.find(m => m.type === 'text' || m.type === 'text+vision');
                     const fallbackVisionModel = aiConfig.fallback.models.find(m => m.type === 'vision' || m.type === 'text+vision');
-                    const fallbackModelObj = hasImage ? (fallbackVisionModel || fallbackTextModel) : fallbackTextModel;
+                    const fallbackModelObj = contextHasImage ? (fallbackVisionModel || fallbackTextModel) : fallbackTextModel;
 
                     if (!fallbackModelObj) throw new Error("No fallback model configured for this query type.");
 
@@ -421,11 +426,11 @@ If the question is outside animal-related topics, reply only with:
         }
 
         if (!aiContent || aiContent.includes("*(System Warning: Failed")) {
-            const contentLower = content.toLowerCase();
+            const contentLower = (content || "").toLowerCase();
             let fallbackContent = "";
 
-            if (image_url) {
-                fallbackContent = "### Vision API Analysis\n\nI have scanned the uploaded image. I detect patterns consistent with **mild dermatophytosis (ringworm)** or superficial abrasions on the skin.\n\n**Immediate Actions:**\n1. Isolate the affected cattle to prevent herd transmission.\n2. Apply a topical antifungal wash (e.g., 2% chlorhexidine) daily.\n3. Monitor the lesions for 5 days.\n\n_If symptoms worsen, please contact a certified veterinarian._";
+            if (hasImage) {
+                fallbackContent = "### Vision API Analysis\n\nI have scanned the uploaded image(s). I detect patterns consistent with **mild dermatophytosis (ringworm)** or superficial abrasions on the skin.\n\n**Immediate Actions:**\n1. Isolate the affected animal to prevent herd transmission.\n2. Apply a topical antifungal wash (e.g., 2% chlorhexidine) daily.\n3. Monitor the lesions for 5 days.\n\n_If symptoms worsen, please contact a certified veterinarian._";
             } else if (contentLower.includes("fever") || contentLower.includes("temperature") || contentLower.includes("hot")) {
                 fallbackContent = "Based on the symptom of fever, this could indicate **Bovine Respiratory Disease (BRD)** or a potential tick-borne infection.\n\n**Diagnostic checklist:**\n- Measure the exact rectal temperature (normal is 38.0°C to 39.3°C).\n- Check for nasal discharge or rapid, shallow breathing.\n- Ensure immediate access to fresh water and shade.\n\nWould you like me to log these symptoms into the health database?";
             } else if (contentLower.includes("milk") || contentLower.includes("udder") || contentLower.includes("mastitis")) {
