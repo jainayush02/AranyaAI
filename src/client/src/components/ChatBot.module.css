@@ -564,6 +564,11 @@
     box-shadow: 0 8px 20px rgba(45, 95, 63, 0.2);
 }
 
+.userBubble :global(.markdownContent) strong,
+.userBubble strong {
+    color: #ffffff !important;
+}
+
 .aiBubble {
     background: transparent;
     color: #334155;
@@ -1695,6 +1700,168 @@
 
 .suggestionCard:hover span {
     color: var(--primary);
+}
+
+/* --- New Feature Styles --- */
+
+/* Input plus menu */
+.inputMenuContainer {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.actionIconActive {
+    background: rgba(45, 95, 63, 0.1);
+    color: var(--primary) !important;
+}
+.addMenuPopup {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    background: white;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    border: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 50;
+    min-width: 140px;
+}
+.addMenuOption {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155;
+    transition: background 0.2s ease;
+}
+.addMenuOption:hover {
+    background: #f8fafc;
+}
+.addMenuIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Search */
+.searchHeaderInput {
+    flex: 1;
+    background: rgba(0,0,0,0.05);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    outline: none;
+    margin: 0 10px;
+}
+.searchContextInfo {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Pins */
+.pinnedBubble {
+    border: 2px solid var(--primary);
+    background: rgba(45, 95, 63, 0.03) !important;
+}
+.pinnedIndicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.pinBtnActive {
+    color: var(--primary) !important;
+    background: rgba(45, 95, 63, 0.1) !important;
+}
+
+/* Reactions */
+.reactionDisplayRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.reactionBadge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.05);
+    font-size: 0.85rem;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+.reactionPickerContainer {
+    position: relative;
+}
+/* Reaction Popup */
+.reactionPopup {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border-radius: 20px;
+    padding: 6px 12px;
+    display: flex;
+    gap: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 1px solid rgba(0,0,0,0.05);
+    z-index: 100;
+    margin-bottom: 8px;
+    animation: popupScale 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popupScale {
+    0% { transform: translateX(-50%) scale(0.8); opacity: 0; }
+    100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+.reactionOptionBtn {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    padding: 4px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.reactionOptionBtn:hover {
+    transform: scale(1.2);
+    background: #f1f5f9;
+}
+
+
+
+.pulsingIcon {
+    animation: simplePulse 1.5s infinite;
+    color: var(--primary);
+}
+
+@keyframes simplePulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
 }
 
 /* --- Mobile Responsiveness --- */

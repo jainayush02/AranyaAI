@@ -464,4 +464,87 @@ If the question is outside animal-related topics, reply only with:
     }
 });
 
+// @route   PUT /api/chat/messages/:msgId/pin
+// @desc    Toggle pin on a message
+// @access  Private
+router.put('/messages/:msgId/pin', auth, async (req, res) => {
+    try {
+        const msg = await ChatMessage.findById(req.params.msgId);
+        if (!msg) return res.status(404).json({ msg: 'Message not found' });
+        if (msg.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+
+        msg.isPinned = !msg.isPinned;
+        await msg.save();
+        res.json(msg);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   PUT /api/chat/messages/:msgId/react
+// @desc    Toggle emoji reaction on a message
+// @access  Private
+router.put('/messages/:msgId/react', auth, async (req, res) => {
+    try {
+        const { emoji } = req.body;
+        if (!emoji) return res.status(400).json({ msg: 'Emoji is required' });
+
+        const msg = await ChatMessage.findById(req.params.msgId);
+        if (!msg) return res.status(404).json({ msg: 'Message not found' });
+
+        const existingIdx = msg.reactions.findIndex(
+            r => r.emoji === emoji && r.user_id.toString() === req.user.id
+        );
+
+        if (existingIdx !== -1) {
+            msg.reactions.splice(existingIdx, 1); // Remove reaction
+        } else {
+            msg.reactions.push({ emoji, user_id: req.user.id });
+        }
+
+        await msg.save();
+        res.json(msg);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   GET /api/chat/search
+// @desc    Search messages across all user conversations
+// @access  Private
+router.get('/search', auth, async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.trim().length < 2) return res.json([]);
+
+        const conversations = await Conversation.find({ user_id: req.user.id }).select('_id');
+        const convIds = conversations.map(c => c._id);
+
+        const messages = await ChatMessage.find({
+            conversation_id: { $in: convIds },
+            content: { $regex: q, $options: 'i' }
+        })
+            .sort({ createdAt: -1 })
+            .limit(30)
+            .lean();
+
+        // Attach conversation title to each result
+        const convMap = {};
+        const convData = await Conversation.find({ _id: { $in: convIds } }).select('title').lean();
+        convData.forEach(c => { convMap[c._id.toString()] = c.title; });
+
+        const results = messages.map(m => ({
+            ...m,
+            conversationTitle: convMap[m.conversation_id.toString()] || 'Chat'
+        }));
+
+        res.json(results);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;

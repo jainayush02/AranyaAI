@@ -1,17 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     MessageSquare, X, Send, Bot, Mic,
-    Camera, Image as ImageIcon,
+    Image as ImageIcon,
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
     CheckSquare, Square, StopCircle, Sparkles, CornerDownRight,
-    MoreVertical, Search
+    MoreVertical, Search, Pin, Smile, ThumbsUp // Added Pin, Smile, ThumbsUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
+import { Paperclip } from 'lucide-react'; // Added Paperclip
 
 const AILogo = ({ size = 24, className }) => (
     <svg
@@ -81,7 +82,9 @@ const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
 
 const parseMessage = (content) => {
     if (typeof content !== 'string') return { cleanContent: '' };
-    return { cleanContent: content.trim() };
+    // Replace the hidden attachment text with a clean file UI representation
+    let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
+    return { cleanContent: clean.trim() };
 };
 
 export default function ChatBot() {
@@ -106,13 +109,36 @@ export default function ChatBot() {
     const recognitionRef = useRef(null);
     const silenceTimeoutRef = useRef(null);
 
+    // Global Search State
+    const [isGlobalSearch, setIsGlobalSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+
+    // Reaction Picker State
+    const [activeReactionId, setActiveReactionId] = useState(null);
+
+    // Document File Upload State
+    const documentInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+    const [isExtractingText, setIsExtractingText] = useState(false);
+    const [fileAttachments, setFileAttachments] = useState([]);
+
+    // Input Menu State
+    const [isInputMenuOpen, setIsInputMenuOpen] = useState(false);
+
     useEffect(() => {
-        const handleClickOutside = () => setMenuOpenId(null);
-        if (menuOpenId) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
+        const handleClickOutside = (e) => {
+            setMenuOpenId(null);
+            
+            // Close input menu when clicking outside
+            if (isInputMenuOpen && !e.target.closest(`.${styles.inputMenuContainer}`)) {
+                setIsInputMenuOpen(false);
+            }
+        };
+        
+        document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [menuOpenId]);
+    }, [menuOpenId, isInputMenuOpen]);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
         title: '',
@@ -264,6 +290,57 @@ export default function ChatBot() {
         }
     };
 
+    // Global Search Function
+    const handleGlobalSearch = async (query) => {
+        setSearchQuery(query);
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`/api/chat/search?q=${encodeURIComponent(query)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setSearchResults(res.data);
+        } catch (err) {
+            console.error('Search failed', err);
+        }
+    };
+
+    // Message Actions Functions
+    const handleTogglePin = async (msgId) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`/api/chat/messages/${msgId}/pin`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            // Update local state without re-fetching
+            setMessages(prev => prev.map(m => 
+                m._id === msgId ? { ...m, isPinned: !m.isPinned } : m
+            ));
+        } catch (err) {
+            console.error('Pin toggle failed', err);
+        }
+    };
+
+    const handleToggleReaction = async (msgId, emoji) => {
+        try {
+            const token = localStorage.getItem('token');
+            // Decode the hardcoded user ID logic for simple visual feedback (we simulate backend response)
+            await axios.put(`/api/chat/messages/${msgId}/react`, { emoji }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            // Actually, best to fetch the exact new msg or manually toggle locally
+            setActiveReactionId(null);
+            fetchMessages(activeChatId); // Safest route to get correct user reaction mapping
+        } catch (err) {
+            console.error('Reaction toggle failed', err);
+        }
+    };
+
     const handleNewChat = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -346,7 +423,68 @@ export default function ChatBot() {
         } finally {
             setIsUploadingImage(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
         }
+    };
+
+    // Document/PDF parsing logic
+    const handleDocumentSelect = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        setIsExtractingText(true);
+        // We use isUploadingImage here just to show the loading spinner in the UI
+        setIsUploadingImage(true); 
+        setIsInputMenuOpen(false);
+
+        for (const file of files) {
+            try {
+                let extractedText = '';
+                if (file.type === 'application/pdf') {
+                    if (!window.pdfjsLib) {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
+                        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    }
+
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        extractedText += textContent.items.map(item => item.str).join(' ') + '\n';
+                    }
+                } else {
+                    extractedText = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
+                }
+                
+                if (extractedText) {
+                    setFileAttachments(prev => [...prev, {
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        text: extractedText
+                    }]);
+                }
+            } catch (err) {
+                console.error(`Failed to parse file ${file.name}:`, err);
+                alert(`Failed to parse ${file.name}. Ensure it is a valid text or PDF file.`);
+            }
+        }
+
+        setIsExtractingText(false);
+        setIsUploadingImage(false);
+        if (documentInputRef.current) documentInputRef.current.value = '';
     };
 
     const removeImage = (index) => {
@@ -480,7 +618,14 @@ export default function ChatBot() {
 
     const handleSend = async (query = null) => {
         const messageText = query || input;
-        if (!messageText.trim() && imagePreviews.length === 0) return;
+        
+        let finalContent = messageText;
+        if (fileAttachments.length > 0) {
+            const attachmentsStr = fileAttachments.map(f => `<aranya-attachment name="${f.name}">\n${f.text}\n</aranya-attachment>`).join('\n\n');
+            finalContent = (finalContent ? finalContent + '\n\n' : '') + attachmentsStr;
+        }
+
+        if (!finalContent.trim() && imagePreviews.length === 0) return;
         if (isSendingRef.current) {
             console.warn("Attempted to send message while another is in progress.");
             return;
@@ -505,6 +650,7 @@ export default function ChatBot() {
                 setInput('');
                 setImagePreviews([]);
                 setSelectedImages([]);
+                setFileAttachments([]);
                 return;
             }
             console.log(`New chat created with ID: ${chatId}`);
@@ -513,7 +659,7 @@ export default function ChatBot() {
         const tempMsgId = Date.now();
         const userMsg = {
             role: 'user',
-            content: messageText || 'Image Analysis',
+            content: finalContent || 'Image Analysis',
             image_url: imagePreviews.length > 0 ? imagePreviews[0] : null, // Fallback for single image_url
             image_urls: imagePreviews, // New field for multiple images
             tempId: tempMsgId,
@@ -525,6 +671,7 @@ export default function ChatBot() {
         setInput('');
         setImagePreviews([]);
         setSelectedImages([]);
+        setFileAttachments([]);
 
         try {
             const token = localStorage.getItem('token');
@@ -752,16 +899,45 @@ export default function ChatBot() {
                                                 <History size={20} />
                                             </button>
                                             <h2>
-                                                {activeChatId
+                                                {isGlobalSearch ? 'Search Results'
+                                                : activeChatId
                                                     ? conversations.find(c => c._id === activeChatId)?.title
                                                     : 'Aranya Assistant'}
                                             </h2>
                                         </div>
-                                        <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
+                                        {isGlobalSearch ? (
+                                            <input 
+                                                className={styles.searchHeaderInput}
+                                                type="text" 
+                                                placeholder="Search across all chats..." 
+                                                value={searchQuery}
+                                                onChange={(e) => handleGlobalSearch(e.target.value)}
+                                                autoFocus
+                                            />
+                                        ) : (
+                                            <p className={styles.headerSubtitle}>Veterinary AI • Deep Diagnostics Enabled</p>
+                                        )}
                                     </div>
-                                    <button className={styles.closeMainBtn} onClick={() => setIsOpen(false)}>
-                                        <X size={20} />
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button 
+                                            className={styles.closeMainBtn} 
+                                            onClick={() => {
+                                                if (isGlobalSearch) {
+                                                    setIsGlobalSearch(false);
+                                                    setSearchQuery('');
+                                                } else {
+                                                    setIsGlobalSearch(true);
+                                                    setSearchResults([]);
+                                                }
+                                            }}
+                                            title={isGlobalSearch ? "Close Search" : "Search Messages"}
+                                        >
+                                            <Search size={20} color={isGlobalSearch ? "var(--primary)" : "currentColor"} />
+                                        </button>
+                                        <button className={styles.closeMainBtn} onClick={() => setIsOpen(false)}>
+                                            <X size={20} />
+                                        </button>
+                                    </div>
                                 </header>
 
                                 <div className={styles.chatMessages} ref={chatContainerRef} onScroll={handleChatScroll}>
@@ -776,15 +952,28 @@ export default function ChatBot() {
                                             </div>
                                         </div>
                                     )}
-                                    {messages.map((msg, i) => (
+                                    {(isGlobalSearch ? searchResults : messages).map((msg, i) => (
                                         <div key={i} className={`${styles.messageRow} ${msg.role === 'user' ? styles.userRow : styles.aiRow}`}>
                                             {msg.role === 'ai' && (
                                                 <div className={styles.minimalLogoWrapper}>
                                                     <AILogo size={20} />
                                                 </div>
                                             )}
-                                            <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}>
+                                            <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble} ${msg.isPinned ? styles.pinnedBubble : ''}`}>
+                                                
+                                                {msg.isPinned && (
+                                                    <div className={styles.pinnedIndicator}>
+                                                        <Pin size={12} fill="currentColor" />
+                                                        <span>Pinned</span>
+                                                    </div>
+                                                )}
+
                                                 <div className={styles.messageContent}>
+                                                    {isGlobalSearch && (
+                                                        <div className={styles.searchContextInfo}>
+                                                            Found in: <strong>{msg.conversationTitle}</strong>
+                                                        </div>
+                                                    )}
                                                     <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
                                                         const { cleanContent } = parseMessage(msg.content);
@@ -815,7 +1004,17 @@ export default function ChatBot() {
                                                         );
                                                     })()}
 
-                                                    {msg.role === 'ai' && !msg.isNew && (
+                                                    {msg.reactions && msg.reactions.length > 0 && (
+                                                        <div className={styles.reactionDisplayRow}>
+                                                            {Array.from(new Set(msg.reactions.map(r => r.emoji))).map(emoji => (
+                                                                <span key={emoji} className={styles.reactionBadge}>
+                                                                    {emoji} {msg.reactions.filter(r => r.emoji === emoji).length}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {msg.role === 'ai' && !msg.isNew && !isGlobalSearch && (
                                                         <div className={styles.messageActionRow}>
                                                             <button
                                                                 className={styles.messageActionBtn}
@@ -824,20 +1023,38 @@ export default function ChatBot() {
                                                             >
                                                                 {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={16} />}
                                                             </button>
+                                                            
+                                                            <div className={styles.reactionPickerContainer}>
+                                                                <button
+                                                                    className={`${styles.messageActionBtn} ${activeReactionId === (msg._id || i) ? styles.actionBtnActive : ''}`}
+                                                                    onClick={() => setActiveReactionId(activeReactionId === (msg._id || i) ? null : (msg._id || i))}
+                                                                    title="React"
+                                                                >
+                                                                    <Smile size={16} />
+                                                                </button>
+                                                                {activeReactionId === (msg._id || i) && (
+                                                                    <div className={styles.reactionPopup}>
+                                                                        {['🐾', '❤️', '👍', '🔥', '💡'].map(emoji => (
+                                                                            <button 
+                                                                                key={emoji} 
+                                                                                className={styles.reactionOptionBtn}
+                                                                                onClick={() => handleToggleReaction(msg._id, emoji)}
+                                                                            >
+                                                                                {emoji}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
                                                             <button
-                                                                className={`${styles.messageActionBtn} ${feedback[msg._id || i] === 'helpful' ? styles.actionBtnActive : ''}`}
-                                                                onClick={() => handleFeedback(msg._id || i, 'helpful')}
-                                                                title="Helpful response"
+                                                                className={`${styles.messageActionBtn} ${msg.isPinned ? styles.pinBtnActive : ''}`}
+                                                                onClick={() => handleTogglePin(msg._id)}
+                                                                title={msg.isPinned ? "Unpin" : "Pin Message"}
                                                             >
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'helpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                                <Pin size={16} fill={msg.isPinned ? "currentColor" : "none"} />
                                                             </button>
-                                                            <button
-                                                                className={`${styles.messageActionBtn} ${feedback[msg._id || i] === 'unhelpful' ? styles.actionBtnActive : ''}`}
-                                                                onClick={() => handleFeedback(msg._id || i, 'unhelpful')}
-                                                                title="Not helpful"
-                                                            >
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill={feedback[msg._id || i] === 'unhelpful' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
-                                                            </button>
+
                                                             <div className={styles.actionDivider} />
                                                             <button className={styles.messageActionBtn} onClick={() => handleExport(msg.content)} title="Export">
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
@@ -856,8 +1073,23 @@ export default function ChatBot() {
                                 </div>
 
                                 <footer className={styles.chatFooter}>
-                                    {imagePreviews.length > 0 && (
+                                    {(imagePreviews.length > 0 || fileAttachments.length > 0) && (
                                         <div className={styles.previewBar}>
+                                            {fileAttachments.map((file) => (
+                                                <div key={file.id} className={styles.previewContainer} style={{ background: 'rgba(0,0,0,0.05)', padding: '6px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
+                                                    <Paperclip size={14} color="#64748b" />
+                                                    <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px', fontWeight: '500' }}>{file.name}</span>
+                                                    <div className={styles.previewActions}>
+                                                        <button
+                                                            className={`${styles.previewActionBtn} ${styles.removeBtn}`}
+                                                            onClick={() => setFileAttachments(prev => prev.filter(f => f.id !== file.id))}
+                                                            title="Remove file"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                             {imagePreviews.map((preview, idx) => (
                                                 <div key={idx} className={styles.previewContainer}>
                                                     <img src={preview} alt="upload" className={styles.previewThumb} />
@@ -880,7 +1112,7 @@ export default function ChatBot() {
                                         </div>
                                     )}
 
-                                    {!imagePreviews.length && isUploadingImage && (
+                                    {!imagePreviews.length && !fileAttachments.length && isUploadingImage && (
                                         <div className={styles.previewBar}>
                                             <div className={styles.imageLoadingContainer}>
                                                 <div className={styles.imageLoaderSpinner}></div>
@@ -910,13 +1142,71 @@ export default function ChatBot() {
                                             onChange={handleImageSelect}
                                         />
                                         <div className={styles.inputLeftActions}>
-                                            <button
-                                                className={styles.actionIcon}
-                                                onClick={() => fileInputRef.current?.click()}
-                                                title="Upload Image"
-                                            >
-                                                <ImageIcon size={20} />
-                                            </button>
+                                            <input
+                                                type="file"
+                                                ref={cameraInputRef}
+                                                style={{ display: 'none' }}
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={handleImageSelect}
+                                            />
+                                            <input
+                                                type="file"
+                                                ref={documentInputRef}
+                                                style={{ display: 'none' }}
+                                                accept=".pdf,.txt,.csv,.md,.json"
+                                                multiple
+                                                onChange={handleDocumentSelect}
+                                            />
+                                            
+                                            <div className={styles.inputMenuContainer}>
+                                                <button
+                                                    className={`${styles.actionIcon} ${isInputMenuOpen ? styles.actionIconActive : ''}`}
+                                                    onClick={() => setIsInputMenuOpen(!isInputMenuOpen)}
+                                                    title="Add attachment"
+                                                    disabled={isExtractingText}
+                                                >
+                                                    <Plus size={20} className={isExtractingText ? styles.pulsingIcon : ''} />
+                                                </button>
+                                                
+                                                <AnimatePresence>
+                                                    {isInputMenuOpen && (
+                                                        <motion.div 
+                                                            className={styles.addMenuPopup}
+                                                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                            transition={{ duration: 0.15 }}
+                                                        >
+                                                            <button 
+                                                                className={styles.addMenuOption}
+                                                                onClick={() => {
+                                                                    setIsInputMenuOpen(false);
+                                                                    documentInputRef.current?.click();
+                                                                }}
+                                                            >
+                                                                <div className={styles.addMenuIcon} style={{ color: '#8b5cf6', background: 'rgba(139, 92, 246, 0.1)' }}>
+                                                                    <Paperclip size={16} />
+                                                                </div>
+                                                                <span>Document</span>
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                className={styles.addMenuOption}
+                                                                onClick={() => {
+                                                                    setIsInputMenuOpen(false);
+                                                                    fileInputRef.current?.click();
+                                                                }}
+                                                            >
+                                                                <div className={styles.addMenuIcon} style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }}>
+                                                                    <ImageIcon size={16} />
+                                                                </div>
+                                                                <span>Image</span>
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
 
                                             <button
                                                 className={`${styles.inlineModeBtn} ${chatMode === 'search' ? styles.modeSearchActive : styles.modeAranyaActive}`}
@@ -1001,15 +1291,7 @@ export default function ChatBot() {
                 </span>
             </button>
 
-            <ConfirmDialog
-                isOpen={confirmConfig.isOpen}
-                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={confirmConfig.onConfirm}
-                title={confirmConfig.title}
-                message={confirmConfig.message}
-                type={confirmConfig.type}
-                confirmText="Delete"
-            />
+            <ConfirmDialog {...confirmConfig} onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))} />
         </React.Fragment>
     );
 }

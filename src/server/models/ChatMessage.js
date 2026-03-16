@@ -27,6 +27,17 @@ const ChatMessageSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    isPinned: {
+        type: Boolean,
+        default: false
+    },
+    reactions: [{
+        emoji: String,
+        user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'user'
+        }
+    }],
     createdAt: {
         type: Date,
         default: Date.now
