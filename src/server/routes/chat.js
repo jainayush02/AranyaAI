@@ -344,7 +344,7 @@ If the question is outside animal-related topics, reply only with:
             ];
 
             // Determine if ANY message in the entire context (history + current) contains images
-            const contextHasImage = hasImage || chatMemory.some(m => 
+            const contextHasImage = hasImage || chatMemory.some(m =>
                 Array.isArray(m.content) && m.content.some(item => item.type === 'image_url')
             );
 

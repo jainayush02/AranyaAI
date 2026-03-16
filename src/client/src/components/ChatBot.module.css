@@ -140,6 +140,48 @@
     background: transparent;
 }
 
+.writingSpinnerWrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: rgba(45, 95, 63, 0.05);
+    border-radius: 12px;
+    width: fit-content;
+}
+
+.typingDot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary, #2d5f3f);
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typingDot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typingDot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
 .historyList::-webkit-scrollbar-thumb,
 .chatMessages::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.1);
@@ -923,8 +965,65 @@
     color: #94a3b8;
 }
 
+/* Voice Recording Styles */
+.recordingContainer {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: rgba(45, 95, 63, 0.05); /* very light green background */
+    border-radius: 12px;
+    padding: 0.6rem 0;
+}
+
+.soundWave {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+}
+
+.soundWave .bar {
+    width: 4px;
+    background: linear-gradient(to top, var(--primary), #1a4a38); /* Green */
+    border-radius: 4px;
+    animation: soundWave 1s ease-in-out infinite;
+    transform-origin: bottom;
+}
+
+.soundWave .bar:nth-child(1) { height: 30%; animation-delay: 0.0s; }
+.soundWave .bar:nth-child(2) { height: 70%; animation-delay: 0.2s; }
+.soundWave .bar:nth-child(3) { height: 100%; animation-delay: 0.4s; }
+.soundWave .bar:nth-child(4) { height: 80%; animation-delay: 0.1s; }
+.soundWave .bar:nth-child(5) { height: 40%; animation-delay: 0.3s; }
+
+@keyframes soundWave {
+    0%, 100% {
+        transform: scaleY(0.5);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+.recordingIconActive {
+    color: var(--primary) !important; /* green */
+    background: rgba(45, 95, 63, 0.1) !important;
+    animation: pulseIcon 1.5s infinite;
+}
+
+@keyframes pulseIcon {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45, 95, 63, 0.4); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(45, 95, 63, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45, 95, 63, 0); }
+}
+
 .inputActions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
 }
 

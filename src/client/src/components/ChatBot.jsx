@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    MessageSquare, X, Send, Bot,
+    MessageSquare, X, Send, Bot, Mic,
     Camera, Image as ImageIcon,
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
@@ -63,7 +63,20 @@ const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
         }
     }, [currentIndex, text, speed, onType, onFinish]);
 
-    return <ReactMarkdown>{displayedText}</ReactMarkdown>;
+    return (
+        <div className={styles.typewriterWrapper}>
+            <div className={styles.markdownContent}>
+                <ReactMarkdown>{displayedText}</ReactMarkdown>
+            </div>
+            {currentIndex < text.length && (
+                <div className={styles.writingSpinnerWrapper}>
+                    <div className={styles.typingDot}></div>
+                    <div className={styles.typingDot}></div>
+                    <div className={styles.typingDot}></div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 const parseMessage = (content) => {
@@ -89,6 +102,9 @@ export default function ChatBot() {
     const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [chatMode, setChatMode] = useState('search'); // Default to Search mode for general answers
+    const [isRecording, setIsRecording] = useState(false);
+    const recognitionRef = useRef(null);
+    const silenceTimeoutRef = useRef(null);
 
     useEffect(() => {
         const handleClickOutside = () => setMenuOpenId(null);
@@ -106,6 +122,67 @@ export default function ChatBot() {
     });
 
     const [copiedId, setCopiedId] = useState(null);
+
+    const handleVoiceRecord = () => {
+        if (isRecording) {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+            setIsRecording(false);
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Your browser does not support Speech Recognition.');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        const stopRecording = () => {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            setIsRecording(false);
+        };
+
+        recognition.onstart = () => {
+            setIsRecording(true);
+            // 4 seconds delay if no sound detected at all
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+            silenceTimeoutRef.current = setTimeout(stopRecording, 4000);
+        };
+
+        recognition.onspeechstart = () => {
+             // Clear the timeout once they start speaking
+             if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setInput((prev) => prev ? prev + ' ' + transcript : transcript);
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            if (event.error === 'no-speech') {
+                stopRecording();
+            } else {
+                setIsRecording(false);
+            }
+        };
+
+        recognition.onend = () => {
+            setIsRecording(false);
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        };
+
+        recognition.start();
+    };
 
     // Header Animation States
     const [headerVisible, setHeaderVisible] = useState(true);
@@ -851,19 +928,38 @@ export default function ChatBot() {
                                             </button>
                                         </div>
 
-                                        <input
-                                            type="text"
-                                            className={styles.inputField}
-                                            placeholder={chatMode === 'search' ? "Search and ask anything..." : "Message Aranya AI..."}
-                                            value={input}
-                                            onChange={(e) => {
-                                                setInput(e.target.value);
-                                                scrollToBottom();
-                                            }}
-                                            onFocus={() => scrollToBottom(true)}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                                        />
+                                        {isRecording ? (
+                                            <div className={styles.recordingContainer} onClick={handleVoiceRecord}>
+                                                <div className={styles.soundWave}>
+                                                    <div className={styles.bar}></div>
+                                                    <div className={styles.bar}></div>
+                                                    <div className={styles.bar}></div>
+                                                    <div className={styles.bar}></div>
+                                                    <div className={styles.bar}></div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                className={styles.inputField}
+                                                placeholder={chatMode === 'search' ? "Search and ask anything..." : "Message Aranya AI..."}
+                                                value={input}
+                                                onChange={(e) => {
+                                                    setInput(e.target.value);
+                                                    scrollToBottom();
+                                                }}
+                                                onFocus={() => scrollToBottom(true)}
+                                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                            />
+                                        )}
                                         <div className={styles.inputActions}>
+                                            <button
+                                                className={`${styles.actionIcon} ${isRecording ? styles.recordingIconActive : ''}`}
+                                                onClick={handleVoiceRecord}
+                                                title={isRecording ? "Stop Recording" : "Voice Input"}
+                                            >
+                                                <Mic size={18} />
+                                            </button>
                                             {isGenerating ? (
                                                 <button
                                                     className={styles.stopBtnInInput}
