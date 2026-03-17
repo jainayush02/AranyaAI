@@ -11,7 +11,8 @@ const { logActivity } = require('../utils/logger');
 // @access  Private
 router.get('/', auth, async (req, res) => {
     try {
-        const animals = await Animal.find({ user_id: req.user.id }).sort({ createdAt: -1 });
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        const animals = await Animal.find({ user_id: ownerId }).sort({ createdAt: -1 });
         res.json(animals);
     } catch (err) {
         console.error(err.message);
@@ -23,17 +24,21 @@ router.get('/', auth, async (req, res) => {
 // @desc    Add new animal
 // @access  Private
 router.post('/', auth, async (req, res) => {
-    const { name, breed } = req.body;
+    const { name, category, breed, dob, vaccinated } = req.body;
 
-    if (!name || !breed) {
+    if (!name || !category || !breed) {
         return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
     try {
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         const newAnimal = new Animal({
-            user_id: req.user.id,
+            user_id: ownerId,
             name,
+            category,
             breed,
+            dob,
+            vaccinated: vaccinated === true || vaccinated === 'true',
             status: 'Healthy', // default
             recentVitals: {
                 temperature: 38.5,
@@ -55,6 +60,10 @@ router.post('/', auth, async (req, res) => {
 // @access  Private
 router.delete('/:id', auth, async (req, res) => {
     try {
+        if (req.user.role === 'caretaker') {
+            return res.status(403).json({ msg: 'Care Circle members are not authorized to delete animals. Please contact the owner.' });
+        }
+
         let animal = await Animal.findById(req.params.id);
 
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
@@ -85,7 +94,9 @@ router.get('/:id', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        if (animal.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
         res.json(animal);
     } catch (err) {
         if (err.kind === 'ObjectId') return res.status(404).json({ msg: 'Animal not found' });
@@ -100,7 +111,9 @@ router.get('/:id/logs', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        if (animal.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 });
         res.json(logs);
@@ -116,7 +129,9 @@ router.post('/:id/recalculate', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        if (animal.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
 
@@ -156,7 +171,9 @@ router.post('/:id/logs', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        if (animal.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const { temperature, heartRate, activityLevel, appetite, notes } = req.body;
 
@@ -208,6 +225,29 @@ router.post('/:id/logs', auth, async (req, res) => {
 
         res.json({ log: newLog, animalStatus: status, aiErrorScore });
     } catch (err) {
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   PUT /api/animals/:id/vaccination
+// @desc    Update animal vaccination status
+// @access  Private
+router.put('/:id/vaccination', auth, async (req, res) => {
+    try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        const { vaccinated } = req.body;
+        animal.vaccinated = vaccinated;
+        await animal.save();
+        
+        await logActivity('animal_registry', req.user, `Updated vaccination status for: ${animal.name}`);
+        res.json(animal);
+    } catch (err) {
+        console.error(err.message);
         res.status(500).send('Server Error');
     }
 });

@@ -11,6 +11,10 @@ const animalSchema = new mongoose.Schema({
         required: [true, 'Please provide an animal name or ID'],
         trim: true
     },
+    category: {
+        type: String,
+        required: [true, 'Please provide a category (e.g., Cow, Dog, Cat, Horse)']
+    },
     breed: {
         type: String,
         required: [true, 'Please specify the breed']
@@ -19,6 +23,14 @@ const animalSchema = new mongoose.Schema({
         type: String,
         enum: ['Healthy', 'Warning', 'Critical'],
         default: 'Healthy'
+    },
+    dob: {
+        type: Date,
+        required: false
+    },
+    vaccinated: {
+        type: Boolean,
+        default: false
     },
     recentVitals: {
         temperature: { type: Number, default: 38.5 }, // Default to a normal temp

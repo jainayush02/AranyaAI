@@ -67,6 +67,75 @@ router.get('/stats', authenticate, adminOnly, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// LLM Realtime Stats Info
+// ═══════════════════════════════════════════════════════
+const axios = require('axios');
+const SystemSettings = require('../models/SystemSettings');
+
+router.get('/llm-stats', authenticate, adminOnly, async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        if (!settings) return res.json([]);
+        const config = settings.value;
+
+        const results = [];
+        
+        const fetchStats = async (role, conf) => {
+            if (!conf || !conf.enabled || !conf.apiKey) return;
+            let usage = 0;
+            let limit = 0;
+            let limitRemaining = 'N/A';
+            let tokens = 'Unknown';
+            let status = 'Active';
+
+            try {
+                if (conf.provider === 'OpenRouter') {
+                    const resp = await axios.get('https://openrouter.ai/api/v1/auth/key', {
+                        headers: { Authorization: `Bearer ${conf.apiKey}` }
+                    });
+                    const d = resp.data?.data;
+                    if (d) {
+                        usage = typeof d.usage === 'number' ? d.usage : 0;
+                        limit = typeof d.limit === 'number' ? d.limit : 0;
+                        limitRemaining = d.is_free_tier ? 'Free Tier Limit' : (limit > 0 ? `$${(limit - usage).toFixed(4)}` : 'Unlimited');
+                        tokens = 'Check OpenRouter Dashboard';
+                    }
+                } else if (conf.provider === 'Hugging Face') {
+                    const resp = await axios.get('https://huggingface.co/api/whoami-v2', {
+                        headers: { Authorization: `Bearer ${conf.apiKey}` }
+                    });
+                    status = (resp.data.type === 'org' || resp.data.id) ? 'Active' : 'Warning';
+                    limitRemaining = 'Unlimited (Rate limited per hour)';
+                    tokens = 'N/A';
+                }
+            } catch (e) {
+                console.error('LLM Stats Error:', e.message);
+                status = 'Connection Failed / Invalid Key';
+            }
+
+            results.push({
+                role,
+                provider: conf.provider,
+                models: conf.models || [],
+                usage,
+                limit,
+                limitRemaining,
+                tokens,
+                status
+            });
+        };
+
+        if (config.primary) await fetchStats('Primary', config.primary);
+        if (config.fallback) await fetchStats('Fallback', config.fallback);
+
+        res.json(results);
+    } catch (err) {
+        console.error('LLM Stats Route Error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
 // ACTIVITY LOG (paginated, filterable)
 // ═══════════════════════════════════════════════════════
 router.get('/activity', authenticate, adminOnly, async (req, res) => {
@@ -223,7 +292,7 @@ router.delete('/faqs/:id', authenticate, adminOnly, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-const SystemSettings = require('../models/SystemSettings');
+
 
 // ── AI Model Configuration ────────────────────────────
 router.get('/config/ai', authenticate, adminOnly, async (req, res) => {

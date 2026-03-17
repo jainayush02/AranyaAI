@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise } from 'lucide-react';
+import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise, Calendar } from 'lucide-react';
 import styles from './Dashboard.module.css';
 import AddAnimalDialog from '../components/AddAnimalDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -26,7 +26,6 @@ export default function Dashboard() {
     const [adminStats, setAdminStats] = useState({ totalUsers: 0, totalAnimals: 0, criticalAnimals: 0, platformLoad: 0, newThisWeek: 0, activeToday: 0, blockedUsers: 0, proUsers: 0 });
     const [activityLog, setActivityLog] = useState([]);
     const [filterStatus, setFilterStatus] = useState('all'); // all, healthy, warning, critical
-
     const fetchAnimals = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -57,6 +56,8 @@ export default function Dashboard() {
         }
     }
 
+
+
     useEffect(() => {
         fetchAnimals();
     }, [role]);
@@ -66,7 +67,10 @@ export default function Dashboard() {
             const token = localStorage.getItem('token');
             const res = await axios.post('/api/animals', {
                 name: newAnimalData.name,
-                breed: newAnimalData.breed
+                category: newAnimalData.category,
+                breed: newAnimalData.breed,
+                dob: newAnimalData.dob,
+                vaccinated: newAnimalData.vaccinated
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -181,6 +185,24 @@ export default function Dashboard() {
     const RING_CIRC = 2 * Math.PI * RING_R;
     const ringOffset = RING_CIRC - (healthScore / 100) * RING_CIRC;
 
+    const calculateAge = (dob) => {
+        if (!dob) return '';
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        
+        if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+            years--;
+            months += 12;
+        }
+
+        if (years <= 0 && months <= 0) return 'Newborn';
+        if (years <= 0) return `${months}m`;
+        if (months === 0) return `${years}y`;
+        return `${years}y ${months}m`;
+    };
+
     if (role === 'admin') {
         return <Navigate to="/admin-portal" replace />;
     }
@@ -194,15 +216,15 @@ export default function Dashboard() {
             <header className={styles.greetHeader}>
                 <div className={styles.greetLeft}>
                     <div className={styles.greetIconWrap}>
-                        <GreetIcon size={24} />
+                        <GreetIcon size={20} />
                     </div>
                     <div>
                         <p className={styles.greetLine}>{greeting}, {user?.full_name?.split(' ')[0] || 'Farmer'} 🌿</p>
                         <h1 className={styles.greetTitle}>My Aranya Dashboard</h1>
                     </div>
                 </div>
-                <button className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
-                    <Plus size={20} /> Add New Animal
+                <button id="tour-add" className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
+                    <Plus size={16} /> Add New Aranya
                 </button>
             </header>
 
@@ -216,7 +238,7 @@ export default function Dashboard() {
                     className={styles.insightBanner}
                 >
                     <div className={styles.insightIconWrapper} style={{ color: insightTheme.color }}>
-                        <Sparkles size={28} />
+                        <Sparkles size={22} />
                     </div>
                     <div style={{ flex: 1 }}>
                         <h4 className={styles.insightTitle} style={{ color: insightTheme.color }}>
@@ -246,9 +268,9 @@ export default function Dashboard() {
                 </motion.div>
             )}
 
-            <div className={styles.statsGrid}>
+            <div id="tour-stats" className={styles.statsGrid}>
                 <div className={styles.statCard} onClick={() => setFilterStatus('all')} style={{ cursor: 'pointer', border: filterStatus === 'all' ? '2px solid var(--primary)' : '' }}>
-                    <div className={styles.statIcon}><Activity size={24} /></div>
+                    <div className={styles.statIcon}><Activity size={20} /></div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Total Aranya</span>
                         <span className={styles.statValue}>{total}</span>
@@ -257,7 +279,7 @@ export default function Dashboard() {
 
                 <div className={styles.statCard} onClick={() => setFilterStatus('healthy')} style={{ cursor: 'pointer', border: filterStatus === 'healthy' ? '2px solid var(--success)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)' }}>
-                        <CheckCircle size={24} />
+                        <CheckCircle size={20} />
                     </div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Healthy</span>
@@ -267,7 +289,7 @@ export default function Dashboard() {
 
                 <div className={styles.statCard} onClick={() => setFilterStatus('warning')} style={{ cursor: 'pointer', border: filterStatus === 'warning' ? '2px solid var(--warning)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'var(--warning)' }}>
-                        <ShieldAlert size={24} />
+                        <ShieldAlert size={20} />
                     </div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Warning</span>
@@ -277,7 +299,7 @@ export default function Dashboard() {
 
                 <div className={styles.statCard} onClick={() => setFilterStatus('critical')} style={{ cursor: 'pointer', border: filterStatus === 'critical' ? '2px solid var(--error)' : '' }}>
                     <div className={styles.statIcon} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)' }}>
-                        <Flame size={24} />
+                        <Flame size={20} />
                     </div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Critical</span>
@@ -289,7 +311,8 @@ export default function Dashboard() {
 
 
 
-            <section className={styles.animalsSection}>
+            {/* ── Herd Section ── */}
+            <section id="tour-herd" className={styles.animalsSection}>
                 <div className={styles.animalsHeader}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <h2 className={styles.animalsTitle}>Your Herd</h2>
@@ -303,7 +326,7 @@ export default function Dashboard() {
                         )}
                     </div>
                     <div className={styles.searchContainer}>
-                        <Search size={18} className={styles.searchIcon} />
+                        <Search size={16} className={styles.searchIcon} />
                         <input
                             type="text"
                             placeholder="Search by name or ID..."
@@ -329,9 +352,11 @@ export default function Dashboard() {
                                 </button>
                             </div>
                             <div className={styles.bulkActions}>
-                                <button className={styles.bulkDeleteBtn} onClick={handleBulkDelete}>
-                                    <Trash2 size={16} /> Delete Selected
-                                </button>
+                                {role !== 'caretaker' && (
+                                    <button className={styles.bulkDeleteBtn} onClick={handleBulkDelete}>
+                                        <Trash2 size={16} /> Delete Selected
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -339,7 +364,7 @@ export default function Dashboard() {
 
                 <div className={styles.animalGrid}>
                     {animals.length === 0 ? (
-                        <p className={styles.emptyText}>You haven't added any animals yet. Click "Add New Animal" to start building your herd.</p>
+                        <p className={styles.emptyText}>You haven't added any aranyas yet. Click "Add New Aranya" to start building your herd.</p>
                     ) : filteredAnimals.length === 0 ? (
                         <p className={styles.emptyText}>No animals found matching your search.</p>
                     ) : (
@@ -368,7 +393,7 @@ export default function Dashboard() {
                                         }
                                     </div>
 
-                                    {!selectedAnimals.includes(animal._id || animal.id) && (
+                                    {role !== 'caretaker' && !selectedAnimals.includes(animal._id || animal.id) && (
                                         <button
                                             className={styles.cardDeleteBtn}
                                             onClick={(e) => handleDeleteAnimal(e, animal._id || animal.id, animal.name)}
@@ -381,7 +406,6 @@ export default function Dashboard() {
                                         <div className={styles.animalHeader}>
                                             <div>
                                                 <h3 className={styles.animalName}>{animal.name}</h3>
-                                                <p className={styles.animalBreed}>{animal.breed}</p>
                                             </div>
                                             <span className={`badge badge-${(animal.status || '').toLowerCase() === 'healthy' ? 'success' :
                                                 ((animal.status || '').toLowerCase() === 'warning' || (animal.status || '').toLowerCase() === 'alert') ? 'warning' : 'error'
@@ -427,6 +451,8 @@ export default function Dashboard() {
                     </div>
                 )}
             </section>
+
+
 
             <AddAnimalDialog
                 isOpen={isAddAnimalOpen}

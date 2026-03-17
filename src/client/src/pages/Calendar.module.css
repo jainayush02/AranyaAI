@@ -1,0 +1,234 @@
+.minimalPlanner {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 1rem;
+    font-family: 'Inter', sans-serif;
+    color: #334155;
+}
+
+.topBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    background: #f8fafc;
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    border: 0.5px solid #e2e8f0;
+}
+
+.dateTrack {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.dateBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dName {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.dNum {
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.active {
+    background: #0f172a;
+    color: white;
+}
+
+.active .dName { color: #64748b; }
+
+.addBtn {
+    background: #0f172a;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.briefing {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 0.5px solid #e2e8f0;
+}
+
+.briefHeader {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.briefText {
+    font-size: 0.85rem;
+    margin: 0;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.conflictAlert {
+    display: flex;
+    gap: 8px;
+    padding: 0.75rem;
+    background: #fff1f2;
+    border-radius: 8px;
+    color: #be123c;
+}
+
+.conflictAlert p {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.agendaTitle {
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    color: #1e293b;
+}
+
+.itemList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 0.5px solid #f1f5f9;
+    border-radius: 10px;
+    transition: transform 0.2s;
+}
+
+.itemIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user .itemIcon { background: #f1f5f9; color: #475569; }
+.animal .itemIcon { background: #f0fdf4; color: #166534; }
+
+.itemInfo h4 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.itemInfo span {
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.done {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.empty {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    padding: 2rem;
+}
+
+/* Modal */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(2px);
+}
+
+.modal {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    width: 320px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal h3 {
+    margin: 0 0 1rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.modal input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 0.5px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.modalActions button {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: #f1f5f9;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.modalActions .confirm {
+    background: #0f172a;
+    color: white;
+}

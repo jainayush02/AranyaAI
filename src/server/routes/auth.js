@@ -249,7 +249,7 @@ router.post('/register', async (req, res) => {
             });
         } catch (_) { }
 
-        const payload = { user: { id: user.id } };
+        const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
         jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
@@ -334,7 +334,7 @@ router.post('/login', async (req, res) => {
             await logActivity('login', user, `User logged in using ${password ? 'password' : 'OTP'}`);
         } catch (_) { }
 
-        const payload = { user: { id: user.id } };
+        const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
         jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
@@ -825,7 +825,7 @@ router.post('/google', async (req, res) => {
             } catch (_) { }
         }
 
-        const payload = { user: { id: user.id } };
+        const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
 
@@ -1127,6 +1127,110 @@ router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
         });
     } catch (error) {
         console.error('[verify-email/confirm]', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// ── Care Circle Management Routes ──
+
+// @route GET /api/auth/care-circle
+// @desc  Get all members of the care circle managed by the current user
+router.get('/care-circle', authMiddleware, async (req, res) => {
+    try {
+        const members = await User.find({ managedBy: req.user.id, role: 'caretaker' }).select('-password -otp');
+        res.json(members);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/care-circle/invite
+// @desc  Add a new member to the Care Circle
+router.post('/care-circle/invite', authMiddleware, async (req, res) => {
+    try {
+        const { full_name, email, mobile, password } = req.body;
+        
+        // Check if user already exists
+        let existingUser = await User.findOne({ 
+            $or: [
+                email ? { email } : null,
+                mobile ? { mobile } : null
+            ].filter(Boolean)
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ message: 'User with this email/mobile already exists' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password || 'Aranya@123', salt);
+
+        const newMember = new User({
+            full_name,
+            email: email || undefined,
+            mobile: mobile || undefined,
+            password: hashedPassword,
+            role: 'caretaker',
+            managedBy: req.user.id,
+            isVerified: true // Pre-verified by owner
+        });
+
+        await newMember.save();
+
+        try {
+            await logActivity('staff_management', { id: req.user.id }, `Added new Care Circle member: ${full_name}`);
+        } catch (_) {}
+
+        res.status(201).json({ message: 'Member added to Care Circle successfully', member: newMember });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route DELETE /api/auth/staff/:id
+// @desc  Remove a staff member
+router.delete('/staff/:id', authMiddleware, async (req, res) => {
+    try {
+        const staff = await User.findOne({ _id: req.params.id, managedBy: req.user.id });
+        if (!staff) {
+            return res.status(404).json({ message: 'Staff member not found or not managed by you' });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+
+        try {
+            await logActivity('staff_management', { id: req.user.id }, `Removed staff member: ${staff.full_name}`);
+        } catch (_) {}
+
+        res.json({ message: 'Staff member removed' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route GET /api/auth/care-circle/activities
+// @desc  Get activities of owner and their care circle
+router.get('/care-circle/activities', authMiddleware, async (req, res) => {
+    try {
+        const ActivityLog = require('../models/ActivityLog');
+        
+        // 1. Get all members managed by this user
+        const members = await User.find({ managedBy: req.user.id }).select('_id');
+        const memberIds = members.map(s => s._id);
+        
+        // 2. Fetch logs for self + circle members
+        const logs = await ActivityLog.find({
+            userId: { $in: [req.user.id, ...memberIds] }
+        })
+        .sort({ createdAt: -1 })
+        .limit(50);
+        
+        res.json(logs);
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error' });
     }
 });

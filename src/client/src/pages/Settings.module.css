@@ -28,20 +28,20 @@
 
 .pageTitle {
     font-family: var(--font-heading);
-    font-size: 2.2rem;
-    font-weight: 850;
+    font-size: 1.4rem;
+    font-weight: 700;
     color: #0f172a;
-    margin-bottom: 0.4rem;
-    letter-spacing: -0.04em;
-    line-height: 1.1;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
 }
 
 .pageSubtitle {
     color: #64748b;
-    font-size: 1.15rem;
+    font-size: 0.85rem;
     font-weight: 500;
-    max-width: 700px;
-    line-height: 1.6;
+    max-width: 600px;
+    line-height: 1.5;
 }
 
 .card {
@@ -69,15 +69,15 @@
 }
 
 .cardIcon {
-    width: 50px;
-    height: 50px;
+    width: 42px;
+    height: 42px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--primary);
     color: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 8px 16px rgba(45, 95, 63, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 6px 12px rgba(45, 95, 63, 0.12);
 }
 
 .cardIcon svg {
@@ -88,18 +88,18 @@
 
 .cardTitle {
     font-family: var(--font-heading);
-    font-size: 1.45rem;
-    font-weight: 800;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #1e293b;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
 }
 
 .label {
     font-family: var(--font-heading);
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 800;
     color: #64748b;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.5rem;
     display: block;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -129,7 +129,7 @@
     background: transparent;
     width: 100%;
     font-family: var(--font-sans);
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     color: #0f172a;
     outline: none;
@@ -142,12 +142,12 @@
     background: #ffffff;
     width: 100%;
     font-family: var(--font-sans);
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     color: #0f172a;
     outline: none;
-    border-radius: 16px;
-    padding: 12px 18px;
+    border-radius: 12px;
+    padding: 10px 16px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -207,17 +207,17 @@ textarea.boxedInput {
 .toggleLabel {
     display: block;
     font-family: var(--font-heading);
-    font-weight: 800;
+    font-weight: 700;
     color: #1e293b;
-    font-size: 1.1rem;
-    margin-bottom: 0.3rem;
+    font-size: 1rem;
+    margin-bottom: 0.2rem;
 }
 
 .toggleDesc {
     display: block;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     color: #64748b;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 .switch {

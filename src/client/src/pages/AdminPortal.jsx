@@ -8,7 +8,7 @@ import {
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
     Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
-    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network
+    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -36,7 +36,7 @@ function Toast({ msg, type, onClose }) {
 function Stat({ icon: Icon, label, value, sub, color }) {
     return (
         <div className={s.statCard}>
-            <div className={s.statIcon} style={{ background: `${color}15`, color }}><Icon size={21} /></div>
+            <div className={s.statIcon} style={{ background: `${color}15`, color }}><Icon size={18} /></div>
             <div>
                 <div className={s.statLabel}>{label}</div>
                 <div className={s.statVal}>{value ?? '—'}</div>
@@ -112,7 +112,7 @@ export default function AdminPortal() {
     // Overview
     const [stats, setStats] = useState(null);
     const [overviewLoading, setOverviewLoading] = useState(true);
-    const [recentActivity, setRecentActivity] = useState([]);
+    const [llmStats, setLlmStats] = useState([]);
 
     // Users
     const [users, setUsers] = useState([]);
@@ -171,6 +171,19 @@ export default function AdminPortal() {
     const [pricingLoading, setPricingLoading] = useState(false);
     const [settingsLoading, setSettingsLoading] = useState(false);
 
+    // Animal Taxonomy Management
+    const DEFAULT_CATEGORIES = {
+        Cow: ['Holstein', 'Jersey', 'Gir', 'Sahiwal', 'Redsindhi'],
+        Dog: ['Labrador', 'German Shepherd', 'Golden Retriever', 'Beagle', 'Bulldog'],
+        Cat: ['Persian', 'Maine Coon', 'Siamese', 'Ragdoll', 'Bengal'],
+        Horse: ['Arabian', 'Thoroughbred', 'Quarter Horse', 'Appaloosa', 'Paint Horse'],
+    };
+    const [animalCategories, setAnimalCategories] = useState(DEFAULT_CATEGORIES);
+    const [taxonomySaving, setTaxonomySaving] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newBreedName, setNewBreedName] = useState('');
+    const [selectedCat, setSelectedCat] = useState('Cow');
+
     // AI Config
     const [aiConfig, setAiConfig] = useState(null);
     const [aiConfigLoading, setAiConfigLoading] = useState(false);
@@ -213,12 +226,12 @@ export default function AdminPortal() {
     const fetchOverview = useCallback(async () => {
         setOverviewLoading(true);
         try {
-            const [sr, ar] = await Promise.all([
+            const [sr, lr] = await Promise.all([
                 axios.get(`${API}/admin/stats`, authH()),
-                axios.get(`${API}/admin/activity?limit=6`, authH())
+                axios.get(`${API}/admin/llm-stats`, authH())
             ]);
             setStats(sr.data);
-            setRecentActivity(ar.data.logs || []);
+            setLlmStats(lr.data || []);
         } catch (err) {
             console.error('Overview Fetch Error:', err);
             push('Failed to load overview data.', 'err');
@@ -343,6 +356,87 @@ export default function AdminPortal() {
         finally { setAiConfigLoading(false); }
     }, [push]);
 
+    // ── Animal Taxonomy helpers ───────────────────
+    const fetchTaxonomy = useCallback(async () => {
+        try {
+            const r = await axios.get(`${API}/settings`, authH());
+            if (r.data?.animal_categories && Object.keys(r.data.animal_categories).length > 0) {
+                setAnimalCategories(r.data.animal_categories);
+            }
+        } catch { /* silently fallback to default */ }
+    }, []);
+
+    const saveTaxonomy = async (updated, logMsg) => {
+        // Optimistic update — update UI immediately
+        setAnimalCategories(updated);
+        setTaxonomySaving(true);
+        try {
+            await axios.post(`${API}/settings/update`, { key: 'animal_categories', value: updated }, authH());
+            
+            // Record in Activity Logs if a message is provided
+            if (logMsg) {
+                try { await axios.post(`${API}/admin/activity/log`, { action: logMsg, type: 'admin' }, authH()); } catch(e) { console.error('Logging failed', e); }
+                fetchOverview(); // Refresh overview logs
+            }
+            
+            push('Saved!');
+        } catch (err) {
+            console.error('Taxonomy save error:', err);
+            push('Failed to save — check your connection', 'err');
+        } finally { setTaxonomySaving(false); }
+    };
+
+    const handleAddCategory = () => {
+        const name = newCategoryName.trim();
+        if (!name) return;
+        if (animalCategories[name]) return push('Category already exists', 'err');
+        const updated = { ...animalCategories, [name]: [] };
+        saveTaxonomy(updated, `Added "${name}" to species categories`);
+        setNewCategoryName('');
+        setSelectedCat(name);
+    };
+
+    const handleDeleteCategory = (cat) => {
+        if (!window.confirm(`Delete the "${cat}" category and all its breeds?`)) return;
+        const updated = { ...animalCategories };
+        delete updated[cat];
+        saveTaxonomy(updated, `Removed "${cat}" category and all its breeds`);
+        if (selectedCat === cat) setSelectedCat(Object.keys(updated)[0] || '');
+    };
+
+    const handleAddBreed = () => {
+        const name = newBreedName.trim();
+        if (!name || !selectedCat) return;
+        const breeds = animalCategories[selectedCat] || [];
+        if (breeds.includes(name)) return push('Breed already exists', 'err');
+        const updated = { ...animalCategories, [selectedCat]: [...breeds, name] };
+        saveTaxonomy(updated, `Added "${name}" breed to "${selectedCat}"`);
+        setNewBreedName('');
+    };
+
+    const handleDeleteBreed = (cat, breed) => {
+        const breedToRemove = breed;
+        const updated = { ...animalCategories, [cat]: animalCategories[cat].filter(b => b !== breed) };
+        saveTaxonomy(updated, `Removed "${breedToRemove}" breed from "${cat}"`);
+    };
+
+    const CATEGORY_EMOJI = (cat) => {
+        const c = cat.toLowerCase();
+        if (c.includes('cow') || c.includes('cattle')) return '🐄';
+        if (c.includes('dog')) return '🐕';
+        if (c.includes('cat')) return '🐈';
+        if (c.includes('horse')) return '🐎';
+        if (c.includes('rabbit')) return '🐇';
+        if (c.includes('goat')) return '🐐';
+        if (c.includes('sheep')) return '🐑';
+        if (c.includes('pig')) return '🐖';
+        if (c.includes('chicken') || c.includes('poultry')) return '🐓';
+        if (c.includes('duck')) return '🦆';
+        if (c.includes('fish')) return '🐟';
+        return '🐾';
+    };
+
+
     const saveAiConfig = async () => {
         setAiConfigSaving(true);
         try {
@@ -363,7 +457,7 @@ export default function AdminPortal() {
     useEffect(() => {
         const t = queryParams.get('tab');
         const sTab = queryParams.get('sub');
-        if (t && ['overview', 'users', 'logs', 'content', 'docs', 'pricing', 'settings', 'adminaccess'].includes(t)) {
+        if (t && ['overview', 'users', 'logs', 'content', 'docs', 'pricing', 'taxonomy', 'settings', 'adminaccess'].includes(t)) {
             setTab(t);
             setSubTab(sTab || '');
         }
@@ -376,6 +470,7 @@ export default function AdminPortal() {
     useEffect(() => { if (tab === 'docs') fetchArticles(); }, [tab, fetchArticles]);
     useEffect(() => { if (tab === 'adminaccess') fetchAdminAccess(); }, [tab, fetchAdminAccess]);
     useEffect(() => { if (tab === 'settings') fetchAiConfig(); }, [tab, fetchAiConfig]);
+    useEffect(() => { if (tab === 'taxonomy') fetchTaxonomy(); }, [tab, fetchTaxonomy]);
 
     useEffect(() => {
         if (tab === 'pricing') {
@@ -578,6 +673,7 @@ export default function AdminPortal() {
         { id: 'content', label: 'Help Center FAQs', icon: HelpCircle },
         { id: 'docs', label: 'Knowledge Base', icon: BookOpen },
         { id: 'pricing', label: 'Pricing Plans', icon: Crown },
+        { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
         { id: 'settings', label: 'System Configuration', icon: SettingsIcon },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
     ];
@@ -595,6 +691,7 @@ export default function AdminPortal() {
         content: { title: 'CONTENT', subtitle: 'MANAGER', desc: 'Manage Help Center FAQs and Documentation', icon: HelpCircle },
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
         pricing: { title: 'PRICING', subtitle: 'PLANS', desc: 'Manage subscription tiers and payment settings', icon: Crown },
+        taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
         settings: { title: 'SYSTEM', subtitle: 'CONFIG', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
@@ -941,18 +1038,65 @@ export default function AdminPortal() {
                                                 <Stat icon={ShieldAlert} label="Critical Alerts" value={stats.criticalAnimals} sub="animals need vet" color="#f97316" />
                                             </div>
 
-                                            <div className={s.activityCard}>
-                                                <div className={s.actCardHead}><h2>Recent Activity</h2>
-                                                    <button className={s.linkBtn} onClick={() => setTab('logs')}>View all →</button>
+                                            <div className={s.llmStatsCard} style={{ marginTop: '2rem', padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                                <div className={s.actCardHead} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                                    <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <Zap size={20} color="#3b82f6" /> Real-time LLM Usage & Configuration
+                                                    </h2>
+                                                    <button className={s.linkBtn} onClick={() => setTab('settings')}>Configure Models →</button>
                                                 </div>
-                                                {recentActivity.length === 0 && <p className={s.emptyMsg}>No activity yet. User actions will appear here.</p>}
-                                                {recentActivity.map(log => (
-                                                    <div key={log._id} className={s.actRow}>
-                                                        <span className={s.actDot} style={{ background: DOT[log.type] || '#94a3b8' }} />
-                                                        <div className={s.actInfo}><strong>{log.user}</strong><span>{log.detail}</span></div>
-                                                        <span className={s.actTime}>{ago(log.createdAt)}</span>
+                                                {llmStats.length === 0 ? (
+                                                    <p className={s.emptyMsg} style={{ padding: '2rem', textAlign: 'center' }}>No LLM configuration found.</p>
+                                                ) : (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                                        {llmStats.map((st, i) => (
+                                                            <div key={i} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', background: st.role === 'Primary' ? '#dbeafe' : '#fef3c7', color: st.role === 'Primary' ? '#2563eb' : '#d97706', padding: '4px 8px', borderRadius: '6px' }}>
+                                                                            {st.role}
+                                                                        </span>
+                                                                        <span style={{ fontWeight: 700, color: '#334155' }}>{st.provider}</span>
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: st.status === 'Active' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: st.status === 'Active' ? '#10b981' : '#ef4444' }} />
+                                                                        {st.status}
+                                                                    </span>
+                                                                </div>
+                                                                
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Limit Used</span>
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>${typeof st.usage === 'number' ? st.usage.toFixed(4) : st.usage} / ${st.limit || '—'}</span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Limit Remaining</span>
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981' }}>{st.limitRemaining}</span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Tokens Traded</span>
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>{st.tokens || 'N/A'}</span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Key Expiry</span>
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>Never (Auto-renew)</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style={{ padding: '1rem', background: '#fff', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                                                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem' }}>Active Models</div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                                        {st.models.map(m => (
+                                                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}>
+                                                                                <Zap size={12} color="#94a3b8" /> {m.modelId || 'Unnamed Model'} <span style={{ fontSize: '0.65rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>{m.type}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -974,9 +1118,9 @@ export default function AdminPortal() {
                                             ) : (
                                                 <div className={s.userDetailGrid} style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.35fr) 1fr', gap: '1rem', alignItems: 'stretch', maxHeight: '800px' }}>
                                                     <div className={s.userCard} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', height: '100%', minHeight: '650px' }}>
-                                                        <div className={s.bigAvatar} style={{ background: '#2d5f3f', color: '#fff', borderRadius: '16px', width: '80px', height: '80px', fontSize: '2rem' }}>{(focusedUser.user?.full_name || focusedUser.user?.email || '?')[0].toUpperCase()}</div>
-                                                        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '1rem', color: '#0f172a' }}>{focusedUser.user?.full_name || '(no name)'}</h2>
-                                                        <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '1rem' }}>{focusedUser.user?.email || focusedUser.user?.mobile}</p>
+                                                        <div className={s.bigAvatar} style={{ background: '#2d5f3f', color: '#fff', borderRadius: '16px', width: '64px', height: '64px', fontSize: '1.5rem' }}>{(focusedUser.user?.full_name || focusedUser.user?.email || '?')[0].toUpperCase()}</div>
+                                                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '1rem', color: '#0f172a' }}>{focusedUser.user?.full_name || '(no name)'}</h2>
+                                                        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>{focusedUser.user?.email || focusedUser.user?.mobile}</p>
                                                         <div className={s.badges} style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', minHeight: '28px' }}>
                                                             <AnimatePresence mode="popLayout">
                                                                 <motion.span
@@ -1123,10 +1267,10 @@ export default function AdminPortal() {
                                                                                     whileHover={{ scale: 1.01, borderColor: '#10b981', boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.05)' }}
                                                                                 >
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                                                        <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 800, fontSize: '1.2rem' }}>{a.name?.[0].toUpperCase()}</div>
+                                                                                        <div style={{ width: '40px', height: '40px', borderRadius: '14px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 800, fontSize: '1rem' }}>{a.name?.[0].toUpperCase()}</div>
                                                                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                                                            <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{a.name}</span>
-                                                                                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{a.type || 'Livestock'}</span>
+                                                                                            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>{a.name}</span>
+                                                                                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{a.type || 'Livestock'}</span>
                                                                                         </div>
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'center' }}>
@@ -1211,6 +1355,7 @@ export default function AdminPortal() {
                                                 <select className={s.sel} value={userRole} onChange={e => { setUserRole(e.target.value); setUserPage(1); }}>
                                                     <option value="all">All Roles</option>
                                                     <option value="user">Users</option>
+                                                    <option value="caretaker">Care Circle Members</option>
                                                     <option value="admin">Administrators</option>
                                                 </select>
                                             </div>
@@ -1233,6 +1378,7 @@ export default function AdminPortal() {
                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                                     <div className={s.uname}>{u.full_name || u.email || u.mobile}</div>
                                                                                     {u.role === 'admin' && <span className={`${s.pill} ${s.plan_pro}`} style={{ padding: '2px 6px', fontSize: '10px' }}>Admin</span>}
+                                                                                    {u.role === 'caretaker' && <span className={`${s.pill}`} style={{ padding: '2px 6px', fontSize: '10px', background: '#ecfdf5', color: '#059669', border: '1px solid #d1fae5' }}>Care Circle</span>}
                                                                                 </div>
                                                                                 {(u.full_name && (u.email || u.mobile) && u.full_name !== u.email) && <div className={s.uemail}>{u.email || u.mobile}</div>}
                                                                             </div>
@@ -1602,7 +1748,7 @@ export default function AdminPortal() {
                                                                 <FileText size={22} color="#8b5cf6" />
                                                             </div>
                                                             <div>
-                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.2rem' }}>System Integrity & Protocol</div>
+                                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>System Integrity & Protocol</div>
                                                                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Global rules for Arion's clinical behavior</div>
                                                             </div>
                                                         </div>
@@ -1631,7 +1777,7 @@ export default function AdminPortal() {
                                                                 <Zap size={22} color="#f59e0b" />
                                                             </div>
                                                             <div>
-                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.25rem' }}>AI Model Routing Architecture</div>
+                                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1.1rem' }}>AI Model Routing Architecture</div>
                                                                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Configure primary and alternate providers</div>
                                                             </div>
                                                         </div>
@@ -2010,6 +2156,168 @@ export default function AdminPortal() {
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
+                                </motion.div>
+                            )}
+
+                            {/* ── ANIMAL TAXONOMY ── */}
+                            {tab === 'taxonomy' && (
+                                <motion.div key="tx" className={s.section}
+                                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+
+                                    {/* Two-column layout */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+
+                                        {/* ─── LEFT: Categories panel ─── */}
+                                        <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.05)' }}>
+                                            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(to right, #f8fafc, #fff)' }}>
+                                                <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <Shapes size={14} color="#10b981" /> Categories
+                                                </div>
+                                                <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '0.2rem' }}>Click a row to manage its breeds</div>
+                                            </div>
+                                            <div style={{ padding: '1rem' }}>
+                                                {/* Add category input */}
+                                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                                    <input
+                                                        type="text"
+                                                        className={s.configInput}
+                                                        placeholder="New category (e.g. Rabbit)"
+                                                        value={newCategoryName}
+                                                        onChange={e => setNewCategoryName(e.target.value)}
+                                                        onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+                                                        style={{ flex: 1, height: '42px', padding: '0 0.9rem', borderRadius: '10px', fontSize: '0.875rem' }}
+                                                    />
+                                                    <button
+                                                        className={s.addBtn}
+                                                        onClick={handleAddCategory}
+                                                        disabled={taxonomySaving}
+                                                        style={{ height: '42px', padding: '0 1rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.82rem' }}
+                                                    >
+                                                        {taxonomySaving ? <Loader2 size={15} className={s.spin} /> : <><Plus size={15} /> Add</>}
+                                                    </button>
+                                                </div>
+                                                {/* Category list */}
+                                                <div className={s.customScroll} style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '540px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                                                    {Object.keys(animalCategories).map(cat => {
+                                                        const isActive = selectedCat === cat;
+                                                        return (
+                                                            <motion.div
+                                                                key={cat}
+                                                                onClick={() => setSelectedCat(cat)}
+                                                                whileHover={{ scale: 1.015 }}
+                                                                whileTap={{ scale: 0.97 }}
+                                                                style={{
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                                    padding: '0.8rem 1rem', borderRadius: '14px',
+                                                                    background: isActive ? 'linear-gradient(135deg, #2d5f3f, #1a4028)' : '#f8fafc',
+                                                                    color: isActive ? '#fff' : '#1e293b',
+                                                                    cursor: 'pointer', border: '1.5px solid',
+                                                                    borderColor: isActive ? '#2d5f3f' : '#f1f5f9',
+                                                                    boxShadow: isActive ? '0 8px 20px rgba(45,95,63,0.3)' : 'none',
+                                                                    transition: 'all 0.22s ease',
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                                                                    <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{CATEGORY_EMOJI(cat)}</span>
+                                                                    <span style={{ fontWeight: 800, fontSize: '0.9rem' }}>{cat}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, background: isActive ? 'rgba(255,255,255,0.18)' : '#e2e8f0', color: isActive ? '#fff' : '#64748b', padding: '2px 8px', borderRadius: '6px' }}>
+                                                                        {animalCategories[cat].length}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); handleDeleteCategory(cat); }}
+                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', display: 'flex', alignItems: 'center', color: isActive ? 'rgba(255,255,255,0.65)' : '#ef4444', transition: '0.15s' }}
+                                                                        onMouseOver={e => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}
+                                                                        onMouseOut={e => e.currentTarget.style.background = 'none'}
+                                                                    >
+                                                                        <Trash2 size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            </motion.div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* ─── RIGHT: Breeds panel ─── */}
+                                        <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.05)', minHeight: '420px' }}>
+                                            {selectedCat && animalCategories[selectedCat] ? (
+                                                <>
+                                                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(to right, #f8fafc, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                <span style={{ fontSize: '1.1rem' }}>{CATEGORY_EMOJI(selectedCat)}</span> Breeds for {selectedCat}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '0.2rem' }}>{animalCategories[selectedCat].length} breed{animalCategories[selectedCat].length !== 1 ? 's' : ''} registered</div>
+                                                        </div>
+                                                        <span style={{ background: '#f0fdf4', color: '#166534', fontSize: '0.7rem', fontWeight: 800, padding: '4px 12px', borderRadius: '20px', border: '1px solid #bbf7d0' }}>Active</span>
+                                                    </div>
+                                                    <div style={{ padding: '1.25rem 1.5rem' }}>
+                                                        <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                                                            <input
+                                                                type="text"
+                                                                className={s.configInput}
+                                                                placeholder={`Add a breed for ${selectedCat}...`}
+                                                                value={newBreedName}
+                                                                onChange={e => setNewBreedName(e.target.value)}
+                                                                onKeyDown={e => e.key === 'Enter' && handleAddBreed()}
+                                                                style={{ flex: 1, height: '42px', padding: '0 0.9rem', borderRadius: '10px', fontSize: '0.875rem' }}
+                                                            />
+                                                            <button
+                                                                className={s.addBtn}
+                                                                onClick={handleAddBreed}
+                                                                disabled={taxonomySaving}
+                                                                style={{ height: '42px', padding: '0 1rem', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.82rem' }}
+                                                            >
+                                                                {taxonomySaving ? <Loader2 size={15} className={s.spin} /> : <><Plus size={15} /> Add</>}
+                                                            </button>
+                                                        </div>
+                                                        {animalCategories[selectedCat].length === 0 ? (
+                                                            <div style={{ padding: '3rem', textAlign: 'center', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #e2e8f0' }}>
+                                                                <p style={{ color: '#94a3b8', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>No breeds yet — add one above!</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className={s.customScroll} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.65rem', maxHeight: '460px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                                                                {animalCategories[selectedCat].map(breed => (
+                                                                    <motion.div
+                                                                        key={breed}
+                                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                                        animate={{ opacity: 1, scale: 1 }}
+                                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 0.9rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '0.5rem', transition: 'all 0.18s' }}
+                                                                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.background = '#f0fdf4'; }}
+                                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
+                                                                    >
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{breed}</span>
+                                                                        <button
+                                                                            onClick={() => handleDeleteBreed(selectedCat, breed)}
+                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0.5, display: 'flex', alignItems: 'center', flexShrink: 0, transition: '0.15s', padding: '2px' }}
+                                                                            onMouseOver={e => e.currentTarget.style.opacity = 1}
+                                                                            onMouseOut={e => e.currentTarget.style.opacity = 0.5}
+                                                                        >
+                                                                            <Trash2 size={13} />
+                                                                        </button>
+                                                                    </motion.div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '4rem', color: '#94a3b8' }}>
+                                                    <div style={{ width: 60, height: 60, borderRadius: '18px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Shapes size={28} color="#cbd5e1" />
+                                                    </div>
+                                                    <div style={{ textAlign: 'center' }}>
+                                                        <p style={{ margin: 0, fontWeight: 700, color: '#475569' }}>Select a category</p>
+                                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>Pick one from the left to add or remove breeds</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </motion.div>
                             )}
 

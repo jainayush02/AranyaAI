@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
@@ -11,6 +11,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 export default function AnimalProfile() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { role } = useOutletContext();
 
     const [animal, setAnimal] = useState(null);
     const [logs, setLogs] = useState([]);
@@ -100,6 +101,21 @@ export default function AnimalProfile() {
         } catch (err) {
             console.error('Failed to delete animal', err);
             alert('Failed to delete animal. Please try again.');
+        }
+    };
+
+    const handleToggleVaccination = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(`/api/animals/${id}/vaccination`, {
+                vaccinated: !animal.vaccinated
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnimal(prev => ({ ...prev, vaccinated: res.data.vaccinated }));
+        } catch (err) {
+            console.error('Failed to update vaccination status', err);
+            alert('Failed to update vaccination status.');
         }
     };
 
@@ -261,6 +277,38 @@ export default function AnimalProfile() {
         );
     }
 
+    const getAvatarEmoji = (category) => {
+        if (!category) return '🐾';
+        const lowerCat = category.toLowerCase();
+        if (lowerCat.includes('cow')) return '🐄';
+        if (lowerCat.includes('dog')) return '🐕';
+        if (lowerCat.includes('cat')) return '🐈';
+        if (lowerCat.includes('horse')) return '🐎';
+        if (lowerCat.includes('pig')) return '🐖';
+        if (lowerCat.includes('sheep')) return '🐑';
+        if (lowerCat.includes('goat')) return '🐐';
+        if (lowerCat.includes('bird') || lowerCat.includes('chicken')) return '🐔';
+        return '🐾';
+    };
+
+    const calculateAge = (dob) => {
+        if (!dob) return '';
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+
+        if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+            years--;
+            months += 12;
+        }
+
+        if (years <= 0 && months <= 0) return 'Newborn';
+        if (years <= 0) return `${months}m`;
+        if (months === 0) return `${years}y`;
+        return `${years}y ${months}m`;
+    };
+
     return (
         <React.Fragment>
             <motion.div
@@ -274,61 +322,89 @@ export default function AnimalProfile() {
                 </button>
 
                 {/* Hero Summary Card */}
-                <div className={styles.card}>
-                    <div className={styles.heroContent}>
-                        <div className={styles.avatarBox}>
-                            🐄
+                <div className={styles.heroCard}>
+                    <div className={styles.heroBranding}></div>
+                    <div className={styles.heroMain}>
+                        <div className={styles.avatarWrapper}>
+                            <motion.div
+                                className={styles.avatarGlass}
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ type: 'spring', damping: 15 }}
+                            >
+                                {getAvatarEmoji(animal.category)}
+                            </motion.div>
                         </div>
 
-                        <div className={styles.infoBox}>
-                            <div className={styles.infoHeader}>
-                                <div>
-                                    <h1 className={styles.animalName}>{animal.name}</h1>
-                                    <h2 className={styles.animalBreed}>{animal.breed}</h2>
+                        <div className={styles.heroInfo}>
+                            <div className={styles.heroTopRow}>
+                                <div className={styles.nameGroup}>
+                                    <h1 className={styles.animalNamePrimary}>{animal.name}</h1>
+                                    <span className={`${styles.statusBadge} ${animal.status ? styles[`status${animal.status.charAt(0).toUpperCase() + animal.status.slice(1).toLowerCase()}`] : ''}`}>
+                                        <div className={styles.statusDot}></div>
+                                        {animal.status ? animal.status.toUpperCase() : 'UNKNOWN'}
+                                    </span>
                                 </div>
-                                <span className={`badge badge-${(animal.status || '').toLowerCase() === 'healthy' ? 'success' : ((animal.status || '').toLowerCase() === 'warning' || (animal.status || '').toLowerCase() === 'alert') ? 'warning' : 'error'}`}>
-                                    {(animal.status === 'Healthy' || animal.status === 'healthy') && '✓ '}
-                                    {animal.status}
-                                </span>
-                                <div className={styles.heroActions}>
+                                <div className={styles.heroActionsGroup}>
                                     <button
                                         onClick={handleRecalculate}
                                         disabled={recalculating}
-                                        title="Re-analyze with AI"
-                                        className={styles.actionBtn}
+                                        className={styles.glassActionBtn}
                                     >
                                         <RefreshCw size={14} className={recalculating ? 'spin' : ''} />
-                                        {recalculating ? 'Analyzing...' : 'Re-analyze AI'}
+                                        Recalculate
                                     </button>
-                                    <button
-                                        onClick={() => setShowConfirm(true)}
-                                        title="Delete Animal"
-                                        className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                                    >
-                                        <Trash2 size={14} />
-                                        Delete
-                                    </button>
+                                    {role !== 'caretaker' && (
+                                        <button
+                                            onClick={() => setShowConfirm(true)}
+                                            className={styles.deleteActionBtn}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className={styles.vitalCards}>
-                                <div className={`${styles.vitalCard} ${styles.vitalTemp}`}>
-                                    <div className={styles.vitalLabel}>
-                                        <ThermometerSun size={16} /> Temperature
-                                    </div>
-                                    <div className={styles.vitalValue}>
-                                        {animal.recentVitals?.temperature ? `${animal.recentVitals.temperature}°C` : 'N/A'}
-                                    </div>
+                            <div className={styles.heroMetadataRow}>
+                                <div className={styles.metaPill}>
+                                    <Zap size={14} className={styles.metaIcon} />
+                                    <span>{animal.breed}</span>
                                 </div>
-                                <div className={`${styles.vitalCard} ${styles.vitalHeart}`}>
-                                    <div className={styles.vitalLabel}>
-                                        <HeartPulse size={16} /> Heart Rate
+
+                                {animal.dob && (
+                                    <div className={styles.metaPill}>
+                                        <Calendar size={14} className={styles.metaIcon} />
+                                        <span>{calculateAge(animal.dob)}</span>
                                     </div>
-                                    <div className={styles.vitalValue}>
-                                        {animal.recentVitals?.heartRate ? `${animal.recentVitals.heartRate} bpm` : 'N/A'}
-                                    </div>
-                                </div>
+                                )}
+
+                                <button
+                                    onClick={handleToggleVaccination}
+                                    className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}
+                                >
+                                    <ShieldAlert size={14} />
+                                    <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccine Required'}</span>
+                                </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className={styles.vitalCards}>
+                    <div className={`${styles.vitalCard} ${styles.vitalTemp}`}>
+                        <div className={styles.vitalLabel}>
+                            <ThermometerSun size={16} /> Temperature
+                        </div>
+                        <div className={styles.vitalValue}>
+                            {animal.recentVitals?.temperature ? `${animal.recentVitals.temperature}°C` : 'N/A'}
+                        </div>
+                    </div>
+                    <div className={`${styles.vitalCard} ${styles.vitalHeart}`}>
+                        <div className={styles.vitalLabel}>
+                            <HeartPulse size={16} /> Heart Rate
+                        </div>
+                        <div className={styles.vitalValue}>
+                            {animal.recentVitals?.heartRate ? `${animal.recentVitals.heartRate} bpm` : 'N/A'}
                         </div>
                     </div>
                 </div>

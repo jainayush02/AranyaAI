@@ -120,12 +120,16 @@ export default function UserProfileMenu({ user, onLogout }) {
                                 <Settings size={18} className={styles.menuIcon} />
                                 <span>Settings</span>
                             </button>
-                            {user?.role !== 'admin' && (
+                            {user?.role === 'user' && (
                                 <>
                                     <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
                                         <CreditCard size={18} className={styles.menuIcon} />
                                         <span>Billing</span>
                                     </button>
+                                </>
+                            )}
+                            {user?.role !== 'admin' && (
+                                <>
                                     <button className={styles.menuItem} onClick={() => { setIsOpen(false); navigate('/docs'); }}>
                                         <FileText size={18} className={styles.menuIcon} />
                                         <span>Documentation</span>
@@ -139,7 +143,7 @@ export default function UserProfileMenu({ user, onLogout }) {
 
                             <div className={styles.divider}></div>
 
-                            {user?.role !== 'admin' && (
+                            {user?.role === 'user' && (
                                 <>
                                     <button className={`${styles.menuItem} ${styles.upgradeItem}`} onClick={() => { setIsOpen(false); navigate('/billing'); }}>
                                         <Zap size={18} className={styles.menuIcon} />

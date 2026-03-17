@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, Plus, Trash2, Mail, Phone, Settings as SettingsIcon, CreditCard, ShieldAlert, Zap } from 'lucide-react';
+import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, Plus, Trash2, Mail, Phone, Settings as SettingsIcon, CreditCard, ShieldAlert, Zap, Users, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -21,6 +21,11 @@ export default function Settings() {
         weeklyReports: true,
     });
     const [isApplying, setIsApplying] = useState(false);
+    
+    // Care Circle Management
+    const [circleMembers, setCircleMembers] = useState([]);
+    const [inviteForm, setInviteForm] = useState({ full_name: '', email: '', mobile: '', password: '' });
+    const [isInviting, setIsInviting] = useState(false);
 
     // Admin specific settings (Pricing & Sets)
     const [adminSettings, setAdminSettings] = useState({
@@ -70,7 +75,55 @@ export default function Settings() {
             }
         };
         fetchGlobalSettings();
+
+        // Fetch circle members if user
+        if (role !== 'admin') {
+            fetchCircleMembers();
+        }
     }, [role]);
+
+    const fetchCircleMembers = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get('/api/auth/care-circle', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setCircleMembers(res.data);
+        } catch (err) {
+            console.error("Failed to fetch care circle members:", err);
+        }
+    };
+
+    const handleInviteMember = async (e) => {
+        e.preventDefault();
+        setIsInviting(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post('/api/auth/care-circle/invite', inviteForm, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('✅ Member added to your Care Circle!');
+            setInviteForm({ full_name: '', email: '', mobile: '', password: '' });
+            fetchCircleMembers();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to invite member');
+        } finally {
+            setIsInviting(false);
+        }
+    };
+
+    const handleRemoveMember = async (id) => {
+        if (!window.confirm('Are you sure you want to remove this member from your Care Circle?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`/api/auth/care-circle/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            fetchCircleMembers();
+        } catch (err) {
+            alert('Failed to remove member');
+        }
+    };
 
     useEffect(() => {
         const tab = queryParams.get('tab');
@@ -145,32 +198,50 @@ export default function Settings() {
         }
     };
 
+    const navTabs = role === 'admin'
+        ? [
+            { id: 'pricing', label: 'Subscription', icon: CreditCard },
+            { id: 'settings', label: 'System Configuration', icon: SettingsIcon }
+          ]
+        : (role === 'user' 
+            ? [
+                { id: 'account', label: 'Account Settings', icon: Globe },
+                { id: 'care-circle', label: 'Care Circle', icon: Users }
+              ]
+            : [
+                { id: 'account', label: 'Account Settings', icon: Globe }
+              ]
+          );
+
+    useEffect(() => {
+        const tab = queryParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        } else {
+            setActiveTab(role === 'admin' ? 'pricing' : 'account');
+        }
+    }, [location.search, role]);
     return (
         <div className={`container ${styles.pageContainer} animate-fade-in`}>
             {/* Top Navigation Bar */}
             <div className={styles.topActions} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                {role === 'admin' && (
-                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '5px', borderRadius: '18px', gap: '5px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
-                        {[
-                            { id: 'pricing', label: 'Subscription', icon: CreditCard },
-                            { id: 'settings', label: 'System Configuration', icon: SettingsIcon }
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => { setActiveTab(tab.id); navigate(`/settings?tab=${tab.id}`, { replace: true }); }}
-                                style={{
-                                    border: 'none', padding: '10px 24px', borderRadius: '14px', fontSize: '0.95rem', fontWeight: 700,
-                                    background: activeTab === tab.id ? '#fff' : 'transparent',
-                                    color: activeTab === tab.id ? 'var(--primary)' : '#64748b',
-                                    boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
-                                    cursor: 'pointer', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px'
-                                }}
-                            >
-                                <tab.icon size={18} /> {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <div style={{ display: 'flex', background: '#f1f5f9', padding: '5px', borderRadius: '18px', gap: '5px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
+                    {navTabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => { setActiveTab(tab.id); navigate(`/settings?tab=${tab.id}`, { replace: true }); }}
+                            style={{
+                                border: 'none', padding: '10px 24px', borderRadius: '14px', fontSize: '0.95rem', fontWeight: 700,
+                                background: activeTab === tab.id ? '#fff' : 'transparent',
+                                color: activeTab === tab.id ? 'var(--primary)' : '#64748b',
+                                boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+                                cursor: 'pointer', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px'
+                            }}
+                        >
+                            <tab.icon size={18} /> {tab.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Content Header */}
@@ -183,12 +254,12 @@ export default function Settings() {
                 <h1 className={styles.pageTitle}>
                     {role === 'admin'
                         ? (activeTab === 'pricing' ? 'Subscription Configuration' : 'System Configuration')
-                        : 'Account Settings'}
+                        : (activeTab === 'care-circle' ? 'Care Circle Management' : 'Account Settings')}
                 </h1>
                 <p className={styles.pageSubtitle}>
                     {role === 'admin'
                         ? (activeTab === 'pricing' ? 'Manage global subscription tiers and platform pricing models.' : 'Manage platform security, firewall rules, and support contact channels.')
-                        : 'Customize your experience, notification preferences, and regional settings.'}
+                        : (activeTab === 'care-circle' ? 'Invite and manage your care circle. Assign roles to help coordinate daily operations.' : 'Customize your experience, notification preferences, and regional settings.')}
                 </p>
             </motion.div>
 
@@ -430,93 +501,195 @@ export default function Settings() {
 
                     ) : (
                         <div className={styles.userContainer} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                                <section className={styles.card} style={{ marginBottom: 0 }}>
-                                    <div className={styles.cardHeader}>
-                                        <div className={styles.cardIcon}>
-                                            <Globe size={24} />
-                                        </div>
-                                        <h2 className={styles.cardTitle}>Language</h2>
-                                    </div>
-                                    <div className={styles.formItem}>
-                                        <label className={styles.label}>Primary Language</label>
-                                        <div className={styles.selectWrapper}>
-                                            <Globe size={18} />
-                                            <select className={styles.select} value={settings.language} onChange={handleChangeLang}>
-                                                <option value="en">English (US/UK)</option>
-                                                <option value="hi">हिंदी (Indo-Aryan)</option>
-                                                <option value="gu">ગુજરાતી (West Indian)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section className={styles.card} style={{ marginBottom: 0 }}>
-                                    <div className={styles.cardHeader}>
-                                        <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
-                                            <IndianRupee size={24} />
-                                        </div>
-                                        <h2 className={styles.cardTitle}>Region</h2>
-                                    </div>
-                                    <div className={styles.formItem}>
-                                        <label className={styles.label}>Locale Format</label>
-                                        <div className={styles.selectWrapper}>
-                                            <IndianRupee size={18} />
-                                            <select className={styles.select} value={settings.region || 'in'} onChange={handleChangeRegion}>
-                                                <option value="in">India (GMT+5:30)</option>
-                                                <option value="us">United States (EST/PST)</option>
-                                                <option value="gb">United Kingdom (GMT)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </section>
-                            </div>
-
-                            <AnimatePresence>
-                                {isApplying && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        style={{
-                                            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                                            padding: '1rem 2rem', background: 'rgba(0,0,0,0.8)', color: '#fff',
-                                            borderRadius: '50px', zIndex: 999, display: 'flex', alignItems: 'center', gap: '12px',
-                                            backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-                                        }}
-                                    >
-                                        <Activity className="animate-spin" size={20} />
-                                        <span style={{ fontWeight: 600 }}>Applying Language...</span>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            <section className={styles.card}>
-                                <div className={styles.cardHeader}>
-                                    <div className={styles.cardIcon}>
-                                        <Bell size={24} />
-                                    </div>
-                                    <h2 className={styles.cardTitle}>Communication Preferences</h2>
-                                </div>
-                                <div className={styles.sectionGroup} style={{ gap: '0.5rem' }}>
-                                    {[
-                                        { key: 'emailNotifications', label: 'Email Reports', desc: 'Detailed health summaries sent to your inbox' },
-                                        { key: 'healthAlerts', label: 'Critical Smart Alerts', desc: 'Real-time alerts for biometric anomalies' },
-                                        { key: 'weeklyReports', label: 'Weekly Performance Digest', desc: 'Consolidated data for animal trends' }
-                                    ].map(item => (
-                                        <div key={item.key} className={styles.toggleRow} style={{ border: 'none', background: '#f8fafc', padding: '1.25rem', borderRadius: '18px', marginBottom: '0.75rem' }}>
-                                            <div className={styles.toggleInfo}>
-                                                <span className={styles.toggleLabel}>{item.label}</span>
-                                                <span className={styles.toggleDesc}>{item.desc}</span>
+                            {activeTab === 'care-circle' ? (
+                                <>
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon}>
+                                                <UserPlus size={24} />
                                             </div>
-                                            <label className={styles.switch}>
-                                                <input type="checkbox" checked={settings[item.key]} onChange={() => handleToggle(item.key)} />
-                                                <span className={styles.slider}></span>
-                                            </label>
+                                            <h2 className={styles.cardTitle}>Invite Care Circle Member</h2>
                                         </div>
-                                    ))}
-                                </div>
-                            </section>
+                                        <form onSubmit={handleInviteMember} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Full Name</label>
+                                                <input 
+                                                    className={styles.boxedInput} 
+                                                    placeholder="e.g. Rahul Sharma" 
+                                                    value={inviteForm.full_name}
+                                                    onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Email Address</label>
+                                                <input 
+                                                    className={styles.boxedInput} 
+                                                    type="email" 
+                                                    placeholder="member@example.com" 
+                                                    value={inviteForm.email}
+                                                    onChange={e => setInviteForm({...inviteForm, email: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Mobile Number</label>
+                                                <input 
+                                                    className={styles.boxedInput} 
+                                                    placeholder="e.g. 9876543210" 
+                                                    value={inviteForm.mobile}
+                                                    onChange={e => setInviteForm({...inviteForm, mobile: e.target.value})}
+                                                />
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Access Password</label>
+                                                <input 
+                                                    className={styles.boxedInput} 
+                                                    type="password" 
+                                                    placeholder="Set initial password" 
+                                                    value={inviteForm.password}
+                                                    onChange={e => setInviteForm({...inviteForm, password: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
+                                                <button type="submit" className="btn-primary" disabled={isInviting}>
+                                                    {isInviting ? <Activity className="animate-spin" size={18} /> : <Plus size={18} />}
+                                                    {isInviting ? 'Sending Invite...' : 'Add to Care Circle'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </section>
+
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
+                                                <Users size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Active Care Circle</h2>
+                                        </div>
+                                        <div className={styles.circleList}>
+                                            {circleMembers.length === 0 ? (
+                                                <div className={styles.empty}>
+                                                    <p>No members added yet. Start by inviting someone to your Care Circle!</p>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'grid', gap: '1rem' }}>
+                                                    {circleMembers.map(member => (
+                                                        <div key={member._id} className={styles.toggleRow} style={{ border: '1px solid #e2e8f0', background: '#fff' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                                                                <div style={{ width: '40px', height: '40px', background: '#f1f5f9', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--primary)' }}>
+                                                                    {member.full_name?.charAt(0) || 'M'}
+                                                                </div>
+                                                                <div className={styles.toggleInfo}>
+                                                                    <span className={styles.toggleLabel}>{member.full_name}</span>
+                                                                    <span className={styles.toggleDesc}>{member.email || member.mobile} • Role: Caretaker</span>
+                                                                </div>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleRemoveMember(member._id)}
+                                                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+                                </>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                        <section className={styles.card} style={{ marginBottom: 0 }}>
+                                            <div className={styles.cardHeader}>
+                                                <div className={styles.cardIcon}>
+                                                    <Globe size={24} />
+                                                </div>
+                                                <h2 className={styles.cardTitle}>Language</h2>
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Primary Language</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <Globe size={18} />
+                                                    <select className={styles.select} value={settings.language} onChange={handleChangeLang}>
+                                                        <option value="en">English (US/UK)</option>
+                                                        <option value="hi">हिंदी (Indo-Aryan)</option>
+                                                        <option value="gu">ગુજરાતી (West Indian)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section className={styles.card} style={{ marginBottom: 0 }}>
+                                            <div className={styles.cardHeader}>
+                                                <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
+                                                    <IndianRupee size={24} />
+                                                </div>
+                                                <h2 className={styles.cardTitle}>Region</h2>
+                                            </div>
+                                            <div className={styles.formItem}>
+                                                <label className={styles.label}>Locale Format</label>
+                                                <div className={styles.selectWrapper}>
+                                                    <IndianRupee size={18} />
+                                                    <select className={styles.select} value={settings.region || 'in'} onChange={handleChangeRegion}>
+                                                        <option value="in">India (GMT+5:30)</option>
+                                                        <option value="us">United States (EST/PST)</option>
+                                                        <option value="gb">United Kingdom (GMT)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {isApplying && (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                style={{
+                                                    position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                                    padding: '1rem 2rem', background: 'rgba(0,0,0,0.8)', color: '#fff',
+                                                    borderRadius: '50px', zIndex: 999, display: 'flex', alignItems: 'center', gap: '12px',
+                                                    backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+                                                }}
+                                            >
+                                                <Activity className="animate-spin" size={20} />
+                                                <span style={{ fontWeight: 600 }}>Applying Language...</span>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon}>
+                                                <Bell size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Communication Preferences</h2>
+                                        </div>
+                                        <div className={styles.sectionGroup} style={{ gap: '0.5rem' }}>
+                                            {[
+                                                { key: 'emailNotifications', label: 'Email Reports', desc: 'Detailed health summaries sent to your inbox' },
+                                                { key: 'healthAlerts', label: 'Critical Smart Alerts', desc: 'Real-time alerts for biometric anomalies' },
+                                                { key: 'weeklyReports', label: 'Weekly Performance Digest', desc: 'Consolidated data for animal trends' }
+                                            ].map(item => (
+                                                <div key={item.key} className={styles.toggleRow} style={{ border: 'none', background: '#f8fafc', padding: '1.25rem', borderRadius: '18px', marginBottom: '0.75rem' }}>
+                                                    <div className={styles.toggleInfo}>
+                                                        <span className={styles.toggleLabel}>{item.label}</span>
+                                                        <span className={styles.toggleDesc}>{item.desc}</span>
+                                                    </div>
+                                                    <label className={styles.switch}>
+                                                        <input type="checkbox" checked={settings[item.key]} onChange={() => handleToggle(item.key)} />
+                                                        <span className={styles.slider}></span>
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                </>
+                            )}
                         </div>
                     )}
                 </motion.div>
