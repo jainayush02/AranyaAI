@@ -7,20 +7,19 @@ const MedicalRecord = require('../models/MedicalRecord');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
 const multer = require('multer');
-const path = require('path');
+const ImageKit = require('imagekit');
 
-// Configure Multer for local storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
+// Configure ImageKit
+const imagekit = new ImageKit({
+    publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+    privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
+
+// Use memory storage for Buffer
 const upload = multer({ 
-    storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // @route   GET /api/animals
@@ -155,7 +154,7 @@ router.post('/:id/recalculate', auth, async (req, res) => {
         try {
             const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
                 history: chronologicalLogs
-            });
+            }, { timeout: 8000 });
             status = aiResponse.data.status;
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
@@ -203,7 +202,7 @@ router.post('/:id/logs', auth, async (req, res) => {
         try {
             const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
                 history: chronologicalLogs
-            });
+            }, { timeout: 8000 });
             status = aiResponse.data.status;
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
@@ -287,7 +286,7 @@ router.get('/:id/records', auth, async (req, res) => {
     }
 });
 
-// @route   POST /api/animals/:id/records (MULTIPART)
+// @route   POST /api/animals/:id/records (CLOUD UPLOAD)
 router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res) => {
     try {
         const { recordType, title } = req.body;
@@ -295,22 +294,27 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         
         if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
 
-        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        // Upload to ImageKit
+        const uploadResponse = await imagekit.upload({
+            file: req.file.buffer,
+            fileName: `${Date.now()}-${req.file.originalname}`,
+            folder: '/aranya_medical_vault'
+        });
 
         const newRecord = new MedicalRecord({
             animal_id: req.params.id,
             user_id: ownerId,
             recordType: recordType || 'General',
             title: title || req.file.originalname,
-            fileUrl
+            fileUrl: uploadResponse.url
         });
 
         await newRecord.save();
         await logActivity('medical_vault', req.user, `Uploaded record for animal: ${req.params.id}`);
         res.json(newRecord);
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error('ImageKit Upload Error:', err);
+        res.status(500).json({ msg: 'Cloud storage upload failed', error: err.message });
     }
 });
 
