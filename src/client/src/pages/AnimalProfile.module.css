@@ -799,9 +799,48 @@
 
 .recordActionGroup {
     display: flex;
+    gap: 0.5rem;
     align-items: center;
-    gap: 0.75rem;
 }
+
+/* ── Filter Buttons (Graph) ── */
+/* ── Segmented Control (Graph Filters) ── */
+.filterTrack {
+    display: inline-flex;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid #eef2f6;
+}
+
+.filterItem {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #64748b;
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.02em;
+}
+
+.filterItemActive {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.filterItem:hover:not(.filterItemActive) {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.5);
+}
+
 
 .deleteRecordBtn {
     background: #fff;

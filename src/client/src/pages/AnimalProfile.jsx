@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
 import AdvancedLoader from '../components/AdvancedLoader';
@@ -41,6 +41,36 @@ export default function AnimalProfile() {
     const [tempWeight, setTempWeight] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const logsPerPage = 7;
+
+    const [timeRange, setTimeRange] = useState('all');
+
+    const handleExportCSV = () => {
+        if (!healthLogs.length) return alert("No data to export");
+        const headers = ["Date", "Time", "Temp", "Heart Rate", "Weight", "Activity", "Appetite", "Notes"];
+        const rows = healthLogs.map(log => {
+            const d = new Date(log.createdAt);
+            return [d.toLocaleDateString(), d.toLocaleTimeString(), log.temperature, log.heartRate, log.weight, log.activityLevel, log.appetite, `"${log.notes || ''}"`].join(",");
+        });
+        const csv = "\ufeff" + headers.join(",") + "\r\n" + rows.join("\r\n");
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${animal.name}_Medical_Report.csv`;
+        link.click();
+    };
+
+    const filteredLogs = React.useMemo(() => {
+        if (timeRange === 'all') return healthLogs;
+        const now = new Date();
+        const cutoff = new Date();
+        if (timeRange === '1h') cutoff.setHours(now.getHours() - 1);
+        else if (timeRange === '1d') cutoff.setDate(now.getDate() - 1);
+        else if (timeRange === '7d') cutoff.setDate(now.getDate() - 7);
+        return healthLogs.filter(log => new Date(log.createdAt) >= cutoff);
+    }, [healthLogs, timeRange]);
+
+    useEffect(() => { setCurrentPage(1); }, [timeRange]);
 
     const handleRecordUpload = async (e) => {
         const file = e.target.files[0];
@@ -232,11 +262,10 @@ export default function AnimalProfile() {
         }
     };
 
-    const chartData = [...healthLogs].reverse().map(log => ({
-        date: new Date(log.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    const chartData = [...filteredLogs].reverse().map(log => ({
+        date: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
         temperature: log.temperature,
-        heartRate: log.heartRate,
-        weight: log.weight
+        heartRate: log.heartRate
     }));
 
     const getAvatarEmoji = (category) => {
@@ -424,7 +453,7 @@ export default function AnimalProfile() {
                                     <button className={styles.viewBtn} onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
                                         <Upload size={16} /> {isImporting ? 'Importing...' : 'Import CSV'}
                                     </button>
-                                    <button className={styles.viewBtn}><Download size={16} /> Export CSV</button>
+                                    <button className={styles.viewBtn} onClick={handleExportCSV}><Download size={16} /> Export CSV</button>
                                 </div>
                                 <input type="file" ref={fileInputRef} onChange={() => {}} style={{ display: 'none' }} accept=".csv" />
                             </div>
@@ -485,20 +514,55 @@ export default function AnimalProfile() {
                         {/* ── 3. Health Chart (Visual Trends) ── */}
                         {healthLogs.length > 0 && (
                             <div className={styles.card}>
-                                <h3 className={styles.chartTitle}>Health Visual Trends</h3>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <h3 className={styles.chartTitle} style={{ marginBottom: 0 }}>Health Visual Trends</h3>
+                                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginRight: '0.5rem' }}>
+                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#166534' }} />
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#64748b', letterSpacing: '0.05em' }}>TEMP</span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0ea5e9' }} />
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#64748b', letterSpacing: '0.05em' }}>HEART RATE</span>
+                                            </div>
+                                        </div>
+                                        <div className={styles.filterTrack}>
+                                        {['1h', '1d', '7d', 'all'].map(r => (
+                                            <button 
+                                                key={r} 
+                                                onClick={() => setTimeRange(r)} 
+                                                className={`${styles.filterItem} ${timeRange === r ? styles.filterItemActive : ''}`}
+                                            >
+                                                {timeRange === r && (
+                                                    <motion.div 
+                                                        layoutId="activeFilter" 
+                                                        className={styles.activeHighlight} 
+                                                        transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+                                                    />
+                                                )}
+                                                <span className={styles.filterLabel}>
+                                                    {r.toUpperCase()}
+                                                </span>
+                                            </button>
+                                        ))}
+                                        </div>
+                                    </div>
+                                </div>
                                 <div style={{ width: '100%', height: 350 }}>
                                     <ResponsiveContainer width="100%" height="90%">
-                                        <LineChart data={chartData}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="date" />
-                                            <YAxis yAxisId="left" />
-                                            <YAxis yAxisId="right" orientation="right" />
+                                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#166534" stopOpacity={0.1}/><stop offset="95%" stopColor="#166534" stopOpacity={0}/></linearGradient>
+                                                <linearGradient id="colorHR" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1}/><stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/></linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                                            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                                             <Tooltip />
-                                            <Legend />
-                                            <Line yAxisId="left" type="monotone" dataKey="temperature" name="Temp (°C)" stroke="#166534" strokeWidth={2} />
-                                            <Line yAxisId="right" type="monotone" dataKey="heartRate" name="Heart Rate" stroke="#075985" strokeWidth={2} />
-                                            <Line yAxisId="right" type="monotone" dataKey="weight" name="Weight (kg)" stroke="#7c3aed" strokeWidth={2} />
-                                        </LineChart>
+                                            <Area type="monotone" dataKey="temperature" name="Temp (°C)" stroke="#166534" strokeWidth={3} fillOpacity={1} fill="url(#colorTemp)" isAnimationActive={false} />
+                                            <Area type="monotone" dataKey="heartRate" name="Heart Rate" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorHR)" isAnimationActive={false} />
+                                        </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
