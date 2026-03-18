@@ -3,8 +3,25 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Animal = require('../models/Animal');
 const HealthLog = require('../models/HealthLog');
+const MedicalRecord = require('../models/MedicalRecord');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
+const multer = require('multer');
+const path = require('path');
+
+// Configure Multer for local storage
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    }
+});
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 // @route   GET /api/animals
 // @desc    Get all animals for valid user
@@ -73,12 +90,8 @@ router.delete('/:id', auth, async (req, res) => {
             return res.status(401).json({ msg: 'Not authorized' });
         }
 
-        // Use findByIdAndDelete instead of .remove() for mongoose 6+
         await Animal.findByIdAndDelete(req.params.id);
-
-        // Optional: Also delete all related HealthLogs here
         await HealthLog.deleteMany({ animal_id: req.params.id });
-
         await logActivity('animal_registry', req.user, `Removed animal: ${animal.name}`);
         res.json({ msg: 'Animal removed' });
     } catch (err) {
@@ -123,7 +136,7 @@ router.get('/:id/logs', auth, async (req, res) => {
 });
 
 // @route   POST /api/animals/:id/recalculate
-// @desc    Re-run AI prediction on existing logs (no new log needed)
+// @desc    Re-run AI prediction on existing logs
 // @access  Private
 router.post('/:id/recalculate', auth, async (req, res) => {
     try {
@@ -134,13 +147,9 @@ router.post('/:id/recalculate', auth, async (req, res) => {
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
-
-        if (logs.length === 0) {
-            return res.json({ animalStatus: animal.status, msg: 'No logs found to recalculate' });
-        }
+        if (logs.length === 0) return res.json({ animalStatus: animal.status, msg: 'No logs found' });
 
         const chronologicalLogs = logs.reverse();
-
         let status = 'Healthy';
         let aiErrorScore = null;
         try {
@@ -151,12 +160,10 @@ router.post('/:id/recalculate', auth, async (req, res) => {
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
             console.error('AI Microservice unavailable:', aiErr.message);
-            // AI is down — keep current status, don't guess
         }
 
         animal.status = status;
         await animal.save();
-
         res.json({ animalStatus: status, aiErrorScore });
     } catch (err) {
         console.error(err);
@@ -175,12 +182,12 @@ router.post('/:id/logs', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
-        const { temperature, heartRate, activityLevel, appetite, notes } = req.body;
-
+        const { temperature, heartRate, weight, activityLevel, appetite, notes } = req.body;
         const newLog = new HealthLog({
             animal_id: req.params.id,
             temperature,
             heartRate,
+            weight,
             activityLevel,
             appetite,
             notes
@@ -188,14 +195,9 @@ router.post('/:id/logs', auth, async (req, res) => {
 
         await newLog.save();
 
-        // 1. Fetch previous logs for the Microservice
-        // (sort descending so newest is first in DB, but the python code accepts the sequence chronological N=24, so we reverse it or serve it as is)
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
-
-        // Reverse array so it goes from oldest to newest for the time series LSTM
         const chronologicalLogs = logs.reverse();
 
-        // 2. Fetch AI Status via Python Microservice
         let status = 'Healthy';
         let aiErrorScore = null;
         try {
@@ -206,32 +208,34 @@ router.post('/:id/logs', auth, async (req, res) => {
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
             console.error('AI Microservice unavailable:', aiErr.message);
-            // AI is down — keep current status, don't guess
         }
 
-        // 3. Update the Animal with the latest metrics and AI Status
-        const t = parseFloat(temperature);
-        const hr = parseInt(heartRate);
-
         if (animal.recentVitals) {
-            animal.recentVitals.temperature = t;
-            animal.recentVitals.heartRate = hr;
+            animal.recentVitals.temperature = parseFloat(temperature);
+            animal.recentVitals.heartRate = parseInt(heartRate);
+            animal.recentVitals.weight = parseFloat(weight);
         } else {
-            animal.recentVitals = { temperature: t, heartRate: hr };
+            animal.recentVitals = { temperature: parseFloat(temperature), heartRate: parseInt(heartRate), weight: parseFloat(weight) };
         }
 
         animal.status = status;
         await animal.save();
-
         res.json({ log: newLog, animalStatus: status, aiErrorScore });
+
+        // Cleanup: logs older than 7 days
+        try {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            await HealthLog.deleteMany({ animal_id: req.params.id, createdAt: { $lt: sevenDaysAgo } });
+        } catch (cleanupErr) {
+            console.error('Log cleanup failed:', cleanupErr.message);
+        }
     } catch (err) {
         res.status(500).send('Server Error');
     }
 });
 
 // @route   PUT /api/animals/:id/vaccination
-// @desc    Update animal vaccination status
-// @access  Private
 router.put('/:id/vaccination', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
@@ -240,14 +244,89 @@ router.put('/:id/vaccination', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
-        const { vaccinated } = req.body;
-        animal.vaccinated = vaccinated;
+        animal.vaccinated = req.body.vaccinated;
         await animal.save();
-        
         await logActivity('animal_registry', req.user, `Updated vaccination status for: ${animal.name}`);
         res.json(animal);
     } catch (err) {
-        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   PUT /api/animals/:id/vitals
+router.put('/:id/vitals', auth, async (req, res) => {
+    try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        const { temperature, heartRate, weight } = req.body;
+        if (!animal.recentVitals) animal.recentVitals = {};
+        if (temperature !== undefined) animal.recentVitals.temperature = parseFloat(temperature);
+        if (heartRate !== undefined) animal.recentVitals.heartRate = parseInt(heartRate);
+        if (weight !== undefined) animal.recentVitals.weight = parseFloat(weight);
+
+        await animal.save();
+        await logActivity('animal_registry', req.user, `Updated vitals for: ${animal.name}`);
+        res.json(animal);
+    } catch (err) {
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- MEDICAL VAULT ROUTES ---
+
+// @route   GET /api/animals/:id/records
+router.get('/:id/records', auth, async (req, res) => {
+    try {
+        const records = await MedicalRecord.find({ animal_id: req.params.id }).sort({ createdAt: -1 });
+        res.json(records);
+    } catch (err) {
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   POST /api/animals/:id/records (MULTIPART)
+router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res) => {
+    try {
+        const { recordType, title } = req.body;
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        
+        if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
+
+        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+        const newRecord = new MedicalRecord({
+            animal_id: req.params.id,
+            user_id: ownerId,
+            recordType: recordType || 'General',
+            title: title || req.file.originalname,
+            fileUrl
+        });
+
+        await newRecord.save();
+        await logActivity('medical_vault', req.user, `Uploaded record for animal: ${req.params.id}`);
+        res.json(newRecord);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   DELETE /api/animals/:id/records/:recordId
+router.delete('/:id/records/:recordId', auth, async (req, res) => {
+    try {
+        const record = await MedicalRecord.findById(req.params.recordId);
+        if (!record) return res.status(404).json({ msg: 'Record not found' });
+
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (record.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        await MedicalRecord.findByIdAndDelete(req.params.recordId);
+        await logActivity('medical_vault', req.user, `Deleted record: ${record.title}`);
+        res.json({ msg: 'Record removed' });
+    } catch (err) {
         res.status(500).send('Server Error');
     }
 });

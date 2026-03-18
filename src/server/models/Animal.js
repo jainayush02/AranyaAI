@@ -34,7 +34,8 @@ const animalSchema = new mongoose.Schema({
     },
     recentVitals: {
         temperature: { type: Number, default: 38.5 }, // Default to a normal temp
-        heartRate: { type: Number, default: 60 } // Default to a normal heart rate
+        heartRate: { type: Number, default: 60 }, // Default to a normal heart rate
+        weight: { type: Number }
     },
     lastUpdated: {
         type: Date,
