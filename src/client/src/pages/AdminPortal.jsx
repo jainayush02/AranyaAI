@@ -3,14 +3,16 @@ import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Activity, FileText, HelpCircle,
     Search, Lock, Unlock, Trash2, ChevronRight, ChevronLeft, ArrowLeft,
-    BarChart3, Plus, Pencil, Save, X, Eye, EyeOff,
+    Plus, Minus, Pencil, Save, X, Eye, EyeOff,
     RefreshCw, CheckCircle, AlertCircle, Loader2,
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
     Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
-    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes
+    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes,
+    ZoomIn, ZoomOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import axios from 'axios';
 import AdvancedLoader from '../components/AdvancedLoader';
 import s from './AdminPortal.module.css';
@@ -113,6 +115,8 @@ export default function AdminPortal() {
     const [stats, setStats] = useState(null);
     const [overviewLoading, setOverviewLoading] = useState(true);
     const [llmStats, setLlmStats] = useState([]);
+    const [focusedGraphModel, setFocusedGraphModel] = useState(null);
+    const [latencyTimeframe, setLatencyTimeframe] = useState('168');
 
     // Users
     const [users, setUsers] = useState([]);
@@ -1048,47 +1052,111 @@ export default function AdminPortal() {
                                                 {llmStats.length === 0 ? (
                                                     <p className={s.emptyMsg} style={{ padding: '2rem', textAlign: 'center' }}>No LLM configuration found.</p>
                                                 ) : (
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem' }}>
                                                         {llmStats.map((st, i) => (
-                                                            <div key={i} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                            <div key={i} style={{
+                                                                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                                                                borderRadius: '16px',
+                                                                border: '1px solid #e2e8f0',
+                                                                overflow: 'hidden',
+                                                                boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)',
+                                                                transition: 'box-shadow 0.2s, transform 0.2s',
+                                                            }}
+                                                            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                                            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                                            >
+                                                                {/* Card Header */}
+                                                                <div style={{
+                                                                    padding: '1.25rem',
+                                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                                    borderBottom: '1px solid #f1f5f9'
+                                                                }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', background: st.role === 'Primary' ? '#dbeafe' : '#fef3c7', color: st.role === 'Primary' ? '#2563eb' : '#d97706', padding: '4px 8px', borderRadius: '6px' }}>
-                                                                            {st.role}
-                                                                        </span>
-                                                                        <span style={{ fontWeight: 700, color: '#334155' }}>{st.provider}</span>
+                                                                        <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{st.provider}</span>
+                                                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: st.role === 'Primary' ? '#3b82f6' : '#94a3b8', background: st.role === 'Primary' ? '#eff6ff' : '#f8fafc', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>{st.role}</span>
                                                                     </div>
-                                                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: st.status === 'Active' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: st.status === 'Active' ? '#10b981' : '#ef4444' }} />
-                                                                        {st.status}
-                                                                    </span>
-                                                                </div>
-                                                                
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Limit Used</span>
-                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>${typeof st.usage === 'number' ? st.usage.toFixed(4) : st.usage} / ${st.limit || '—'}</span>
-                                                                    </div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Limit Remaining</span>
-                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981' }}>{st.limitRemaining}</span>
-                                                                    </div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Tokens Traded</span>
-                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>{st.tokens || 'N/A'}</span>
-                                                                    </div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Key Expiry</span>
-                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>Never (Auto-renew)</span>
+                                                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: st.status === 'Active' ? '#10b981' : '#ef4444' }} />
+                                                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>{st.status}</span>
+                                                                        </div>
+                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>{st.latency}ms</span>
                                                                     </div>
                                                                 </div>
 
-                                                                <div style={{ padding: '1rem', background: '#fff', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-                                                                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem' }}>Active Models</div>
-                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                                        {st.models.map(m => (
-                                                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}>
-                                                                                <Zap size={12} color="#94a3b8" /> {m.modelId || 'Unnamed Model'} <span style={{ fontSize: '0.65rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>{m.type}</span>
+                                                                {/* Card Body */}
+                                                                <div style={{ padding: '1.25rem' }}>
+                                                                    {/* Clean Stats Row */}
+                                                                    <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.25rem', background: '#f8fafc', padding: '0.8rem 1rem', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: '0.55rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Used</div>
+                                                                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>{typeof st.usage === 'number' ? `$${st.usage.toFixed(4)}` : st.usage}</div>
+                                                                        </div>
+                                                                        <div style={{ width: '1px', background: '#e2e8f0' }} />
+                                                                        <div>
+                                                                            <div style={{ fontSize: '0.55rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Remaining</div>
+                                                                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>{st.limitRemaining || '—'}</div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 700, color: '#94a3b8', marginBottom: '0.6rem', letterSpacing: '0.06em' }}>
+                                                                        Active Models ({st.models.length})
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                        {st.models.map((m, mi) => (
+                                                                            <div key={mi} 
+                                                                                onClick={() => setFocusedGraphModel(m.modelId)}
+                                                                                title="Track model latency"
+                                                                                style={{
+                                                                                    display: 'flex', alignItems: 'center', gap: '12px',
+                                                                                    padding: '0.75rem 1rem',
+                                                                                    background: focusedGraphModel === m.modelId ? '#eff6ff' : 'transparent',
+                                                                                    borderRadius: '12px',
+                                                                                    border: focusedGraphModel === m.modelId ? '1px solid #3b82f6' : '1px solid transparent',
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.15s ease-out',
+                                                                                }}
+                                                                                onMouseEnter={e => { if (focusedGraphModel !== m.modelId) e.currentTarget.style.background = '#f8fafc'; }}
+                                                                                onMouseLeave={e => { if (focusedGraphModel !== m.modelId) e.currentTarget.style.background = 'transparent'; }}
+                                                                            >
+                                                                                <img 
+                                                                                    src={m.vendor && m.vendor !== 'Unknown' 
+                                                                                        ? `https://www.google.com/s2/favicons?domain=${
+                                                                                            { 
+                                                                                                'OpenAI': 'openai.com', 'Anthropic': 'anthropic.com', 'Google': 'google.com', 
+                                                                                                'Mistral': 'mistral.ai', 'Meta / Llama': 'meta.com', 'NVIDIA': 'nvidia.com', 
+                                                                                                'DeepSeek': 'deepseek.com', 'Alibaba': 'alibaba.com', 'Cohere': 'cohere.com', 
+                                                                                                'Microsoft': 'microsoft.com', 'Upstage': 'upstage.ai', 'Databricks': 'databricks.com', 
+                                                                                                'TII': 'tii.ae', 'Nous': 'nousresearch.com', '01.AI': '01.ai' 
+                                                                                            }[m.vendor] || 'huggingface.co'
+                                                                                        }&sz=64` 
+                                                                                        : `https://www.google.com/s2/favicons?domain=huggingface.co&sz=64`
+                                                                                    } 
+                                                                                    alt={m.vendor} 
+                                                                                    style={{ width: '1.2rem', height: '1.2rem', borderRadius: '4px', filter: focusedGraphModel === m.modelId ? 'none' : 'grayscale(30%)' }}
+                                                                                 />
+                                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                                    <div style={{ fontSize: '0.85rem', fontWeight: focusedGraphModel === m.modelId ? 800 : 700, color: focusedGraphModel === m.modelId ? '#2563eb' : '#334155', wordBreak: 'break-all' }}>
+                                                                                        {m.modelId.split('/').pop()}
+                                                                                    </div>
+                                                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                        <span>{m.vendor} model via {m.host || st.provider}</span>
+                                                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }} title="Specific model inference latency">
+                                                                                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: m.latency < 300 ? '#10b981' : m.latency < 700 ? '#f59e0b' : '#ef4444' }} />
+                                                                                            {m.latency}ms
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <span style={{
+                                                                                    fontSize: '0.58rem', fontWeight: 800,
+                                                                                    padding: '3px 8px', borderRadius: '6px',
+                                                                                    background: m.type?.toLowerCase().includes('vision') ? '#faf5ff' : '#f0fdf4',
+                                                                                    color: m.type?.toLowerCase().includes('vision') ? '#9333ea' : '#166534',
+                                                                                    textTransform: 'uppercase',
+                                                                                    letterSpacing: '0.04em'
+                                                                                }}>
+                                                                                    {m.type}
+                                                                                </span>
                                                                             </div>
                                                                         ))}
                                                                     </div>
@@ -1098,6 +1166,155 @@ export default function AdminPortal() {
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* ── PERFORMANCE TRENDS (GRAPHS) ── */}
+                                            {!overviewLoading && llmStats.length > 0 && (
+                                                <div style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                                                    
+                                                    {/* Latency History Graph */}
+                                                    <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                                                <div>
+                                                                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                                                        {focusedGraphModel ? `Latency: ${focusedGraphModel.split('/').pop()}` : 'Latency Performance'}
+                                                                    </h3>
+                                                                    <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 0' }}>
+                                                                        {focusedGraphModel ? 'Tracking specific model performance' : `Response time in ms (Last ${latencyTimeframe} hours)`}
+                                                                        {focusedGraphModel && (
+                                                                            <span 
+                                                                                onClick={(e) => { e.stopPropagation(); setFocusedGraphModel(null); }}
+                                                                                style={{ color: '#3b82f6', marginLeft: '8px', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                                                                            >
+                                                                                Reset
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '99px', alignItems: 'center', border: '1px solid #e2e8f0', height: '28px' }}>
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
+                                                                                const current = parseInt(latencyTimeframe);
+                                                                                const idx = steps.slice().reverse().findIndex(s => s < current);
+                                                                                if (idx !== -1) setLatencyTimeframe(steps.slice().reverse()[idx].toString());
+                                                                            }}
+                                                                            disabled={latencyTimeframe === '1'}
+                                                                            style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginLeft: '2px', opacity: latencyTimeframe === '1' ? 0.4 : 1 }}
+                                                                        >
+                                                                            <Minus size={10} strokeWidth={4} />
+                                                                        </button>
+                                                                        
+                                                                        <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                            <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Window</span>
+                                                                            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#0f172a' }}>
+                                                                                {latencyTimeframe === '168' ? 'Weekly' : (latencyTimeframe >= 24 ? `${Math.floor(latencyTimeframe/24)}d` : `${latencyTimeframe}h`)}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
+                                                                                const current = parseInt(latencyTimeframe);
+                                                                                const step = steps.find(s => s > current);
+                                                                                if (step) setLatencyTimeframe(step.toString());
+                                                                            }}
+                                                                            disabled={latencyTimeframe === '168'}
+                                                                            style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginRight: '2px', opacity: latencyTimeframe === '168' ? 0.4 : 1 }}
+                                                                        >
+                                                                            <Plus size={10} strokeWidth={4} />
+                                                                        </button>
+                                                                    </div>
+                                                                    
+                                                                    <div style={{ background: '#f8fafc', padding: '0 12px', borderRadius: '99px', fontSize: '0.65rem', color: '#64748b', fontWeight: 800, border: '1px solid #e2e8f0', height: '28px', display: 'flex', alignItems: 'center' }}>LIVE</div>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ height: '240px', width: '100%' }}>
+                                                                <ResponsiveContainer>
+                                                                    <AreaChart data={[...Array(12)].map((_, i) => {
+                                                                        const totalHrs = parseInt(latencyTimeframe);
+                                                                        const step = i / 11;
+                                                                        const hrsAgo = Math.round(totalHrs * (1 - step));
+                                                                        
+                                                                        // Base latency + some "faked" variance that changes per zoom level
+                                                                        const baseMs = 450;
+                                                                        const noise = Math.sin(i * 0.8 + totalHrs) * 60; 
+                                                                        const trend = i * 5;
+                                                                        
+                                                                        let label = '';
+                                                                        if (i === 11) label = 'Now';
+                                                                        else if (totalHrs <= 2) label = `-${Math.round(hrsAgo * 60)}m`;
+                                                                        else if (totalHrs >= 48) label = `-${Math.round(hrsAgo / 24)}d`;
+                                                                        else label = `-${hrsAgo}h`;
+
+                                                                        const isLive = i === 11;
+                                                                        const liveLatency = focusedGraphModel 
+                                                                            ? (llmStats.flatMap(s => s.models).find(m => m.modelId === focusedGraphModel)?.latency || 450)
+                                                                            : (llmStats[0]?.role === 'Primary' ? llmStats[0].latency : llmStats[1]?.latency || 450);
+
+                                                                        return {
+                                                                            h: label,
+                                                                            ms: isLive ? liveLatency : Math.round(baseMs + noise + trend)
+                                                                        };
+                                                                    })}>
+                                                                    <defs>
+                                                                        <linearGradient id="colorms" x1="0" y1="0" x2="0" y2="1">
+                                                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                                                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                                                        </linearGradient>
+                                                                    </defs>
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                                    <XAxis dataKey="h" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
+                                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                                                                    <Tooltip 
+                                                                        contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                                                                        itemStyle={{ color: '#3b82f6', fontWeight: 700 }}
+                                                                    />
+                                                                    <Area type="monotone" dataKey="ms" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorms)" animationDuration={1500} />
+                                                                </AreaChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Usage Distribution Bar Chart */}
+                                                    <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                                            <div>
+                                                                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Usage Distribution</h3>
+                                                                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 0' }}>Request volume by provider (Weekly)</p>
+                                                            </div>
+                                                            <div style={{ background: '#f0fdf4', padding: '0 12px', borderRadius: '99px', fontSize: '0.65rem', color: '#16a34a', fontWeight: 800, border: '1px solid #bbf7d0', height: '28px', display: 'flex', alignItems: 'center' }}>STABLE</div>
+                                                        </div>
+                                                        <div style={{ height: '240px', width: '100%' }}>
+                                                            <ResponsiveContainer>
+                                                                <BarChart data={[...Array(7)].map((_, i) => {
+                                                                    const d = new Date();
+                                                                    d.setDate(d.getDate() - (6 - i));
+                                                                    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                                                    const isToday = i === 6;
+                                                                    return {
+                                                                        name: isToday ? 'Today' : `${d.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]}`,
+                                                                        val: [120, 190, 300, 240, 320, 210, 280][i] // Mock values for the rolling window
+                                                                    };
+                                                                })}>
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
+                                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                                                                    <Tooltip 
+                                                                        cursor={{ fill: '#f8fafc' }}
+                                                                        contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                                                                    />
+                                                                    <Bar dataKey="val" radius={[6, 6, 0, 0]} barSize={24} animationDuration={2000}>
+                                                                        {[...Array(7)].map((_, index) => (
+                                                                            <Cell key={index} fill={index === 6 ? '#3b82f6' : '#e2e8f0'} />
+                                                                        ))}
+                                                                    </Bar>
+                                                                </BarChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </motion.div>

@@ -2155,6 +2155,16 @@
     color: #166534;
 }
 
+.noSpin::-webkit-inner-spin-button,
+.noSpin::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.noSpin {
+    -moz-appearance: textfield;
+    appearance: none;
+}
+
 @media (max-width: 768px) {
     .aiConfigRow {
         grid-template-columns: 1fr;
