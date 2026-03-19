@@ -134,7 +134,33 @@ function VendorIcon({ vendor, icon, color, focused }) {
     );
 }
 
+
+function ToggleSwitch({ checked, onChange, disabled, label, activeColor = '#2d5f3f' }) {
+    return (
+        <div 
+            className={s.switchWrapper} 
+            onClick={() => !disabled && onChange(!checked)}
+            style={{ opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+        >
+            <div 
+                className={s.switchTrack} 
+                style={{ 
+                    backgroundColor: checked ? activeColor : '#e2e8f0',
+                }}
+            >
+                <motion.div 
+                    className={s.switchThumb}
+                    animate={{ x: checked ? 20 : 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                />
+            </div>
+            {label && <span className={s.switchLabel} style={{ color: checked ? activeColor : '#64748b' }}>{label}</span>}
+        </div>
+    );
+}
+
 // ── Main ─────────────────────────────────────────
+
 export default function AdminPortal() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -473,15 +499,23 @@ export default function AdminPortal() {
     };
 
 
-    const saveAiConfig = async () => {
+    const saveAiConfig = async (configOverride = null) => {
+        const configToSave = configOverride || aiConfig;
         setAiConfigSaving(true);
         try {
-            await axios.post(`${API}/admin/config/ai`, aiConfig, authH());
-            push('AI Model Configuration updated successfully!');
-            setIsEditingAi(false);
+            await axios.post(`${API}/admin/config/ai`, configToSave, authH());
+            push('AI Configuration updated!');
+            if (!configOverride) setIsEditingAi(false);
         } catch { push('Failed to update AI config', 'err'); }
         finally { setAiConfigSaving(false); }
     };
+
+    const toggleEngine = async (engine, val) => {
+        const newConfig = { ...aiConfig, [engine]: { ...aiConfig[engine], enabled: val } };
+        setAiConfig(newConfig);
+        await saveAiConfig(newConfig);
+    };
+
 
     const fetchOverview = useCallback(async (silent = false) => {
         if (!silent) setOverviewLoading(true);
@@ -927,11 +961,11 @@ export default function AdminPortal() {
                                                     controls
                                                     playsInline
                                                     preload="metadata"
-                                                    crossOrigin="anonymous"
+                                                    
                                                     className={s.videoPreviewObj}
                                                 />
                                                 <div className={s.videoPreviewBadge}>
-                                                    {videoPreview ? 'New Selection' : (docForm.videoUrl?.startsWith('/uploads') ? 'Local Save (Vercel Incompatible)' : 'Saved to Cloud')}
+                                                    {videoPreview ? 'New Selection' : (!docForm.videoUrl ? 'No Video Link' : (docForm.videoUrl.startsWith('/uploads') ? 'Local Save (Vercel Incompatible)' : 'Saved to Cloud'))}
                                                 </div>
                                                 <button className={s.removeVideoBtn} onClick={removeVideo} type="button">
                                                     <Trash2 size={14} /> Remove Video
@@ -2180,15 +2214,16 @@ export default function AdminPortal() {
                                                                 <h4 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem', fontWeight: 800 }}>
                                                                     <Crown size={20} color="#2d5f3f" /> Primary Gateway
                                                                 </h4>
-                                                                <div className={s.inputToggle} style={{ background: aiConfig.primary.enabled ? '#ecfdf5' : '#f8fafc', borderColor: aiConfig.primary.enabled ? '#bbf7d0' : '#e2e8f0' }}>
-                                                                    <input
-                                                                        type="checkbox"
+                                                                <div className={s.inputTogglePremium}>
+                                                                    <ToggleSwitch 
                                                                         checked={aiConfig.primary.enabled}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, primary: { ...p.primary, enabled: e.target.checked } }))}
-                                                                        disabled={!isEditingAi}
+                                                                        onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, primary: { ...p.primary, enabled: val } })) : toggleEngine('primary', val)}
+                                                                        label={aiConfig.primary.enabled ? 'Active' : 'Disabled'}
+                                                                        disabled={aiConfigSaving}
                                                                     />
-                                                                    <span style={{ color: aiConfig.primary.enabled ? '#065f46' : '#64748b' }}>{aiConfig.primary.enabled ? 'Active' : 'Disabled'}</span>
+
                                                                 </div>
+
                                                             </div>
 
                                                             <div className={s.aiConfigRow} style={{ marginBottom: '1rem' }}>
@@ -2320,15 +2355,17 @@ export default function AdminPortal() {
                                                                 <h4 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem', fontWeight: 800 }}>
                                                                     <ShieldCheck size={20} color="#6366f1" /> Secondary Recovery
                                                                 </h4>
-                                                                <div className={s.inputToggle} style={{ background: aiConfig.fallback.enabled ? '#eef2ff' : '#f8fafc', borderColor: aiConfig.fallback.enabled ? '#c7d2fe' : '#e2e8f0' }}>
-                                                                    <input
-                                                                        type="checkbox"
+                                                                <div className={s.inputTogglePremium}>
+                                                                    <ToggleSwitch 
                                                                         checked={aiConfig.fallback.enabled}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, fallback: { ...p.fallback, enabled: e.target.checked } }))}
-                                                                        disabled={!isEditingAi}
+                                                                        onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, fallback: { ...p.fallback, enabled: val } })) : toggleEngine('fallback', val)}
+                                                                        label={aiConfig.fallback.enabled ? 'Enabled' : 'Disabled'}
+                                                                        activeColor="#6366f1"
+                                                                        disabled={aiConfigSaving}
                                                                     />
-                                                                    <span style={{ color: aiConfig.fallback.enabled ? '#3730a3' : '#64748b' }}>{aiConfig.fallback.enabled ? 'Enabled' : 'Disabled'}</span>
+
                                                                 </div>
+
                                                             </div>
 
                                                             <div className={s.aiConfigRow} style={{ marginBottom: '1rem' }}>

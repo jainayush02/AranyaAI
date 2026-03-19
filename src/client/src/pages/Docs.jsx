@@ -194,7 +194,7 @@ export default function Docs() {
                                         controls
                                         playsInline
                                         preload="metadata"
-                                        crossOrigin="anonymous"
+                                        
                                         src={activeArticle.videoUrl}
                                         className={s.videoPlayer}
                                         onError={(e) => {

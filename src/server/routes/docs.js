@@ -124,11 +124,13 @@ router.get('/admin/imagekit-auth', authenticate, adminOnly, (req, res) => {
 // POST create new article
 router.post('/', authenticate, adminOnly, async (req, res) => {
     try {
-        const { title, category, content, steps, order, published, videoUrl } = req.body;
+        const { title, category, content, steps, order, published, videoUrl, videoTitle, ikFileId } = req.body;
         const doc = await DocArticle.create({
             title, category, content, steps: steps || [],
             order: order || 0, published: published !== false,
             videoUrl: videoUrl || '',
+            videoTitle: videoTitle || '',
+            ikFileId: ikFileId || '',
             createdBy: req.user._id
         });
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Created doc article: "${title}"`);
@@ -138,39 +140,75 @@ router.post('/', authenticate, adminOnly, async (req, res) => {
     }
 });
 
+
 // PUT update article
 router.put('/:id', authenticate, adminOnly, async (req, res) => {
     try {
-        const { title, category, content, steps, order, published, videoUrl } = req.body;
+        const oldDoc = await DocArticle.findById(req.params.id);
+        if (!oldDoc) return res.status(404).json({ message: 'Not found' });
+
+        // If a new video is being linked, and there's an old ImageKit video, delete the old one to save space
+        if (req.body.ikFileId && oldDoc.ikFileId && req.body.ikFileId !== oldDoc.ikFileId) {
+            try {
+                await imagekit.deleteFile(oldDoc.ikFileId);
+                console.log('✅ ImageKit: Old file cleaned up during update');
+            } catch (ikErr) {
+                console.warn('⚠️ ImageKit: Cleanup of old file failed during update:', ikErr.message);
+            }
+        }
+
+        const updateData = { ...req.body, updatedAt: new Date() };
+        
+        // Use findByIdAndUpdate but ensure we don't accidentally wipe out fields with null/undefined 
+        // if they are not provided in a partial update (like the video-only update from Admin Portal)
         const doc = await DocArticle.findByIdAndUpdate(
             req.params.id,
-            { title, category, content, steps, order, published, videoUrl, updatedAt: new Date() },
-            { new: true }
+            { $set: updateData },
+            { new: true, runValidators: true }
         );
-        if (!doc) return res.status(404).json({ message: 'Not found' });
-        await logActivity('doc', req.user.name || 'Admin', req.user._id, `Updated doc article: "${title}"`);
+
+        await logActivity('doc', req.user.name || 'Admin', req.user._id, `Updated doc article: "${doc.title}"`);
         res.json(doc);
     } catch (err) {
+        console.error('Update doc error:', err);
         res.status(400).json({ message: err.message });
     }
 });
 
+
+
 // DELETE article
 router.delete('/:id', authenticate, adminOnly, async (req, res) => {
     try {
-        const doc = await DocArticle.findByIdAndDelete(req.params.id);
+        const doc = await DocArticle.findById(req.params.id);
         if (!doc) return res.status(404).json({ message: 'Not found' });
-        // Delete video file if exists
-        if (doc.videoUrl) {
+
+        // Delete local video file if it exists
+        if (doc.videoUrl && doc.videoUrl.startsWith('/uploads')) {
             const filePath = path.join(__dirname, '..', doc.videoUrl);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            if (fs.existsSync(filePath)) {
+                try { fs.unlinkSync(filePath); } catch(e) { console.error('Failed to unlink local video:', e); }
+            }
         }
+
+        // Delete from ImageKit if it exists
+        if (doc.ikFileId) {
+            try {
+                await imagekit.deleteFile(doc.ikFileId);
+                console.log('✅ ImageKit: File deleted successfully during article removal');
+            } catch (ikErr) {
+                console.error('⚠️ ImageKit: Deletion failed during article removal:', ikErr.message);
+            }
+        }
+
+        await DocArticle.findByIdAndDelete(req.params.id);
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Deleted doc article: "${doc.title}"`);
         res.json({ message: 'Deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 });
+
 
 // POST upload video tutorial
 router.post('/:id/upload-video', authenticate, adminOnly, upload.single('video'), async (req, res) => {
