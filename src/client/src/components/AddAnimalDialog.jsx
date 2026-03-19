@@ -127,27 +127,47 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                 <label className={styles.label}>Birth Month & Year</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                     <div style={{ flex: 1, position: 'relative' }}>
-                                        <input
-                                            type="number"
-                                            min="1" max="12"
-                                            className={styles.input}
-                                            placeholder="Month (1-12)"
-                                            value={birthMonth}
-                                            onChange={(e) => setBirthMonth(e.target.value)}
-                                        />
+                                        <div className={styles.selectContainer}>
+                                            <select
+                                                className={styles.select}
+                                                value={birthMonth}
+                                                onChange={(e) => setBirthMonth(e.target.value)}
+                                            >
+                                                <option value="" disabled>Month</option>
+                                                {Array.from({ length: 12 }, (_, i) => (
+                                                    <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
+                                                ))}
+                                            </select>
+                                            <div className={styles.selectIcon}>
+                                                <ChevronDown size={14} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div style={{ flex: 1.5, position: 'relative' }}>
+                                    <div style={{ flex: 1.2, position: 'relative' }}>
                                         <input
                                             type="number"
-                                            min="1990" max="2100"
+                                            min="1980" max={new Date().getFullYear()}
                                             className={styles.input}
                                             placeholder="Year (YYYY)"
                                             value={birthYear}
-                                            onChange={(e) => setBirthYear(e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                const currentYear = new Date().getFullYear();
+                                                // Allow intermediate typing (like '2') but block invalid/future peaks
+                                                if (val === '' || (parseInt(val) <= currentYear && val.length <= 4)) {
+                                                    setBirthYear(val);
+                                                }
+                                            }}
+                                            onBlur={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                const currentYear = new Date().getFullYear();
+                                                if (val < 1980) setBirthYear('1980');
+                                                if (val > currentYear) setBirthYear(currentYear.toString());
+                                            }}
                                         />
                                     </div>
                                 </div>
-                                <small style={{ color: '#64748b', marginTop: '4px', display: 'block' }}>Correct DOB helps Aranya AI monitor growth accurately.</small>
+                                <small style={{ color: '#64748b', marginTop: '4px', display: 'block' }}>Correct DOB is essential for Aranya growth models.</small>
                             </div>
 
                             <div className={styles.formGroup}>

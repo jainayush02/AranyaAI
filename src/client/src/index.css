@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
 :root {
   --primary: #2d5f3f;
   --primary-light: #3e7d55;
@@ -27,9 +29,13 @@
   --radius-xl: 1rem;
   --radius-full: 9999px;
 
-  --font-sans: 'Manrope', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-  --font-heading: 'Sora', 'Outfit', sans-serif;
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-heading: 'Manrope', sans-serif;
 }
+
+
+
+
 
 * {
   box-sizing: border-box;

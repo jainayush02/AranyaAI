@@ -209,12 +209,20 @@ router.post('/:id/logs', auth, async (req, res) => {
             console.error('AI Microservice unavailable:', aiErr.message);
         }
 
+        const tempVal = parseFloat(temperature);
+        const hrVal = parseInt(heartRate);
+        const weightVal = weight ? parseFloat(weight) : (animal.recentVitals?.weight || null);
+
         if (animal.recentVitals) {
-            animal.recentVitals.temperature = parseFloat(temperature);
-            animal.recentVitals.heartRate = parseInt(heartRate);
-            animal.recentVitals.weight = parseFloat(weight);
+            if (!isNaN(tempVal)) animal.recentVitals.temperature = tempVal;
+            if (!isNaN(hrVal)) animal.recentVitals.heartRate = hrVal;
+            if (weightVal !== null && !isNaN(weightVal)) animal.recentVitals.weight = weightVal;
         } else {
-            animal.recentVitals = { temperature: parseFloat(temperature), heartRate: parseInt(heartRate), weight: parseFloat(weight) };
+            animal.recentVitals = { 
+                temperature: !isNaN(tempVal) ? tempVal : 38.5, 
+                heartRate: !isNaN(hrVal) ? hrVal : 60, 
+                weight: (weightVal !== null && !isNaN(weightVal)) ? weightVal : undefined 
+            };
         }
 
         animal.status = status;

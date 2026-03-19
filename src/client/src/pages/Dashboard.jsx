@@ -106,19 +106,7 @@ export default function Dashboard() {
         });
     };
 
-    const [climate, setClimate] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
-
-    const fetchClimate = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get('/api/climate/pulse', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setClimate(res.data);
-        } catch (err) { console.error("Climate fetch failed"); }
-    };
-
     const fetchProfile = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -126,24 +114,19 @@ export default function Dashboard() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setUserProfile(res.data);
+            // Dynamic sync for cross-app parity
+            localStorage.setItem('user', JSON.stringify(res.data));
+            window.dispatchEvent(new Event('storage'));
+            window.dispatchEvent(new Event('userUpdated'));
         } catch (err) { console.error("Profile fetch failed"); }
     };
 
     useEffect(() => {
         if (role !== 'admin') {
-            fetchClimate();
             fetchProfile();
         }
     }, [role]);
 
-    const getClimateStyles = () => {
-        if (!climate) return {};
-        switch(climate.condition.toLowerCase()) {
-            case 'heatwave': return { background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' };
-            case 'rainy': return { background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '1px solid #bae6fd' };
-            default: return {};
-        }
-    };
 
     const handleToggleSelection = (e, id) => {
         e.stopPropagation();
@@ -242,6 +225,11 @@ export default function Dashboard() {
         return `${years}y ${months}m`;
     };
 
+    const herdCategories = ['General', ...new Set(animals.map(a => a.category).filter(Boolean).map(c => {
+        const tr = c.trim();
+        return tr.charAt(0).toUpperCase() + tr.slice(1).toLowerCase();
+    }))];
+
     if (role === 'admin') {
         return <Navigate to="/admin-portal" replace />;
     }
@@ -252,37 +240,19 @@ export default function Dashboard() {
         <div className={`container ${styles.dashboard} animate-fade-in`}>
 
             {/* ── Header ── */}
-            <header className={styles.greetHeader} style={getClimateStyles()}>
+            <header className={styles.greetHeader}>
                 <div className={styles.greetLeft}>
                     <div className={styles.greetIconWrap}>
                         <GreetIcon size={20} />
                     </div>
                     <div>
-                        <p className={styles.greetLine}>{greeting}, {user?.full_name?.split(' ')[0] || 'Farmer'} 🌿</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <p className={styles.greetLine}>{greeting}, {user?.full_name?.split(' ')[0] || 'Farmer'} 🌿</p>
+                        </div>
                         <h1 className={styles.greetTitle}>My Aranya Dashboard</h1>
                     </div>
                 </div>
-
                 <div className={styles.greetRight}>
-                    {climate && (
-                        <div className={styles.climateWidget}>
-                            <div className={styles.climateTop}>
-                                <ThermometerSun className={styles.climateIcon} size={16} />
-                                <span>{climate.temperature}°C • {climate.city}</span>
-                            </div>
-                            <p className={styles.climateTip}>
-                                <Zap size={14} /> {climate.tip}
-                            </p>
-                        </div>
-                    )}
-                    
-                    {userProfile?.streakCount > 0 && (
-                        <div className={styles.streakBadge}>
-                            <Flame size={18} fill="#f59e0b" color="#f59e0b" />
-                            <span>{userProfile.streakCount} Day Streak</span>
-                        </div>
-                    )}
-                    
                     <button id="tour-add" className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
                         <Plus size={16} /> Add New Aranya
                     </button>

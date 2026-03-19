@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Activity, FileText, HelpCircle,
-    Search, Lock, Unlock, Trash2, ChevronRight, ChevronLeft, ArrowLeft,
+    Search, Lock, Unlock, Trash2, ChevronRight, ChevronLeft, ArrowLeft, ArrowLeftCircle,
     Plus, Minus, Pencil, Save, X, Eye, EyeOff,
     RefreshCw, CheckCircle, AlertCircle, Loader2,
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
@@ -140,8 +140,15 @@ export default function AdminPortal() {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const initialTab = queryParams.get('tab') || 'overview';
+    const initialSubTab = queryParams.get('sub') || '';
 
     const [tab, setTab] = useState(initialTab);
+    const [subTab, setSubTab] = useState(initialSubTab); // For Docs
+    const [userLogSubTab, setUserLogSubTab] = useState('animals'); // For User details
+
+    // To avoid flicker, we use the values from URL directly for UI rendering
+    const activeTab = queryParams.get('tab') || 'overview';
+    const activeSubTab = queryParams.get('sub') || '';
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [toasts, setToasts] = useState([]);
     const push = useCallback((msg, type = 'ok') => { const id = Date.now(); setToasts(p => [...p, { id, msg, type }]); }, []);
@@ -192,7 +199,6 @@ export default function AdminPortal() {
     // Docs Hub
     const [articles, setArticles] = useState([]);
     const [articlesLoading, setArticlesLoading] = useState(false);
-    const [subTab, setSubTab] = useState('');
     const [docModal, setDocModal] = useState(null);
 
     // Admin Access Management
@@ -288,6 +294,7 @@ export default function AdminPortal() {
         try {
             const r = await axios.get(`${API}/admin/users/${id}`, authH());
             setFocusedUser(r.data);
+            setUserLogSubTab('animals');
             setUserAnimalPage(1);
             setUserLogPage(1);
         }
@@ -377,12 +384,12 @@ export default function AdminPortal() {
     };
 
     const fetchAiConfig = useCallback(async () => {
-        setAiConfigLoading(true);
+        setSettingsLoading(true);
         try {
             const r = await axios.get(`${API}/admin/config/ai`, authH());
             setAiConfig(r.data);
         } catch { push('Failed to load AI config', 'err'); }
-        finally { setAiConfigLoading(false); }
+        finally { setSettingsLoading(false); }
     }, [push]);
 
     // ── Animal Taxonomy helpers ───────────────────
@@ -522,6 +529,15 @@ export default function AdminPortal() {
         }
     }, [latencyTimeframe, isPinging]);
 
+    // Sync state with URL
+    useEffect(() => {
+        const q = new URLSearchParams(location.search);
+        const t = q.get('tab') || 'overview';
+        const s = q.get('sub') || '';
+        if (t !== tab) setTab(t);
+        if (s !== subTab) setSubTab(s);
+    }, [location.search, tab, subTab]);
+
     // Real-time poll (reduced frequency and made background-compatible)
     useEffect(() => {
         if (tab !== 'overview' || !liveUpdates) return;
@@ -554,24 +570,20 @@ export default function AdminPortal() {
         }
     }, [llmStats, focusedGraphModel]);
 
-    useEffect(() => { if (tab === 'users' && !focusedUser) fetchUsers(); }, [tab, fetchUsers, focusedUser]);
-    useEffect(() => { if (tab === 'logs') fetchLogs(); }, [tab, fetchLogs]);
-    useEffect(() => { if (tab === 'content') fetchFaqs(); }, [tab, fetchFaqs]);
-    useEffect(() => { if (tab === 'docs') fetchArticles(); }, [tab, fetchArticles]);
-    useEffect(() => { if (tab === 'adminaccess') fetchAdminAccess(); }, [tab, fetchAdminAccess]);
-    useEffect(() => { if (tab === 'settings') fetchAiConfig(); }, [tab, fetchAiConfig]);
-    useEffect(() => { if (tab === 'taxonomy') fetchTaxonomy(); }, [tab, fetchTaxonomy]);
+    useEffect(() => { if (activeTab === 'users' && !focusedUser) fetchUsers(); }, [activeTab, fetchUsers, focusedUser]);
+    useEffect(() => { if (activeTab === 'logs') fetchLogs(); }, [activeTab, fetchLogs]);
+    useEffect(() => { if (activeTab === 'content') fetchFaqs(); }, [activeTab, fetchFaqs]);
+    useEffect(() => { if (activeTab === 'docs') fetchArticles(); }, [activeTab, fetchArticles]);
+    useEffect(() => { if (activeTab === 'adminaccess') fetchAdminAccess(); }, [activeTab, fetchAdminAccess]);
+    useEffect(() => { if (activeTab === 'settings') fetchAiConfig(); }, [activeTab, fetchAiConfig]);
+    useEffect(() => { if (activeTab === 'taxonomy') fetchTaxonomy(); }, [activeTab, fetchTaxonomy]);
 
     useEffect(() => {
-        if (tab === 'pricing') {
+        if (activeTab === 'pricing') {
             setPricingLoading(true);
-            setPricingLoading(false);
+            setTimeout(() => setPricingLoading(false), 300); // Small delay for effect
         }
-        if (tab === 'settings') {
-            setSettingsLoading(true);
-            setSettingsLoading(false);
-        }
-    }, [tab]);
+    }, [activeTab]);
 
     const blockToggle = async u => {
         try {
@@ -770,7 +782,6 @@ export default function AdminPortal() {
 
     const handleTabClick = (t) => {
         navigate(`?tab=${t.id}`, { replace: true });
-        setTab(t.id);
     };
 
     // Banner info based on tab
@@ -785,7 +796,7 @@ export default function AdminPortal() {
         settings: { title: 'SYSTEM', subtitle: 'CONFIG', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
-    const currentBanner = bannerInfo[tab] || bannerInfo.overview;
+    const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
     const BannerIcon = currentBanner.icon;
 
     return (
@@ -1044,7 +1055,7 @@ export default function AdminPortal() {
                     </div>
                     <nav className={s.sideNav}>
                         {TABS.map(t => {
-                            const isActive = tab === t.id;
+                            const isActive = activeTab === t.id;
                             return (
                                 <button
                                     key={t.id}
@@ -1076,6 +1087,12 @@ export default function AdminPortal() {
                                 </button>
                             );
                         })}
+                        <div className={s.sidebarFooter}>
+                            <button className={s.navItem} onClick={() => navigate('/dashboard')} style={{ marginTop: 'auto', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', borderRadius: 0 }}>
+                                <ArrowLeftCircle size={17} />
+                                {isSidebarOpen && <span>Exit Portal</span>}
+                            </button>
+                        </div>
                     </nav>
                 </motion.aside>
 
@@ -1097,7 +1114,7 @@ export default function AdminPortal() {
                         <AnimatePresence mode="wait">
 
                             {/* ── OVERVIEW ── */}
-                            {tab === 'overview' && (
+                            {activeTab === 'overview' && (
                                 <motion.div key="ov" className={s.section}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -1448,7 +1465,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── USERS ── */}
-                            {tab === 'users' && (
+                            {activeTab === 'users' && (
                                 <motion.div key="us" className={s.section}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -1553,41 +1570,41 @@ export default function AdminPortal() {
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                                                             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', gap: '4px', position: 'relative' }}>
                                                                 <button
-                                                                    onClick={() => setSubTab('animals')}
+                                                                    onClick={() => setUserLogSubTab('animals')}
                                                                     style={{
                                                                         padding: '0.6rem 1.4rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, border: 'none', cursor: 'pointer', zIndex: 1, position: 'relative',
                                                                         background: 'transparent',
-                                                                        color: (subTab === 'animals' || !subTab) ? '#166534' : '#64748b',
+                                                                        color: (userLogSubTab === 'animals') ? '#166534' : '#64748b',
                                                                         transition: 'color 0.3s ease'
                                                                     }}
                                                                 >
-                                                                    {(subTab === 'animals' || !subTab) && (
+                                                                    {(userLogSubTab === 'animals') && (
                                                                         <motion.div layoutId="subTabPill" style={{ position: 'absolute', inset: 0, background: '#fff', borderRadius: '8px', zIndex: -1, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }} transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
                                                                     )}
                                                                     Animal Log
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => setSubTab('activity')}
+                                                                    onClick={() => setUserLogSubTab('activity')}
                                                                     style={{
                                                                         padding: '0.6rem 1.4rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, border: 'none', cursor: 'pointer', zIndex: 1, position: 'relative',
                                                                         background: 'transparent',
-                                                                        color: subTab === 'activity' ? '#166534' : '#64748b',
+                                                                        color: userLogSubTab === 'activity' ? '#166534' : '#64748b',
                                                                         transition: 'color 0.3s ease'
                                                                     }}
                                                                 >
-                                                                    {subTab === 'activity' && (
+                                                                    {userLogSubTab === 'activity' && (
                                                                         <motion.div layoutId="subTabPill" style={{ position: 'absolute', inset: 0, background: '#fff', borderRadius: '8px', zIndex: -1, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }} transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
                                                                     )}
                                                                     Activity Log
                                                                 </button>
                                                             </div>
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                {(subTab === 'animals' || !subTab) ? `${(focusedUser.animals || []).length} Records` : `${(focusedUser.logs || []).length} Actions`}
+                                                                {(userLogSubTab === 'animals') ? `${(focusedUser.animals || []).length} Records` : `${(focusedUser.logs || []).length} Actions`}
                                                             </div>
                                                         </div>
 
                                                         <AnimatePresence mode="wait">
-                                                            {(subTab === 'animals' || !subTab) ? (
+                                                            {(userLogSubTab === 'animals') ? (
                                                                 <motion.div
                                                                     key="animal-panel"
                                                                     initial={{ opacity: 0, scale: 0.98 }}
@@ -1762,7 +1779,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── ACTIVITY LOGS ── */}
-                            {tab === 'logs' && (
+                            {activeTab === 'logs' && (
                                 <motion.div key="lg" className={s.section}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -1825,7 +1842,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── CONTENT (FAQs + Docs link) ── */}
-                            {tab === 'content' && (
+                            {activeTab === 'content' && (
                                 <motion.div key="ct" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
@@ -1935,7 +1952,7 @@ export default function AdminPortal() {
                                                         <ArrowLeft size={18} />
                                                     </button>
                                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 800, textTransform: 'capitalize' }}>
-                                                        {subTab.replace('-', ' ')}
+                                                        {activeSubTab.replace('-', ' ')}
                                                     </h2>
                                                 </div>
                                                 <button className={s.primaryBtn} onClick={openDocCreate}><Plus size={16} /> New Article</button>
@@ -1958,10 +1975,10 @@ export default function AdminPortal() {
                                                                     <AdvancedLoader type="docs" compact={true} fullScreen={false} />
                                                                 </td>
                                                             </tr>
-                                                        ) : articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === subTab).length === 0 ? (
+                                                        ) : articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === activeSubTab).length === 0 ? (
                                                             <tr><td colSpan="4" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>No articles found in this category.</td></tr>
                                                         ) : (
-                                                            articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === subTab).map(art => (
+                                                            articles.filter(a => a.category.toLowerCase().replace(/\s+/g, '-') === activeSubTab).map(art => (
                                                                 <tr key={art._id}>
                                                                     <td style={{ fontWeight: 600 }}>
                                                                         {art.title}
@@ -1998,7 +2015,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── PRICING ── */}
-                            {tab === 'pricing' && (
+                            {activeTab === 'pricing' && (
                                 <motion.div key="pr" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
@@ -2504,7 +2521,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── ANIMAL TAXONOMY ── */}
-                            {tab === 'taxonomy' && (
+                            {activeTab === 'taxonomy' && (
                                 <motion.div key="tx" className={s.section}
                                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
@@ -2666,7 +2683,7 @@ export default function AdminPortal() {
                             )}
 
                             {/* ── ADMIN ACCESS ── */}
-                            {tab === 'adminaccess' && (
+                            {activeTab === 'adminaccess' && (
                                 <motion.div key="aa" className={s.section}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}

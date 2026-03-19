@@ -8,7 +8,8 @@ import {
     HelpCircle,
     Zap,
     LogOut,
-    ChevronDown
+    ChevronDown,
+    Flame
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './UserProfileMenu.module.css';

@@ -102,6 +102,10 @@
     overflow-y: auto;
 }
 
+.sidebarFooter {
+    margin-top: auto;
+}
+
 .navItem {
     position: relative;
     display: flex;

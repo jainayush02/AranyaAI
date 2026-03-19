@@ -1221,7 +1221,7 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
                             </div>
 
                             <div style="text-align: center; margin-top: 35px;">
-                                <a href="${process.env.VITE_CLIENT_URL || 'http://localhost:5173'}/login" 
+                                <a href="${process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || 'http://localhost:5173'}/login" 
                                    style="background-color: #2D6A4F; color: #ffffff; padding: 16px 35px; text-decoration: none; border-radius: 14px; font-weight: 800; display: inline-block; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(45, 95, 63, 0.3);">
                                     Access User Portal
                                 </a>

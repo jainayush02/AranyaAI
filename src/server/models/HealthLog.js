@@ -16,7 +16,7 @@ const healthLogSchema = new mongoose.Schema({
     },
     weight: {
         type: Number,
-        required: true
+        required: false
     },
     activityLevel: {
         type: Number, // 1 to 10
