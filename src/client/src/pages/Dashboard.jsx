@@ -106,6 +106,45 @@ export default function Dashboard() {
         });
     };
 
+    const [climate, setClimate] = useState(null);
+    const [userProfile, setUserProfile] = useState(null);
+
+    const fetchClimate = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get('/api/climate/pulse', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setClimate(res.data);
+        } catch (err) { console.error("Climate fetch failed"); }
+    };
+
+    const fetchProfile = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get('/api/auth/profile', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setUserProfile(res.data);
+        } catch (err) { console.error("Profile fetch failed"); }
+    };
+
+    useEffect(() => {
+        if (role !== 'admin') {
+            fetchClimate();
+            fetchProfile();
+        }
+    }, [role]);
+
+    const getClimateStyles = () => {
+        if (!climate) return {};
+        switch(climate.condition.toLowerCase()) {
+            case 'heatwave': return { background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' };
+            case 'rainy': return { background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '1px solid #bae6fd' };
+            default: return {};
+        }
+    };
+
     const handleToggleSelection = (e, id) => {
         e.stopPropagation();
         setSelectedAnimals(prev =>
@@ -149,7 +188,7 @@ export default function Dashboard() {
 
     const total = animals.length;
     const healthy = animals.filter(a => (a.status || '').toLowerCase() === 'healthy').length;
-    const alert = animals.filter(a => (a.status || '').toLowerCase() === 'alert' || (a.status || '').toLowerCase() === 'warning').length;
+    const warningStats = animals.filter(a => (a.status || '').toLowerCase() === 'alert' || (a.status || '').toLowerCase() === 'warning').length;
     const critical = animals.filter(a => (a.status || '').toLowerCase() === 'critical').length;
 
     const filteredAnimals = animals.filter(animal => {
@@ -168,8 +207,8 @@ export default function Dashboard() {
     if (critical > 0) {
         insightMessage = `Critical alert: ${critical} of your animals require immediate veterinary attention! AI models detected severe vital anomalies.`;
         insightTheme = { bg: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", color: "#b91c1c", border: "#fecaca" };
-    } else if (alert > 0) {
-        insightMessage = `Attention needed: ${alert} of your animals are showing early warning signs. The AI recommends close monitoring over the next 24 hours.`;
+    } else if (warningStats > 0) {
+        insightMessage = `Attention needed: ${warningStats} of your animals are showing early warning signs. The AI recommends close monitoring over the next 24 hours.`;
         insightTheme = { bg: "linear-gradient(135deg, #fefce8 0%, #fef08a 100%)", color: "#a16207", border: "#fde047" };
     } else if (total > 0 && healthScore === 100) {
         insightMessage = "Perfect! The AI model confirms your entire herd's vitals are in excellent condition today.";
@@ -213,7 +252,7 @@ export default function Dashboard() {
         <div className={`container ${styles.dashboard} animate-fade-in`}>
 
             {/* ── Header ── */}
-            <header className={styles.greetHeader}>
+            <header className={styles.greetHeader} style={getClimateStyles()}>
                 <div className={styles.greetLeft}>
                     <div className={styles.greetIconWrap}>
                         <GreetIcon size={20} />
@@ -223,9 +262,31 @@ export default function Dashboard() {
                         <h1 className={styles.greetTitle}>My Aranya Dashboard</h1>
                     </div>
                 </div>
-                <button id="tour-add" className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
-                    <Plus size={16} /> Add New Aranya
-                </button>
+
+                <div className={styles.greetRight}>
+                    {climate && (
+                        <div className={styles.climateWidget}>
+                            <div className={styles.climateTop}>
+                                <ThermometerSun className={styles.climateIcon} size={16} />
+                                <span>{climate.temperature}°C • {climate.city}</span>
+                            </div>
+                            <p className={styles.climateTip}>
+                                <Zap size={14} /> {climate.tip}
+                            </p>
+                        </div>
+                    )}
+                    
+                    {userProfile?.streakCount > 0 && (
+                        <div className={styles.streakBadge}>
+                            <Flame size={18} fill="#f59e0b" color="#f59e0b" />
+                            <span>{userProfile.streakCount} Day Streak</span>
+                        </div>
+                    )}
+                    
+                    <button id="tour-add" className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
+                        <Plus size={16} /> Add New Aranya
+                    </button>
+                </div>
             </header>
 
 
@@ -293,7 +354,7 @@ export default function Dashboard() {
                     </div>
                     <div className={styles.statInfo}>
                         <span className={styles.statLabel}>Warning</span>
-                        <span className={styles.statValue}>{alert}</span>
+                        <span className={styles.statValue}>{warningStats}</span>
                     </div>
                 </div>
 
@@ -307,6 +368,24 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Mastery Section ── */}
+            {userProfile?.badges?.length > 0 && (
+                <section className={styles.masterySection}>
+                    <div className={styles.badgeStrip}>
+                        {userProfile.badges.includes('perfect_week') && (
+                            <div className={styles.masteryBadge} title="Perfect Week: 7 Day Logging Streak">
+                                <Activity className={styles.medalIcon} size={28} />
+                                <div>
+                                    <p className={styles.badgeName}>Perfect Week</p>
+                                    <p className={styles.badgeDesc}>7-Day Consistency</p>
+                                </div>
+                            </div>
+                        )}
+                        {/* More badges can be added here */}
+                    </div>
+                </section>
+            )}
 
 
 

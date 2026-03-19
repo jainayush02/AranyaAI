@@ -1131,6 +1131,19 @@ router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
     }
 });
 
+// @route GET /api/auth/profile
+// @desc  Get current user profile
+router.get('/profile', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password -otp -otpExpires');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 // ── Care Circle Management Routes ──
 
 // @route GET /api/auth/care-circle
@@ -1151,7 +1164,11 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
     try {
         const { full_name, email, mobile, password } = req.body;
         
-        // Check if user already exists
+        // 1. Get the owner's record to customize the invite email
+        const owner = await User.findById(req.user.id);
+        const ownerName = owner?.full_name || 'an Aranya Owner';
+
+        // 2. Check if user already exists
         let existingUser = await User.findOne({ 
             $or: [
                 email ? { email } : null,
@@ -1178,33 +1195,79 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
 
         await newMember.save();
 
+        // 3. ── AUTOMATED EMAIL INVITATION ──
+        if (email) {
+            try {
+                const mailOptions = {
+                    from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                    to: email,
+                    subject: `Welcome to the Care Circle - Aranya AI`,
+                    html: `
+                        <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 20px; background: #ffffff;">
+                             <div style="text-align: center; margin-bottom: 25px;">
+                                <h2 style="color: #2D6A4F; font-size: 26px; margin: 0;">Aranya AI Collaboration</h2>
+                                <p style="color: #64748b; font-size: 14px;">Transforming Animal Care Together</p>
+                            </div>
+
+                            <p style="font-size: 16px; color: #1e293b; line-height: 1.6;">
+                                You have been invited by <strong>${ownerName}</strong> to join their <strong>Care Circle</strong> as a **Caretaker**. 
+                                You can now log in to the portal to help monitor their herd's biometrics and health records.
+                            </p>
+                            
+                            <div style="background-color: #f8fafc; padding: 25px; border-radius: 16px; margin: 30px 0; border: 1.5px dashed #cbd5e1; position: relative;">
+                                <div style="color: #2D6A4F; font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px;">Your Temporary Access Details</div>
+                                <p style="margin: 8px 0; font-size: 16px; color: #334155;"><strong>Portal ID:</strong> ${email}</p>
+                                <p style="margin: 8px 0; font-size: 16px; color: #334155;"><strong>Secret Key:</strong> ${password || 'Aranya@123'}</p>
+                            </div>
+
+                            <div style="text-align: center; margin-top: 35px;">
+                                <a href="${process.env.VITE_CLIENT_URL || 'http://localhost:5173'}/login" 
+                                   style="background-color: #2D6A4F; color: #ffffff; padding: 16px 35px; text-decoration: none; border-radius: 14px; font-weight: 800; display: inline-block; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(45, 95, 63, 0.3);">
+                                    Access User Portal
+                                </a>
+                            </div>
+
+                            <div style="margin-top: 40px; padding-top: 25px; border-top: 1px solid #f1f5f9; text-align: center;">
+                                <p style="color: #94a3b8; font-size: 13px;">Please change your password after logging in for the first time.</p>
+                                <p style="color: #cbd5e1; font-size: 11px;">&copy; 2026 Aranya AI. All rights reserved.</p>
+                            </div>
+                        </div>
+                    `
+                };
+                await transporter.sendMail(mailOptions);
+                console.log(`[INVITE] Professional invitation email sent to ${email}`);
+            } catch (mailErr) {
+                console.error('[INVITE] Nodemailer execution failed:', mailErr.message);
+            }
+        }
+
         try {
             await logActivity('staff_management', { id: req.user.id }, `Added new Care Circle member: ${full_name}`);
         } catch (_) {}
 
-        res.status(201).json({ message: 'Member added to Care Circle successfully', member: newMember });
+        res.status(201).json({ message: 'Member added and invitation email sent!', member: newMember });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
     }
 });
 
-// @route DELETE /api/auth/staff/:id
-// @desc  Remove a staff member
-router.delete('/staff/:id', authMiddleware, async (req, res) => {
+// @route DELETE /api/auth/care-circle/:id
+// @desc  Remove a Care Circle member
+router.delete('/care-circle/:id', authMiddleware, async (req, res) => {
     try {
-        const staff = await User.findOne({ _id: req.params.id, managedBy: req.user.id });
-        if (!staff) {
-            return res.status(404).json({ message: 'Staff member not found or not managed by you' });
+        const member = await User.findOne({ _id: req.params.id, managedBy: req.user.id });
+        if (!member) {
+            return res.status(404).json({ message: 'Member not found or not in your circle' });
         }
 
         await User.findByIdAndDelete(req.params.id);
 
         try {
-            await logActivity('staff_management', { id: req.user.id }, `Removed staff member: ${staff.full_name}`);
+            await logActivity('staff_management', { id: req.user.id }, `Removed Care Circle member: ${member.full_name}`);
         } catch (_) {}
 
-        res.json({ message: 'Staff member removed' });
+        res.json({ message: 'Member removed from Care Circle' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });

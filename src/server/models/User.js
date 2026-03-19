@@ -24,7 +24,10 @@ const userSchema = new mongoose.Schema({
     loginCount: { type: Number, default: 0 },
     gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say', ''], default: '' },
     dateOfBirth: { type: Date, default: null },
-    age: { type: Number, default: null }
+    age: { type: Number, default: null },
+    streakCount: { type: Number, default: 0 },
+    lastLogDate: { type: Date, default: null },
+    badges: [{ type: String }] // For gamified achievements
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

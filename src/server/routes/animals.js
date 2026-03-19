@@ -221,6 +221,37 @@ router.post('/:id/logs', auth, async (req, res) => {
         await animal.save();
         res.json({ log: newLog, animalStatus: status, aiErrorScore });
 
+        // Update User Streak & Gamification
+        try {
+            const user = await require('../models/User').findById(ownerId);
+            if (user) {
+                const today = new Date();
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+
+                const lastLog = user.lastLogDate ? new Date(user.lastLogDate) : null;
+                
+                if (!lastLog) {
+                    user.streakCount = 1;
+                } else if (lastLog.toDateString() === yesterday.toDateString()) {
+                    user.streakCount += 1;
+                } else if (lastLog.toDateString() !== today.toDateString()) {
+                    user.streakCount = 1;
+                }
+                
+                user.lastLogDate = today;
+
+                // Award Badge: Perfect Week (7 days)
+                if (user.streakCount === 7 && !user.badges.includes('perfect_week')) {
+                    user.badges.push('perfect_week');
+                }
+                
+                await user.save();
+            }
+        } catch (streakErr) {
+            console.error('Streak update failed:', streakErr.message);
+        }
+
         // Cleanup: logs older than 7 days
         try {
             const sevenDaysAgo = new Date();
