@@ -154,11 +154,11 @@ router.post('/:id/recalculate', auth, async (req, res) => {
         try {
             const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
                 history: chronologicalLogs
-            }, { timeout: 8000 });
+            }, { timeout: 2500 });
             status = aiResponse.data.status;
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
-            console.error('AI Microservice unavailable:', aiErr.message);
+            console.error('AI Microservice unavailable or slow:', aiErr.message);
         }
 
         animal.status = status;
@@ -194,21 +194,7 @@ router.post('/:id/logs', auth, async (req, res) => {
 
         await newLog.save();
 
-        const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
-        const chronologicalLogs = logs.reverse();
-
-        let status = 'Healthy';
-        let aiErrorScore = null;
-        try {
-            const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
-                history: chronologicalLogs
-            }, { timeout: 8000 });
-            status = aiResponse.data.status;
-            aiErrorScore = aiResponse.data.error_score;
-        } catch (aiErr) {
-            console.error('AI Microservice unavailable:', aiErr.message);
-        }
-
+        // Update Animal Recent Vitals immediately so the UI reflects current readings
         const tempVal = parseFloat(temperature);
         const hrVal = parseInt(heartRate);
         const weightVal = weight ? parseFloat(weight) : (animal.recentVitals?.weight || null);
@@ -224,52 +210,81 @@ router.post('/:id/logs', auth, async (req, res) => {
                 weight: (weightVal !== null && !isNaN(weightVal)) ? weightVal : undefined 
             };
         }
-
-        animal.status = status;
+        
         await animal.save();
-        res.json({ log: newLog, animalStatus: status, aiErrorScore });
 
-        // Update User Streak & Gamification
-        try {
-            const user = await require('../models/User').findById(ownerId);
-            if (user) {
-                const today = new Date();
-                const yesterday = new Date();
-                yesterday.setDate(today.getDate() - 1);
+        // 🚀 RETURN RESPONSE IMMEDIATELY (Eliminates the 10s wait)
+        res.json({ 
+            log: newLog, 
+            animalStatus: animal.status, 
+            aiErrorScore: null,
+            msg: 'Health log saved instantly. AI analysis running in background.' 
+        });
 
-                const lastLog = user.lastLogDate ? new Date(user.lastLogDate) : null;
+        // 🧠 Non-blocking Background Tasks
+        // We use setImmediate to ensure the response is flushed before starting heavy work
+        setImmediate(async () => {
+            try {
+                // 1. AI Prediction
+                const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
+                const chronologicalLogs = logs.reverse();
+
+                let newStatus = animal.status;
+                let errorScore = null;
                 
-                if (!lastLog) {
-                    user.streakCount = 1;
-                } else if (lastLog.toDateString() === yesterday.toDateString()) {
-                    user.streakCount += 1;
-                } else if (lastLog.toDateString() !== today.toDateString()) {
-                    user.streakCount = 1;
+                try {
+                    // We can use a longer timeout here because it's not blocking the user
+                    const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
+                        history: chronologicalLogs
+                    }, { timeout: 15000 });
+                    
+                    newStatus = aiResponse.data.status;
+                    errorScore = aiResponse.data.error_score;
+
+                    // Update the animal with the new prediction
+                    await Animal.findByIdAndUpdate(req.params.id, { status: newStatus });
+                } catch (aiErr) {
+                    // If AI service is not set up correctly in deployment, we log it but don't crash
+                    console.error('Background AI analysis failed (AI Service likely unreachable):', aiErr.message);
                 }
-                
-                user.lastLogDate = today;
 
-                // Award Badge: Perfect Week (7 days)
-                if (user.streakCount === 7 && !user.badges.includes('perfect_week')) {
-                    user.badges.push('perfect_week');
+                // 2. Update User Streak & Gamification
+                const user = await require('../models/User').findById(ownerId);
+                if (user) {
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    const lastLog = user.lastLogDate ? new Date(user.lastLogDate) : null;
+                    
+                    if (!lastLog || lastLog.toDateString() !== today.toDateString()) {
+                        if (!lastLog) {
+                            user.streakCount = 1;
+                        } else if (lastLog.toDateString() === yesterday.toDateString()) {
+                            user.streakCount += 1;
+                        } else {
+                            user.streakCount = 1;
+                        }
+                        user.lastLogDate = today;
+
+                        if (user.streakCount === 7 && !user.badges.includes('perfect_week')) {
+                            user.badges.push('perfect_week');
+                        }
+                        await user.save();
+                    }
                 }
-                
-                await user.save();
+
+                // 3. Cleanup: logs older than 7 days
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                await HealthLog.deleteMany({ animal_id: req.params.id, createdAt: { $lt: sevenDaysAgo } });
+
+            } catch (bgErr) {
+                console.error('Critical background process error:', bgErr.message);
             }
-        } catch (streakErr) {
-            console.error('Streak update failed:', streakErr.message);
-        }
-
-        // Cleanup: logs older than 7 days
-        try {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            await HealthLog.deleteMany({ animal_id: req.params.id, createdAt: { $lt: sevenDaysAgo } });
-        } catch (cleanupErr) {
-            console.error('Log cleanup failed:', cleanupErr.message);
-        }
+        });
     } catch (err) {
-        res.status(500).send('Server Error');
+        console.error('Save log failed:', err);
+        if (!res.headersSent) res.status(500).send('Server Error');
     }
 });
 

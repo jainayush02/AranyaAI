@@ -32,4 +32,6 @@ const healthLogSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+healthLogSchema.index({ animal_id: 1, createdAt: -1 });
+
 module.exports = mongoose.model('HealthLog', healthLogSchema);

@@ -45,4 +45,6 @@ const animalSchema = new mongoose.Schema({
     timestamps: true
 });
 
+animalSchema.index({ user_id: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Animal', animalSchema);
