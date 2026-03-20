@@ -469,7 +469,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 // @desc  Update user profile (e.g., full name, mobile)
 router.put('/profile', authMiddleware, async (req, res) => {
     try {
-        const { email, mobile, new_mobile, full_name, gender, dateOfBirth, age } = req.body;
+        const { email, mobile, new_mobile, full_name, gender, dateOfBirth, age, settings } = req.body;
 
         let user = await User.findById(req.user.id);
 
@@ -493,6 +493,10 @@ router.put('/profile', authMiddleware, async (req, res) => {
         if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth || null;
         if (age !== undefined) user.age = age || null;
 
+        if (settings) {
+            user.settings = { ...user.settings, ...settings };
+        }
+
         await user.save();
         try {
             await logActivity('profile', user, `Updated profile information`);
@@ -509,12 +513,45 @@ router.put('/profile', authMiddleware, async (req, res) => {
                 profilePic: user.profilePic,
                 gender: user.gender,
                 dateOfBirth: user.dateOfBirth,
-                age: user.age
+                age: user.age,
+                settings: user.settings
             }
         });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route POST /api/auth/send-report
+// @desc  Manually trigger the Weekly Performance Digest
+router.post('/send-report', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const Animal = require('../models/Animal');
+        const animals = await Animal.find({ user_id: user.id });
+
+        const { sendWeeklyDigest } = require('../utils/notifications');
+        console.log(`[ReportRequest] Starting manual trigger for user ID: ${user._id} (${user.email})`);
+        
+        if (!user.email) {
+            return res.status(400).json({ message: 'No email address found for your account. Please set an email in your profile to receive reports.' });
+        }
+
+        const success = await sendWeeklyDigest(user, animals, true); // force=true
+
+        if (success) {
+            console.log(`[ReportRequest] Manual report successfully sent to ${user.email}`);
+            res.json({ message: `Success! Performance digest sent to ${user.email}.` });
+        } else {
+            console.warn(`[ReportRequest] Notification service returned 'false' for ${user.email}`);
+            res.status(400).json({ message: `We could not reach ${user.email}. Please ensure your email is correct and verified.` });
+        }
+    } catch (error) {
+        console.error('[auth/send-report] Critical Failure:', error);
+        res.status(500).json({ message: 'A server error occurred while processing your report. Please check the logs.' });
     }
 });
 
@@ -1163,13 +1200,13 @@ router.get('/care-circle', authMiddleware, async (req, res) => {
 router.post('/care-circle/invite', authMiddleware, async (req, res) => {
     try {
         const { full_name, email, mobile, password } = req.body;
-        
+
         // 1. Get the owner's record to customize the invite email
         const owner = await User.findById(req.user.id);
         const ownerName = owner?.full_name || 'an Aranya Owner';
 
         // 2. Check if user already exists
-        let existingUser = await User.findOne({ 
+        let existingUser = await User.findOne({
             $or: [
                 email ? { email } : null,
                 mobile ? { mobile } : null
@@ -1243,7 +1280,7 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
 
         try {
             await logActivity('staff_management', { id: req.user.id }, `Added new Care Circle member: ${full_name}`);
-        } catch (_) {}
+        } catch (_) { }
 
         res.status(201).json({ message: 'Member added and invitation email sent!', member: newMember });
     } catch (error) {
@@ -1265,7 +1302,7 @@ router.delete('/care-circle/:id', authMiddleware, async (req, res) => {
 
         try {
             await logActivity('staff_management', { id: req.user.id }, `Removed Care Circle member: ${member.full_name}`);
-        } catch (_) {}
+        } catch (_) { }
 
         res.json({ message: 'Member removed from Care Circle' });
     } catch (error) {
@@ -1279,18 +1316,18 @@ router.delete('/care-circle/:id', authMiddleware, async (req, res) => {
 router.get('/care-circle/activities', authMiddleware, async (req, res) => {
     try {
         const ActivityLog = require('../models/ActivityLog');
-        
+
         // 1. Get all members managed by this user
         const members = await User.find({ managedBy: req.user.id }).select('_id');
         const memberIds = members.map(s => s._id);
-        
+
         // 2. Fetch logs for self + circle members
         const logs = await ActivityLog.find({
             userId: { $in: [req.user.id, ...memberIds] }
         })
-        .sort({ createdAt: -1 })
-        .limit(50);
-        
+            .sort({ createdAt: -1 })
+            .limit(50);
+
         res.json(logs);
     } catch (error) {
         console.error(error);

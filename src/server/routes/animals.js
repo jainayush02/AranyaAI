@@ -243,6 +243,16 @@ router.post('/:id/logs', auth, async (req, res) => {
 
                     // Update the animal with the new prediction
                     await Animal.findByIdAndUpdate(req.params.id, { status: newStatus });
+
+                    // 🚨 TRIGGER SMART ALERT: Only if status is 'Critical' and preference is ON
+                    if (newStatus === 'Critical') {
+                        const User = require('../models/User');
+                        const userRecord = await User.findById(ownerId);
+                        if (userRecord && userRecord.settings?.healthAlerts) {
+                            const { sendSmartAlert } = require('../utils/notifications');
+                            await sendSmartAlert(userRecord, animal, newStatus);
+                        }
+                    }
                 } catch (aiErr) {
                     // If AI service is not set up correctly in deployment, we log it but don't crash
                     console.error('Background AI analysis failed (AI Service likely unreachable):', aiErr.message);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, Plus, Trash2, Mail, Phone, Settings as SettingsIcon, CreditCard, ShieldAlert, Zap, Users, UserPlus } from 'lucide-react';
+import { Globe, Bell, Lock, Tag, IndianRupee, Database, Save, Activity, Plus, Trash2, Mail, Phone, Settings as SettingsIcon, CreditCard, ShieldAlert, Zap, Users, UserPlus, CheckCircle, RefreshCw, MailCheck, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -21,7 +21,9 @@ export default function Settings() {
         weeklyReports: true,
     });
     const [isApplying, setIsApplying] = useState(false);
-    
+    const [sendingReport, setSendingReport] = useState(false);
+    const [reportStatus, setReportStatus] = useState(null);
+
     // Care Circle Management
     const [circleMembers, setCircleMembers] = useState([]);
     const [inviteForm, setInviteForm] = useState({ full_name: '', email: '', mobile: '', password: '' });
@@ -79,6 +81,22 @@ export default function Settings() {
         // Fetch circle members if user
         if (role !== 'admin') {
             fetchCircleMembers();
+
+            // Load fresh settings on mount
+            const fetchFreshProfile = async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    if (!token) return;
+                    const res = await axios.get('/api/auth/profile', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.data) {
+                        setUser(res.data);
+                        if (res.data.settings) setSettings(prev => ({ ...prev, ...res.data.settings }));
+                    }
+                } catch (e) { }
+            };
+            fetchFreshProfile();
         }
     }, [role]);
 
@@ -163,13 +181,29 @@ export default function Settings() {
         }
     };
 
+    const updateUserSettings = async (updatedSettings) => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const res = await axios.put('/api/auth/profile', { settings: updatedSettings }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.user) {
+                setUser(res.data.user);
+                localStorage.setItem('user', JSON.stringify(res.data.user));
+                window.dispatchEvent(new Event('userUpdated'));
+            }
+        } catch (err) {
+            console.error("Failed to update user settings:", err);
+        }
+    };
+
     const handleToggle = (field) => {
         const updated = { ...settings, [field]: !settings[field] };
         setSettings(updated);
-        if (user) {
-            const updatedUser = { ...user, settings: updated };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-        }
+        updateUserSettings(updated);
     };
 
     const handleChangeLang = (e) => {
@@ -177,24 +211,31 @@ export default function Settings() {
         const updated = { ...settings, language: val };
         setSettings(updated);
 
-        // Feedback is now immediate
+        // Feedback is immediate
         setIsApplying(true);
-        setIsApplying(false);
-
-        if (user) {
-            const updatedUser = { ...user, settings: updated };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            window.dispatchEvent(new Event('storage'));
-        }
+        setTimeout(() => setIsApplying(false), 800);
+        updateUserSettings(updated);
     };
 
     const handleChangeRegion = (e) => {
         const updated = { ...settings, region: e.target.value };
         setSettings(updated);
-        if (user) {
-            const updatedUser = { ...user, settings: updated };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            window.dispatchEvent(new Event('storage'));
+        // Only update local state if region is not part of model
+    };
+
+    const handleSendManualReport = async () => {
+        try {
+            setSendingReport(true);
+            const token = localStorage.getItem('token');
+            const res = await axios.post('/api/auth/send-report', {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setReportStatus({ type: 'success', text: res.data.message });
+        } catch (err) {
+            setReportStatus({ type: 'error', text: err.response?.data?.message || 'Failed to send report' });
+        } finally {
+            setSendingReport(false);
+            setTimeout(() => setReportStatus(null), 4000);
         }
     };
 
@@ -202,16 +243,16 @@ export default function Settings() {
         ? [
             { id: 'pricing', label: 'Subscription', icon: CreditCard },
             { id: 'settings', label: 'System Configuration', icon: SettingsIcon }
-          ]
-        : (role === 'user' 
+        ]
+        : (role === 'user'
             ? [
                 { id: 'account', label: 'Account Settings', icon: Globe },
                 { id: 'care-circle', label: 'Care Circle', icon: Users }
-              ]
+            ]
             : [
                 { id: 'account', label: 'Account Settings', icon: Globe }
-              ]
-          );
+            ]
+        );
 
     useEffect(() => {
         const tab = queryParams.get('tab');
@@ -513,42 +554,42 @@ export default function Settings() {
                                         <form onSubmit={handleInviteMember} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
                                             <div className={styles.formItem}>
                                                 <label className={styles.label}>Full Name</label>
-                                                <input 
-                                                    className={styles.boxedInput} 
-                                                    placeholder="e.g. Rahul Sharma" 
+                                                <input
+                                                    className={styles.boxedInput}
+                                                    placeholder="e.g. Rahul Sharma"
                                                     value={inviteForm.full_name}
-                                                    onChange={e => setInviteForm({...inviteForm, full_name: e.target.value})}
+                                                    onChange={e => setInviteForm({ ...inviteForm, full_name: e.target.value })}
                                                     required
                                                 />
                                             </div>
                                             <div className={styles.formItem}>
                                                 <label className={styles.label}>Email Address</label>
-                                                <input 
-                                                    className={styles.boxedInput} 
-                                                    type="email" 
-                                                    placeholder="member@example.com" 
+                                                <input
+                                                    className={styles.boxedInput}
+                                                    type="email"
+                                                    placeholder="member@example.com"
                                                     value={inviteForm.email}
-                                                    onChange={e => setInviteForm({...inviteForm, email: e.target.value})}
+                                                    onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
                                                     required
                                                 />
                                             </div>
                                             <div className={styles.formItem}>
                                                 <label className={styles.label}>Mobile Number</label>
-                                                <input 
-                                                    className={styles.boxedInput} 
-                                                    placeholder="e.g. 9876543210" 
+                                                <input
+                                                    className={styles.boxedInput}
+                                                    placeholder="e.g. 9876543210"
                                                     value={inviteForm.mobile}
-                                                    onChange={e => setInviteForm({...inviteForm, mobile: e.target.value})}
+                                                    onChange={e => setInviteForm({ ...inviteForm, mobile: e.target.value })}
                                                 />
                                             </div>
                                             <div className={styles.formItem}>
                                                 <label className={styles.label}>Access Password</label>
-                                                <input 
-                                                    className={styles.boxedInput} 
-                                                    type="password" 
-                                                    placeholder="Set initial password" 
+                                                <input
+                                                    className={styles.boxedInput}
+                                                    type="password"
+                                                    placeholder="Set initial password"
                                                     value={inviteForm.password}
-                                                    onChange={e => setInviteForm({...inviteForm, password: e.target.value})}
+                                                    onChange={e => setInviteForm({ ...inviteForm, password: e.target.value })}
                                                     required
                                                 />
                                             </div>
@@ -586,7 +627,7 @@ export default function Settings() {
                                                                     <span className={styles.toggleDesc}>{member.email || member.mobile} • Role: Caretaker</span>
                                                                 </div>
                                                             </div>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleRemoveMember(member._id)}
                                                                 style={{ border: 'none', background: '#fee2e2', color: '#ef4444', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700 }}
                                                             >
@@ -675,19 +716,71 @@ export default function Settings() {
                                                 { key: 'healthAlerts', label: 'Critical Smart Alerts', desc: 'Real-time alerts for biometric anomalies' },
                                                 { key: 'weeklyReports', label: 'Weekly Performance Digest', desc: 'Consolidated data for animal trends' }
                                             ].map(item => (
-                                                <div key={item.key} className={styles.toggleRow} style={{ border: 'none', background: '#f8fafc', padding: '1.25rem', borderRadius: '18px', marginBottom: '0.75rem' }}>
-                                                    <div className={styles.toggleInfo}>
+                                                <div key={item.key} className={styles.toggleRow} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: 'none', background: '#f8fafc', padding: '1.25rem', borderRadius: '18px', marginBottom: '0.75rem' }}>
+                                                    <div className={styles.toggleInfo} style={{ display: 'flex', flexDirection: 'column' }}>
                                                         <span className={styles.toggleLabel}>{item.label}</span>
                                                         <span className={styles.toggleDesc}>{item.desc}</span>
                                                     </div>
-                                                    <label className={styles.switch}>
-                                                        <input type="checkbox" checked={settings[item.key]} onChange={() => handleToggle(item.key)} />
-                                                        <span className={styles.slider}></span>
-                                                    </label>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                        {item.key === 'weeklyReports' && settings.weeklyReports && (
+                                                            <motion.button
+                                                                whileHover={{ scale: 1.05 }}
+                                                                whileTap={{ scale: 0.95 }}
+                                                                onClick={handleSendManualReport}
+                                                                disabled={sendingReport}
+                                                                style={{
+                                                                    padding: '6px 14px',
+                                                                    background: reportStatus?.type === 'success' ? '#22c55e' : 'var(--primary)',
+                                                                    color: '#fff',
+                                                                    border: 'none',
+                                                                    borderRadius: '20px',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 600,
+                                                                    cursor: 'pointer',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '6px',
+                                                                    boxShadow: '0 4px 10px rgba(45, 95, 63, 0.15)'
+                                                                }}
+                                                            >
+                                                                {sendingReport ? (
+                                                                    <RefreshCw className="animate-spin" size={14} />
+                                                                ) : reportStatus?.type === 'success' ? (
+                                                                    <CheckCircle size={14} />
+                                                                ) : (
+                                                                    <Mail size={14} />
+                                                                )}
+                                                                {sendingReport ? 'Sending...' : reportStatus?.type === 'success' ? 'Sent!' : 'Send Now'}
+                                                            </motion.button>
+                                                        )}
+                                                        <label className={styles.switch} style={{ flexShrink: 0 }}>
+                                                            <input type="checkbox" checked={!!settings?.[item.key]} onChange={() => handleToggle(item.key)} />
+                                                            <span className={styles.slider}></span>
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     </section>
+                                    <AnimatePresence>
+                                        {reportStatus && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                                                style={{
+                                                    position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)',
+                                                    padding: '16px 28px', background: reportStatus.type === 'success' ? '#166534' : '#991b1b', color: '#fff',
+                                                    borderRadius: '20px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '14px',
+                                                    backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', minWidth: '320px',
+                                                    textAlign: 'center', justifyContent: 'center'
+                                                }}
+                                            >
+                                                {reportStatus.type === 'success' ? <MailCheck size={22} /> : <AlertCircle size={22} />}
+                                                <span style={{ fontWeight: 600 }}>{reportStatus.text}</span>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </>
                             )}
                         </div>

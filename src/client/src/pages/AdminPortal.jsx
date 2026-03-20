@@ -102,8 +102,8 @@ function VendorIcon({ vendor, icon, color, focused }) {
     const [err, setErr] = useState(false);
     if (err || !vendor || vendor === 'Unknown') {
         return (
-            <div style={{ 
-                width: '1.2rem', height: '1.2rem', borderRadius: '4px', 
+            <div style={{
+                width: '1.2rem', height: '1.2rem', borderRadius: '4px',
                 background: `${color}15`, color: color || '#64748b',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem',
                 flexShrink: 0
@@ -112,24 +112,24 @@ function VendorIcon({ vendor, icon, color, focused }) {
             </div>
         );
     }
-    const domainMap = { 
-        'OpenAI': 'openai.com', 'Anthropic': 'anthropic.com', 'Google': 'google.com', 
-        'Mistral': 'mistral.ai', 'Meta / Llama': 'meta.com', 'NVIDIA': 'nvidia.com', 
-        'DeepSeek': 'deepseek.com', 'Alibaba': 'alibaba.com', 'Cohere': 'cohere.com', 
-        'Microsoft': 'microsoft.com', 'Upstage': 'upstage.ai', 'Databricks': 'databricks.com', 
+    const domainMap = {
+        'OpenAI': 'openai.com', 'Anthropic': 'anthropic.com', 'Google': 'google.com',
+        'Mistral': 'mistral.ai', 'Meta / Llama': 'meta.com', 'NVIDIA': 'nvidia.com',
+        'DeepSeek': 'deepseek.com', 'Alibaba': 'alibaba.com', 'Cohere': 'cohere.com',
+        'Microsoft': 'microsoft.com', 'Upstage': 'upstage.ai', 'Databricks': 'databricks.com',
         'TII': 'tii.ae', 'Nous': 'nousresearch.com', '01.AI': '01.ai', 'Groq': 'groq.com'
     };
     return (
-        <img 
-            src={`https://www.google.com/s2/favicons?domain=${domainMap[vendor] || 'huggingface.co'}&sz=64`} 
-            alt={vendor} 
+        <img
+            src={`https://www.google.com/s2/favicons?domain=${domainMap[vendor] || 'huggingface.co'}&sz=64`}
+            alt={vendor}
             onError={() => setErr(true)}
-            style={{ 
-                width: '1.2rem', height: '1.2rem', borderRadius: '4px', 
+            style={{
+                width: '1.2rem', height: '1.2rem', borderRadius: '4px',
                 filter: focused ? 'none' : 'grayscale(30%)',
                 flexShrink: 0,
                 objectFit: 'contain'
-            }} 
+            }}
         />
     );
 }
@@ -137,18 +137,18 @@ function VendorIcon({ vendor, icon, color, focused }) {
 
 function ToggleSwitch({ checked, onChange, disabled, label, activeColor = '#2d5f3f' }) {
     return (
-        <div 
-            className={s.switchWrapper} 
+        <div
+            className={s.switchWrapper}
             onClick={() => !disabled && onChange(!checked)}
             style={{ opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
         >
-            <div 
-                className={s.switchTrack} 
-                style={{ 
+            <div
+                className={s.switchTrack}
+                style={{
                     backgroundColor: checked ? activeColor : '#e2e8f0',
                 }}
             >
-                <motion.div 
+                <motion.div
                     className={s.switchThumb}
                     animate={{ x: checked ? 20 : 0 }}
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -183,7 +183,7 @@ export default function AdminPortal() {
     // Overview
     const [stats, setStats] = useState(null);
     const [overviewLoading, setOverviewLoading] = useState(true);
-    const [llmStats, setLlmStats] = useState([]); 
+    const [llmStats, setLlmStats] = useState([]);
     const [focusedGraphModel, setFocusedGraphModel] = useState(null);
     const [latencyTimeframe, setLatencyTimeframe] = useState('24');
     const [llmHistory, setLlmHistory] = useState([]);
@@ -434,13 +434,13 @@ export default function AdminPortal() {
         setTaxonomySaving(true);
         try {
             await axios.post(`${API}/settings/update`, { key: 'animal_categories', value: updated }, authH());
-            
+
             // Record in Activity Logs if a message is provided
             if (logMsg) {
-                try { await axios.post(`${API}/admin/activity/log`, { action: logMsg, type: 'admin' }, authH()); } catch(e) { console.error('Logging failed', e); }
+                try { await axios.post(`${API}/admin/activity/log`, { action: logMsg, type: 'admin' }, authH()); } catch (e) { console.error('Logging failed', e); }
                 fetchOverview(); // Refresh overview logs
             }
-            
+
             push('Saved!');
         } catch (err) {
             console.error('Taxonomy save error:', err);
@@ -541,7 +541,7 @@ export default function AdminPortal() {
             const res = await axios.get(`${API}/admin/llm-history?modelId=${encodeURIComponent(modelId)}&hours=${latencyTimeframe}`, authH());
             if (res.data) {
                 setLlmHistory(res.data);
-                
+
                 // If chart is empty, generate initial data points immediately 
                 if (res.data.length === 0 && !isPinging) {
                     setIsPinging(true);
@@ -557,8 +557,8 @@ export default function AdminPortal() {
                     } finally { setIsPinging(false); }
                 }
             }
-        } catch (e) { 
-            console.error('History fetch failed:', e); 
+        } catch (e) {
+            console.error('History fetch failed:', e);
             setLlmHistory([]);
         }
     }, [latencyTimeframe, isPinging]);
@@ -748,7 +748,7 @@ export default function AdminPortal() {
                     const preset = import.meta.env.VITE_CLOUDINARY_PRESET;
 
                     console.log(`Uploading to Cloudinary [Unsigned]... Cloud: ${cloudName}, Preset: ${preset}`);
-                    
+
                     const fd = new FormData();
                     fd.append('file', docForm.videoFile);
                     fd.append('upload_preset', preset);
@@ -959,7 +959,7 @@ export default function AdminPortal() {
                                                     controls
                                                     playsInline
                                                     preload="metadata"
-                                                    
+
                                                     className={s.videoPreviewObj}
                                                 />
                                                 <div className={s.videoPreviewBadge}>
@@ -1159,10 +1159,10 @@ export default function AdminPortal() {
                                             <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '4px 0 0' }}>Real-time growth and system status metrics.</p>
                                         </div>
                                         <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                            <div 
+                                            <div
                                                 onClick={() => setLiveUpdates(!liveUpdates)}
-                                                style={{ 
-                                                    display: 'flex', alignItems: 'center', gap: '8px', 
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '8px',
                                                     padding: '6px 14px', borderRadius: '99px',
                                                     background: liveUpdates ? '#f0fdf4' : '#f8fafc',
                                                     border: `1px solid ${liveUpdates ? '#10b98140' : '#e2e8f0'}`,
@@ -1174,11 +1174,11 @@ export default function AdminPortal() {
                                                     {liveUpdates ? 'LIVE UPDATES ON' : 'AUTO UPDATES OFF'}
                                                 </span>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => fetchOverview()}
                                                 disabled={refreshing}
-                                                style={{ 
-                                                    display: 'flex', alignItems: 'center', gap: '8px', 
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '8px',
                                                     padding: '6px 16px', borderRadius: '12px',
                                                     background: '#fff', border: '1px solid #e2e8f0',
                                                     fontSize: '0.75rem', fontWeight: 700, color: '#0f172a',
@@ -1235,8 +1235,8 @@ export default function AdminPortal() {
                                                                 boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)',
                                                                 transition: 'box-shadow 0.2s, transform 0.2s',
                                                             }}
-                                                            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                                                            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                                                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                                                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                                             >
                                                                 {/* Card Header */}
                                                                 <div style={{
@@ -1277,7 +1277,7 @@ export default function AdminPortal() {
                                                                     </div>
                                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                                         {st.models.map((m, mi) => (
-                                                                            <div key={mi} 
+                                                                            <div key={mi}
                                                                                 onClick={() => setFocusedGraphModel(m.modelId)}
                                                                                 title="Track model latency"
                                                                                 style={{
@@ -1300,9 +1300,9 @@ export default function AdminPortal() {
                                                                                     <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                                         <span>{m.vendor} model via {m.host || st.provider}</span>
                                                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }} title="Specific model inference latency">
-                                                                                             <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: typeof m.latency === 'number' ? (m.latency < 300 ? '#10b981' : m.latency < 700 ? '#f59e0b' : '#ef4444') : '#94a3b8' }} />
-                                                                                             {typeof m.latency === 'number' ? `${m.latency}ms` : 'Unknown'}
-                                                                                         </span>
+                                                                                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: typeof m.latency === 'number' ? (m.latency < 300 ? '#10b981' : m.latency < 700 ? '#f59e0b' : '#ef4444') : '#94a3b8' }} />
+                                                                                            {typeof m.latency === 'number' ? `${m.latency}ms` : 'Unknown'}
+                                                                                        </span>
                                                                                     </div>
                                                                                 </div>
                                                                                 <span style={{
@@ -1328,113 +1328,113 @@ export default function AdminPortal() {
                                             {/* ── PERFORMANCE TRENDS (GRAPHS) ── */}
                                             {!overviewLoading && llmStats.length > 0 && (
                                                 <div style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
-                                                    
+
                                                     {/* Latency History Graph */}
                                                     <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                                                <div>
-                                                                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                                                                        {focusedGraphModel ? `Latency: ${focusedGraphModel.split('/').pop()}` : 'Latency Performance'}
-                                                                    </h3>
-                                                                    <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 0' }}>
-                                                                        {focusedGraphModel ? 'Tracking specific model performance' : `Response time in ms (Last ${latencyTimeframe} hours)`}
-                                                                        {focusedGraphModel && (
-                                                                            <span 
-                                                                                onClick={(e) => { e.stopPropagation(); setFocusedGraphModel(null); }}
-                                                                                style={{ color: '#3b82f6', marginLeft: '8px', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
-                                                                            >
-                                                                                Reset
-                                                                            </span>
-                                                                        )}
-                                                                    </p>
-                                                                </div>
-                                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '99px', alignItems: 'center', border: '1px solid #e2e8f0', height: '28px' }}>
-                                                                        <button 
-                                                                            onClick={() => {
-                                                                                const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
-                                                                                const current = parseInt(latencyTimeframe);
-                                                                                const idx = steps.slice().reverse().findIndex(s => s < current);
-                                                                                if (idx !== -1) setLatencyTimeframe(steps.slice().reverse()[idx].toString());
-                                                                            }}
-                                                                            disabled={latencyTimeframe === '1'}
-                                                                            style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginLeft: '2px', opacity: latencyTimeframe === '1' ? 0.4 : 1 }}
+                                                            <div>
+                                                                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                                                    {focusedGraphModel ? `Latency: ${focusedGraphModel.split('/').pop()}` : 'Latency Performance'}
+                                                                </h3>
+                                                                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 0' }}>
+                                                                    {focusedGraphModel ? 'Tracking specific model performance' : `Response time in ms (Last ${latencyTimeframe} hours)`}
+                                                                    {focusedGraphModel && (
+                                                                        <span
+                                                                            onClick={(e) => { e.stopPropagation(); setFocusedGraphModel(null); }}
+                                                                            style={{ color: '#3b82f6', marginLeft: '8px', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
                                                                         >
-                                                                            <Minus size={10} strokeWidth={4} />
-                                                                        </button>
-                                                                        
-                                                                        <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                                            <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Window</span>
-                                                                            <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#0f172a' }}>
-                                                                                {latencyTimeframe === '168' ? 'Weekly' : (latencyTimeframe >= 24 ? `${Math.floor(latencyTimeframe/24)}d` : `${latencyTimeframe}h`)}
-                                                                            </span>
-                                                                        </div>
+                                                                            Reset
+                                                                        </span>
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '99px', alignItems: 'center', border: '1px solid #e2e8f0', height: '28px' }}>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
+                                                                            const current = parseInt(latencyTimeframe);
+                                                                            const idx = steps.slice().reverse().findIndex(s => s < current);
+                                                                            if (idx !== -1) setLatencyTimeframe(steps.slice().reverse()[idx].toString());
+                                                                        }}
+                                                                        disabled={latencyTimeframe === '1'}
+                                                                        style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginLeft: '2px', opacity: latencyTimeframe === '1' ? 0.4 : 1 }}
+                                                                    >
+                                                                        <Minus size={10} strokeWidth={4} />
+                                                                    </button>
 
-                                                                        <button 
-                                                                            onClick={() => {
-                                                                                const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
-                                                                                const current = parseInt(latencyTimeframe);
-                                                                                const step = steps.find(s => s > current);
-                                                                                if (step) setLatencyTimeframe(step.toString());
-                                                                            }}
-                                                                            disabled={latencyTimeframe === '168'}
-                                                                            style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginRight: '2px', opacity: latencyTimeframe === '168' ? 0.4 : 1 }}
-                                                                        >
-                                                                            <Plus size={10} strokeWidth={4} />
-                                                                        </button>
+                                                                    <div style={{ padding: '0 10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                        <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Window</span>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#0f172a' }}>
+                                                                            {latencyTimeframe === '168' ? 'Weekly' : (latencyTimeframe >= 24 ? `${Math.floor(latencyTimeframe / 24)}d` : `${latencyTimeframe}h`)}
+                                                                        </span>
                                                                     </div>
-                                                                    
-                                                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                                                        <div style={{ 
-                                                                            background: liveUpdates ? '#f0fdf4' : '#f8fafc', 
-                                                                            padding: '0 12px', 
-                                                                            borderRadius: '99px', 
-                                                                            fontSize: '0.64rem', 
-                                                                            color: liveUpdates ? '#10b981' : '#64748b', 
-                                                                            fontWeight: 800, 
-                                                                            border: `1px solid ${liveUpdates ? '#10b98140' : '#e2e8f0'}`, 
-                                                                            height: '28px', 
-                                                                            display: 'flex', 
-                                                                            alignItems: 'center',
-                                                                            gap: '6px',
-                                                                            transition: 'all 0.3s ease'
-                                                                        }}>
-                                                                            {liveUpdates && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} className="pulse" />}
-                                                                            LIVE
-                                                                        </div>
+
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const steps = [1, 2, 4, 6, 12, 24, 48, 72, 168];
+                                                                            const current = parseInt(latencyTimeframe);
+                                                                            const step = steps.find(s => s > current);
+                                                                            if (step) setLatencyTimeframe(step.toString());
+                                                                        }}
+                                                                        disabled={latencyTimeframe === '168'}
+                                                                        style={{ width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#fff', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.08)', marginRight: '2px', opacity: latencyTimeframe === '168' ? 0.4 : 1 }}
+                                                                    >
+                                                                        <Plus size={10} strokeWidth={4} />
+                                                                    </button>
+                                                                </div>
+
+                                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                                    <div style={{
+                                                                        background: liveUpdates ? '#f0fdf4' : '#f8fafc',
+                                                                        padding: '0 12px',
+                                                                        borderRadius: '99px',
+                                                                        fontSize: '0.64rem',
+                                                                        color: liveUpdates ? '#10b981' : '#64748b',
+                                                                        fontWeight: 800,
+                                                                        border: `1px solid ${liveUpdates ? '#10b98140' : '#e2e8f0'}`,
+                                                                        height: '28px',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '6px',
+                                                                        transition: 'all 0.3s ease'
+                                                                    }}>
+                                                                        {liveUpdates && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} className="pulse" />}
+                                                                        LIVE
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div style={{ height: '240px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                                                                {llmHistory.length === 0 ? (
-                                                                    <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
-                                                                        <Activity size={24} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
-                                                                        <p>No data collected for this window yet</p>
-                                                                    </div>
-                                                                ) : (
-                                                                    <ResponsiveContainer>
-                                                                        <AreaChart data={llmHistory.map(h => ({
-                                                                                h: fmtTime(h.timestamp),
-                                                                                ms: h.latency
-                                                                            }))}>
-                                                                            <defs>
-                                                                                <linearGradient id="colorms" x1="0" y1="0" x2="0" y2="1">
-                                                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                                                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                                                                </linearGradient>
-                                                                            </defs>
-                                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                                            <XAxis dataKey="h" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
-                                                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} unit="ms" />
-                                                                            <Tooltip 
-                                                                                contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                                                                                itemStyle={{ color: '#3b82f6', fontWeight: 700 }}
-                                                                            />
-                                                                            <Area type="monotone" dataKey="ms" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorms)" animationDuration={1500} />
-                                                                        </AreaChart>
-                                                                    </ResponsiveContainer>
-                                                                )}
-                                                            </div>
+                                                        </div>
+                                                        <div style={{ height: '240px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                                            {llmHistory.length === 0 ? (
+                                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                                                    <Activity size={24} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
+                                                                    <p>No data collected for this window yet</p>
+                                                                </div>
+                                                            ) : (
+                                                                <ResponsiveContainer>
+                                                                    <AreaChart data={llmHistory.map(h => ({
+                                                                        h: fmtTime(h.timestamp),
+                                                                        ms: h.latency
+                                                                    }))}>
+                                                                        <defs>
+                                                                            <linearGradient id="colorms" x1="0" y1="0" x2="0" y2="1">
+                                                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                                            </linearGradient>
+                                                                        </defs>
+                                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                                        <XAxis dataKey="h" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
+                                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} unit="ms" />
+                                                                        <Tooltip
+                                                                            contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                                                                            itemStyle={{ color: '#3b82f6', fontWeight: 700 }}
+                                                                        />
+                                                                        <Area type="monotone" dataKey="ms" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorms)" animationDuration={1500} />
+                                                                    </AreaChart>
+                                                                </ResponsiveContainer>
+                                                            )}
+                                                        </div>
                                                     </div>
 
                                                     {/* Usage Distribution Bar Chart */}
@@ -1444,16 +1444,16 @@ export default function AdminPortal() {
                                                                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Usage Distribution</h3>
                                                                 <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '4px 0 0' }}>Request volume by provider (Weekly)</p>
                                                             </div>
-                                                            <div style={{ 
-                                                                background: '#f0fdf4', 
-                                                                padding: '0 12px', 
-                                                                borderRadius: '99px', 
-                                                                fontSize: '0.64rem', 
-                                                                color: '#10b981', 
-                                                                fontWeight: 800, 
-                                                                border: '1px solid #10b98140', 
-                                                                height: '28px', 
-                                                                display: 'flex', 
+                                                            <div style={{
+                                                                background: '#f0fdf4',
+                                                                padding: '0 12px',
+                                                                borderRadius: '99px',
+                                                                fontSize: '0.64rem',
+                                                                color: '#10b981',
+                                                                fontWeight: 800,
+                                                                border: '1px solid #10b98140',
+                                                                height: '28px',
+                                                                display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: '6px'
                                                             }}>
@@ -1476,7 +1476,7 @@ export default function AdminPortal() {
                                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
                                                                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                                                                    <Tooltip 
+                                                                    <Tooltip
                                                                         cursor={{ fill: '#f8fafc' }}
                                                                         contentStyle={{ background: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
                                                                     />
@@ -2213,7 +2213,7 @@ export default function AdminPortal() {
                                                                     <Crown size={20} color="#2d5f3f" /> Primary Gateway
                                                                 </h4>
                                                                 <div className={s.inputTogglePremium}>
-                                                                    <ToggleSwitch 
+                                                                    <ToggleSwitch
                                                                         checked={aiConfig.primary.enabled}
                                                                         onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, primary: { ...p.primary, enabled: val } })) : toggleEngine('primary', val)}
                                                                         label={aiConfig.primary.enabled ? 'Active' : 'Disabled'}
@@ -2354,7 +2354,7 @@ export default function AdminPortal() {
                                                                     <ShieldCheck size={20} color="#6366f1" /> Secondary Recovery
                                                                 </h4>
                                                                 <div className={s.inputTogglePremium}>
-                                                                    <ToggleSwitch 
+                                                                    <ToggleSwitch
                                                                         checked={aiConfig.fallback.enabled}
                                                                         onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, fallback: { ...p.fallback, enabled: val } })) : toggleEngine('fallback', val)}
                                                                         label={aiConfig.fallback.enabled ? 'Enabled' : 'Disabled'}
