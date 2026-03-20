@@ -16,10 +16,18 @@ const imagekit = new ImageKit({
     urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
 
-// Use memory storage for Buffer
+// Use memory storage for Buffer - Hardened for secure uploads
 const upload = multer({ 
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only JPG, PNG, WEBP, and PDF are allowed.'), false);
+        }
+    }
 });
 
 // @route   GET /api/animals
@@ -50,9 +58,9 @@ router.post('/', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         const newAnimal = new Animal({
             user_id: ownerId,
-            name,
-            category,
-            breed,
+            name: name.trim().substring(0, 100), // Enforce name limit & trim
+            category: category.trim(),
+            breed: breed.trim(),
             dob,
             vaccinated: vaccinated === true || vaccinated === 'true',
             status: 'Healthy', // default
@@ -343,6 +351,14 @@ router.put('/:id/vitals', auth, async (req, res) => {
 // @route   GET /api/animals/:id/records
 router.get('/:id/records', auth, async (req, res) => {
     try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) {
+            return res.status(404).json({ msg: 'Animal not found' }); // Standardizing to 404 for security
+        }
+
         const records = await MedicalRecord.find({ animal_id: req.params.id }).sort({ createdAt: -1 });
         res.json(records);
     } catch (err) {
@@ -353,9 +369,15 @@ router.get('/:id/records', auth, async (req, res) => {
 // @route   POST /api/animals/:id/records (CLOUD UPLOAD)
 router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res) => {
     try {
-        const { recordType, title } = req.body;
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        
+        if (animal.user_id.toString() !== ownerId.toString()) {
+            return res.status(404).json({ msg: 'Animal not found' });
+        }
+
+        const { recordType, title } = req.body;
         if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
 
         // Upload to ImageKit
@@ -374,7 +396,7 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         });
 
         await newRecord.save();
-        await logActivity('medical_vault', req.user, `Uploaded record for animal: ${req.params.id}`);
+        await logActivity('medical_vault', req.user, `Uploaded record for animal: ${animal.name}`);
         res.json(newRecord);
     } catch (err) {
         console.error('ImageKit Upload Error:', err);

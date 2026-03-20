@@ -6,6 +6,15 @@ const ChatMessage = require('../models/ChatMessage');
 const SystemSettings = require('../models/SystemSettings');
 const OpenAI = require('openai');
 const { logActivity } = require('../utils/logger');
+const rateLimit = require('express-rate-limit');
+
+const aiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, 
+    max: 10, // Max 10 messages per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Chat moving too fast! Please wait a moment before your next message.' }
+});
 
 // @route   GET /api/chat/conversations
 // @desc    Get all conversations for user
@@ -79,6 +88,14 @@ router.delete('/conversations/:id', auth, async (req, res) => {
 // @access  Private
 router.get('/conversations/:id/messages', auth, async (req, res) => {
     try {
+        const conversation = await Conversation.findById(req.params.id);
+        if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
+        
+        // Ownership check
+        if (conversation.user_id.toString() !== req.user.id) {
+            return res.status(404).json({ msg: 'Chat not found' });
+        }
+
         const messages = await ChatMessage.find({ conversation_id: req.params.id }).sort({ createdAt: 1 });
         res.json(messages);
     } catch (err) {
@@ -90,11 +107,16 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
 // @route   POST /api/chat/conversations/:id/messages
 // @desc    Send a message & get AI response
 // @access  Private
-router.post('/conversations/:id/messages', auth, async (req, res) => {
+router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) => {
     const { content, image_url, image_urls } = req.body;
     try {
         const conversation = await Conversation.findById(req.params.id);
         if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
+
+        // Ownership check
+        if (conversation.user_id.toString() !== req.user.id) {
+            return res.status(404).json({ msg: 'Chat not found' });
+        }
 
         // Save User Message
         const userMsg = new ChatMessage({
@@ -471,7 +493,12 @@ router.put('/messages/:msgId/pin', auth, async (req, res) => {
     try {
         const msg = await ChatMessage.findById(req.params.msgId);
         if (!msg) return res.status(404).json({ msg: 'Message not found' });
-        if (msg.user_id.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+        
+        // Ownership check: Must own the conversation containing the message
+        const conversation = await Conversation.findById(msg.conversation_id);
+        if (!conversation || conversation.user_id.toString() !== req.user.id) {
+            return res.status(404).json({ msg: 'Message not found' });
+        }
 
         msg.isPinned = !msg.isPinned;
         await msg.save();
@@ -492,6 +519,12 @@ router.put('/messages/:msgId/react', auth, async (req, res) => {
 
         const msg = await ChatMessage.findById(req.params.msgId);
         if (!msg) return res.status(404).json({ msg: 'Message not found' });
+
+        // Ownership check: Must own the conversation to react
+        const conversation = await Conversation.findById(msg.conversation_id);
+        if (!conversation || conversation.user_id.toString() !== req.user.id) {
+            return res.status(404).json({ msg: 'Message not found' });
+        }
 
         const existingIdx = msg.reactions.findIndex(
             r => r.emoji === emoji && r.user_id.toString() === req.user.id
@@ -519,12 +552,15 @@ router.get('/search', auth, async (req, res) => {
         const { q } = req.query;
         if (!q || q.trim().length < 2) return res.json([]);
 
+        // Escaping regex special characters to prevent ReDoS (Regular Expression Denial of Service)
+        const escapedQ = q.trim().substring(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
         const conversations = await Conversation.find({ user_id: req.user.id }).select('_id');
         const convIds = conversations.map(c => c._id);
 
         const messages = await ChatMessage.find({
             conversation_id: { $in: convIds },
-            content: { $regex: q, $options: 'i' }
+            content: { $regex: escapedQ, $options: 'i' }
         })
             .sort({ createdAt: -1 })
             .limit(30)

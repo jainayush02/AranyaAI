@@ -12,6 +12,13 @@ const axios = require('axios');
 const { OAuth2Client } = require('google-auth-library');
 const ActivityLog = require('../models/ActivityLog');
 const { logActivity } = require('../utils/logger');
+const rateLimit = require('express-rate-limit');
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 10, // Max 10 attempts in 15 mins (slightly more generous for human error)
+    message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' }
+});
 
 // ── JWT Auth Middleware (for protected routes) ──
 const authMiddleware = (req, res, next) => {
@@ -107,7 +114,8 @@ const upload = multer({
 });
 
 // @route POST /api/auth/request-otp
-router.post('/request-otp', async (req, res) => {
+// @route POST /api/auth/request-otp
+router.post('/request-otp', authLimiter, async (req, res) => {
     try {
         const { email, mobile, type } = req.body; // type: 'register' or 'login'
         const identifier = email || mobile;
@@ -135,13 +143,14 @@ router.post('/request-otp', async (req, res) => {
         }
 
         if (type === 'login' && !user) {
-            return res.status(404).json({ message: 'User not found. Please sign up first.' });
+            // Privacy: Don't reveal account doesn't exist, but don't proceed to save
+            return res.status(200).json({ message: 'If an account is associated, an OTP has been sent.', identifier });
         }
 
         if (!user) {
             user = new User({
-                email: email || undefined,
-                mobile: mobile || undefined,
+                email: identifier.includes('@') ? identifier : undefined,
+                mobile: !identifier.includes('@') ? identifier : undefined,
                 isVerified: false
             });
         }
@@ -207,7 +216,8 @@ router.post('/request-otp', async (req, res) => {
 });
 
 // @route POST /api/auth/register
-router.post('/register', async (req, res) => {
+// @route POST /api/auth/register
+router.post('/register', authLimiter, async (req, res) => {
     try {
         const { email, mobile, password, full_name, otp } = req.body;
 
@@ -227,10 +237,9 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired OTP' });
         }
 
-        // Hash password if provided
+        // Password hashing is now handled in User model pre-save hook
         if (password) {
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(password, salt);
+            user.password = password; 
         }
 
         user.full_name = full_name || user.full_name || '';
@@ -252,7 +261,9 @@ router.post('/register', async (req, res) => {
         const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
-        jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
+        
+        // Users get 24h sessions (Admins are handled separately)
+        jwt.sign(payload, secret, { expiresIn: '24h' }, (err, token) => {
             if (err) throw err;
             res.status(201).json({
                 token,
@@ -273,7 +284,8 @@ router.post('/register', async (req, res) => {
 });
 
 // @route POST /api/auth/login
-router.post('/login', async (req, res) => {
+// @route POST /api/auth/login
+router.post('/login', authLimiter, async (req, res) => {
     try {
         const { email, mobile, password, otp } = req.body;
 
@@ -291,34 +303,48 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Block admin users from user login — admins must use /admin-login
-        if (user.role === 'admin') {
-            return res.status(403).json({ message: 'Admin accounts must use the Admin Portal to sign in.' });
+        if (user.blocked || (user.lockUntil && user.lockUntil > Date.now())) {
+            const msg = user.blocked ? 'Your account has been suspended.' : 'Too many failed attempts. Account locked for 15 minutes.';
+            return res.status(403).json({ message: msg });
         }
 
         // Login via OTP
         if (otp) {
             if (user.otp === otp && user.otpExpires > Date.now()) {
-                // OTP match
+                // OTP match - Reset failed attempts
+                user.failedOtpAttempts = 0;
                 user.otp = undefined;
                 user.otpExpires = undefined;
                 user.isVerified = true;
-                await user.save();
             } else {
-                return res.status(400).json({ message: 'Invalid or expired OTP' });
+                // Brute force protection for OTP
+                user.failedOtpAttempts = (user.failedOtpAttempts || 0) + 1;
+                if (user.failedOtpAttempts >= 5) {
+                    user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+                }
+                await user.save();
+                return res.status(400).json({ message: 'Invalid or expired code.' });
             }
         }
         // Login via Password
         else if (password) {
             if (!user.password) {
-                return res.status(400).json({ message: 'No password found. Use OTP or Google to sign in, or reset your password.' });
+                return res.status(400).json({ message: 'No password found. Use OTP to sign in.' });
             }
-            const isMatch = await bcrypt.compare(password, user.password);
+            const isMatch = await user.comparePassword(password);
             if (!isMatch) {
-                return res.status(400).json({ message: 'Invalid credentials' });
+                user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+                if (user.failedLoginAttempts >= 5) {
+                    user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+                }
+                await user.save();
+                return res.status(401).json({ message: 'Invalid credentials.' });
             }
+            // Success - Reset counters
+            user.failedLoginAttempts = 0;
+            user.lockUntil = null;
         } else {
-            return res.status(400).json({ message: 'Password or OTP required' });
+            return res.status(400).json({ message: 'Password or code required' });
         }
 
         if (user.blocked) {
@@ -337,7 +363,7 @@ router.post('/login', async (req, res) => {
         const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
-        jwt.sign(payload, secret, { expiresIn: '7d' }, (err, token) => {
+        jwt.sign(payload, secret, { expiresIn: '24h' }, (err, token) => {
             if (err) throw err;
             res.status(200).json({
                 token,
@@ -366,7 +392,8 @@ router.post('/login', async (req, res) => {
 //        — constant-time bcrypt to prevent timing attacks
 //        — role embedded in JWT for downstream middleware
 // ═══════════════════════════════════════════════════════════
-router.post('/admin-login', async (req, res) => {
+// @route POST /api/auth/admin-login
+router.post('/admin-login', authLimiter, async (req, res) => {
     const ip = getClientIP(req);
 
     // 1. Rate-limit check BEFORE touching the DB
@@ -1217,14 +1244,11 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
             return res.status(400).json({ message: 'User with this email/mobile already exists' });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password || 'Aranya@123', salt);
-
         const newMember = new User({
             full_name,
             email: email || undefined,
             mobile: mobile || undefined,
-            password: hashedPassword,
+            password: password || 'Aranya@123',
             role: 'caretaker',
             managedBy: req.user.id,
             isVerified: true // Pre-verified by owner

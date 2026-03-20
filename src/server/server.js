@@ -4,36 +4,77 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// Security headers
+// ── Global Rate Limiting (Abuse Protection) ──
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per window
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+
+// App-wide production protection
+if (process.env.NODE_ENV === 'production') {
+    app.use('/api', globalLimiter);
+}
+
+// Security headers - Enforce HSTS and prevent clickjacking/sniffing
 app.use(helmet({
+    contentSecurityPolicy: false, // Disable if using external scripts/images
     crossOriginResourcePolicy: { policy: 'cross-origin' },
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
-// CORS — only allow known origins
+// Tightened CORS - ONLY allow trusted origins
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5000',
-    'https://aranya-ai-five.vercel.app'
+    'https://aranya-ai-five.vercel.app',
+    'https://aranya.ai'
 ];
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, server-to-server, Postman)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(null, true); // In development, allow all; tighten in production
+            // Log suspicious origin attempts
+            console.warn(`[SECURITY] Blocked CORS request from untrusted origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true
 }));
 
+// Middleware: Enforce HTTPS in production
+app.use((req, res, next) => {
+    if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+        return res.redirect(`https://${req.headers.host}${req.url}`);
+    }
+    next();
+});
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Global Audit Middleware ──
+app.use((req, res, next) => {
+    const originalSend = res.send;
+    res.send = function (content) {
+        if (res.statusCode >= 400) {
+            const { logActivity } = require('./utils/logger');
+            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+            logActivity('security_audit', null, `[${res.statusCode}] ${req.method} ${req.url} from IP: ${ip}`);
+        }
+        return originalSend.apply(res, arguments);
+    };
+    next();
+});
 
 // ── Serverless-safe MongoDB connection caching ──
 let cached = global._mongooseCache;
