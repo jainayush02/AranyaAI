@@ -438,7 +438,7 @@ If the question is outside animal-related topics, reply only with:
             } else if (contentLower.includes("eat") || contentLower.includes("appetite") || contentLower.includes("weight")) {
                 fallbackContent = "Loss of appetite in cattle is a generalized symptom that requires careful observation.\n\nIt could trace back to:\n- Ruminal acidosis (check their recent grain intake).\n- Ketosis (especially if recently calved).\n- Internal parasites.\n\nPlease provide their heart rate and activity level so I can run a deep predictive anomaly check.";
             } else {
-                fallbackContent = `I am analyzing your input regarding: "${content}".\n\nAs your embedded Aranya AI, I can run predictive health models, analyze visual symptoms via the camera, and cross-reference herd data.\n\nCould you specify the exact symptoms, or upload an image of the affected area for a precise diagnostic?`;
+                fallbackContent = `I'm here to help with your herd's health. Could you please provide more details about the symptoms you're noticing, or upload a clear photo of the animal for better analysis?`;
             }
 
             // If it failed, we completely replace aiContent instead of appending to the warning
