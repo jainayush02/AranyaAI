@@ -226,16 +226,17 @@ export default function Settings() {
     const handleSendManualReport = async () => {
         try {
             setSendingReport(true);
-            const token = localStorage.getItem('token');
             const res = await axios.post('/api/auth/send-report', {}, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
-            setReportStatus({ type: 'success', text: res.data.message });
+            // Success toast message
+            setReportStatus({ type: 'success', text: 'Digest sent to your email' });
+            setTimeout(() => setReportStatus(null), 5000);
         } catch (err) {
-            setReportStatus({ type: 'error', text: err.response?.data?.message || 'Failed to send report' });
+            setReportStatus({ type: 'error', text: err.response?.data?.message || 'Failed to send' });
+            setTimeout(() => setReportStatus(null), 5000);
         } finally {
             setSendingReport(false);
-            setTimeout(() => setReportStatus(null), 4000);
         }
     };
 
@@ -745,12 +746,10 @@ export default function Settings() {
                                                             >
                                                                 {sendingReport ? (
                                                                     <RefreshCw className="animate-spin" size={14} />
-                                                                ) : reportStatus?.type === 'success' ? (
-                                                                    <CheckCircle size={14} />
                                                                 ) : (
                                                                     <Mail size={14} />
                                                                 )}
-                                                                {sendingReport ? 'Sending...' : reportStatus?.type === 'success' ? 'Sent!' : 'Send Now'}
+                                                                {sendingReport ? 'Sending...' : 'Send Now'}
                                                             </motion.button>
                                                         )}
                                                         <label className={styles.switch} style={{ flexShrink: 0 }}>
@@ -765,15 +764,15 @@ export default function Settings() {
                                     <AnimatePresence>
                                         {reportStatus && (
                                             <motion.div
-                                                initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                                                initial={{ opacity: 0, x: 100 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 100 }}
                                                 style={{
-                                                    position: 'fixed', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
-                                                    padding: '12px 24px', background: reportStatus.type === 'success' ? '#166534' : '#991b1b', color: '#fff',
-                                                    borderRadius: '40px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '10px',
-                                                    backdropFilter: 'blur(10px)', boxShadow: '0 15px 35px rgba(0,0,0,0.3)', 
-                                                    whiteSpace: 'nowrap', fontSize: '0.9rem'
+                                                    position: 'fixed', bottom: '100px', right: '30px',
+                                                    padding: '12px 24px', background: reportStatus.type === 'success' ? '#2d5f3f' : '#991b1b', color: '#fff',
+                                                    borderRadius: '16px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '12px',
+                                                    backdropFilter: 'blur(10px)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', 
+                                                    border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem'
                                                 }}
                                             >
                                                 {reportStatus.type === 'success' ? <MailCheck size={22} /> : <AlertCircle size={22} />}
