@@ -769,11 +769,11 @@ export default function Settings() {
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                                 exit={{ opacity: 0, y: 20, scale: 0.9 }}
                                                 style={{
-                                                    position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)',
-                                                    padding: '16px 28px', background: reportStatus.type === 'success' ? '#166534' : '#991b1b', color: '#fff',
-                                                    borderRadius: '20px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '14px',
-                                                    backdropFilter: 'blur(10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', minWidth: '320px',
-                                                    textAlign: 'center', justifyContent: 'center'
+                                                    position: 'fixed', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
+                                                    padding: '12px 24px', background: reportStatus.type === 'success' ? '#166534' : '#991b1b', color: '#fff',
+                                                    borderRadius: '40px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '10px',
+                                                    backdropFilter: 'blur(10px)', boxShadow: '0 15px 35px rgba(0,0,0,0.3)', 
+                                                    whiteSpace: 'nowrap', fontSize: '0.9rem'
                                                 }}
                                             >
                                                 {reportStatus.type === 'success' ? <MailCheck size={22} /> : <AlertCircle size={22} />}
