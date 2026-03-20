@@ -743,22 +743,17 @@ export default function AdminPortal() {
             if (docForm.videoFile && savedId) {
                 setIsUploading(true);
                 try {
-                    // 1. Get Cloudinary Auth parameters from backend
-                    console.log('Fetching Cloudinary auth...');
-                    const authR = await axios.get(`${API}/docs/admin/cloudinary-auth`, authH());
-                    console.log('Auth received:', authR.data);
-                    const { signature, timestamp, cloud_name, api_key, folder } = authR.data;
+                    // 1. Prepare Unsigned Upload (using your new aranya_preset)
+                    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+                    const preset = import.meta.env.VITE_CLOUDINARY_PRESET;
 
-                    // 2. Upload directly to Cloudinary
-                    console.log('Uploading to Cloudinary...');
+                    console.log(`Uploading to Cloudinary [Unsigned]... Cloud: ${cloudName}, Preset: ${preset}`);
+                    
                     const fd = new FormData();
                     fd.append('file', docForm.videoFile);
-                    fd.append('api_key', api_key);
-                    fd.append('timestamp', timestamp);
-                    fd.append('signature', signature);
-                    fd.append('folder', folder);
+                    fd.append('upload_preset', preset);
 
-                    const cloudUrl = `https://api.cloudinary.com/v1_1/${cloud_name}/video/upload`;
+                    const cloudUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
                     const uploadR = await axios.post(cloudUrl, fd, {
                         onUploadProgress: (pe) => {
                             const pct = Math.round((pe.loaded * 100) / pe.total);
@@ -771,7 +766,7 @@ export default function AdminPortal() {
                     const videoUrl = uploadR.data.secure_url;
                     const cloudFileId = uploadR.data.public_id;
 
-                    // 3. Update the article in MongoDB with the new video URL
+                    // 2. Update the article in MongoDB with the new video URL
                     await axios.put(`${API}/docs/${savedId}`, {
                         videoUrl,
                         videoTitle: docForm.videoFile.name,
