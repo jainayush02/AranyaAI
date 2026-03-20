@@ -7,13 +7,13 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const DocArticle = require('../models/DocArticle');
 const ActivityLog = require('../models/ActivityLog');
-const ImageKit = require('imagekit');
+const cloudinary = require('cloudinary').v2;
 
-// ── ImageKit Config ─────────────────────────────────────
-const imagekit = new ImageKit({
-    publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
-    privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
-    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+// ── Cloudinary Config ─────────────────────────────────────
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 
@@ -111,26 +111,40 @@ router.get('/admin/all', authenticate, adminOnly, async (req, res) => {
     }
 });
 
-// GET ImageKit Auth Parameters
-router.get('/admin/imagekit-auth', authenticate, adminOnly, (req, res) => {
+// GET Cloudinary Signature for direct upload
+router.get('/admin/cloudinary-auth', authenticate, adminOnly, (req, res) => {
     try {
-        const result = imagekit.getAuthenticationParameters();
-        res.json(result);
+        const timestamp = Math.round((new Date()).getTime() / 1000);
+        const paramsToSign = {
+            timestamp: timestamp,
+            folder: 'aranya-tutorials'
+        };
+        const signature = cloudinary.utils.api_sign_request(
+            paramsToSign,
+            process.env.CLOUDINARY_API_SECRET
+        );
+        res.json({
+            signature,
+            timestamp,
+            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+            api_key: process.env.CLOUDINARY_API_KEY,
+            folder: 'aranya-tutorials'
+        });
     } catch (err) {
-        res.status(500).json({ message: 'Failed to get auth params' });
+        res.status(500).json({ message: 'Failed to generate signature' });
     }
 });
 
 // POST create new article
 router.post('/', authenticate, adminOnly, async (req, res) => {
     try {
-        const { title, category, content, steps, order, published, videoUrl, videoTitle, ikFileId } = req.body;
+        const { title, category, content, steps, order, published, videoUrl, videoTitle, cloudFileId } = req.body;
         const doc = await DocArticle.create({
             title, category, content, steps: steps || [],
             order: order || 0, published: published !== false,
             videoUrl: videoUrl || '',
             videoTitle: videoTitle || '',
-            ikFileId: ikFileId || '',
+            cloudFileId: cloudFileId || '',
             createdBy: req.user._id
         });
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Created doc article: "${title}"`);
@@ -147,13 +161,13 @@ router.put('/:id', authenticate, adminOnly, async (req, res) => {
         const oldDoc = await DocArticle.findById(req.params.id);
         if (!oldDoc) return res.status(404).json({ message: 'Not found' });
 
-        // If a new video is being linked, and there's an old ImageKit video, delete the old one to save space
-        if (req.body.ikFileId && oldDoc.ikFileId && req.body.ikFileId !== oldDoc.ikFileId) {
+        // If a new video is being linked, and there's an old Cloudinary video, delete the old one to save space
+        if (req.body.cloudFileId && oldDoc.cloudFileId && req.body.cloudFileId !== oldDoc.cloudFileId) {
             try {
-                await imagekit.deleteFile(oldDoc.ikFileId);
-                console.log('✅ ImageKit: Old file cleaned up during update');
+                await cloudinary.uploader.destroy(oldDoc.cloudFileId, { resource_type: 'video' });
+                console.log('✅ Cloudinary: Old file cleaned up during update');
             } catch (ikErr) {
-                console.warn('⚠️ ImageKit: Cleanup of old file failed during update:', ikErr.message);
+                console.warn('⚠️ Cloudinary: Cleanup failed:', ikErr.message);
             }
         }
 
@@ -191,13 +205,13 @@ router.delete('/:id', authenticate, adminOnly, async (req, res) => {
             }
         }
 
-        // Delete from ImageKit if it exists
-        if (doc.ikFileId) {
+        // Delete from Cloudinary if it exists
+        if (doc.cloudFileId) {
             try {
-                await imagekit.deleteFile(doc.ikFileId);
-                console.log('✅ ImageKit: File deleted successfully during article removal');
+                await cloudinary.uploader.destroy(doc.cloudFileId, { resource_type: 'video' });
+                console.log('✅ Cloudinary: File deleted successfully during article removal');
             } catch (ikErr) {
-                console.error('⚠️ ImageKit: Deletion failed during article removal:', ikErr.message);
+                console.error('⚠️ Cloudinary: Deletion failed during article removal:', ikErr.message);
             }
         }
 
@@ -244,19 +258,19 @@ router.delete('/:id/video', authenticate, adminOnly, async (req, res) => {
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
 
-        // Remote delete from ImageKit if we have a fileId
-        if (doc.ikFileId) {
+        // Remote delete from Cloudinary if we have a fileId
+        if (doc.cloudFileId) {
             try {
-                await imagekit.deleteFile(doc.ikFileId);
-                console.log('✅ ImageKit: File deleted successfully');
+                await cloudinary.uploader.destroy(doc.cloudFileId, { resource_type: 'video' });
+                console.log('✅ Cloudinary: File deleted successfully');
             } catch (ikErr) {
-                console.error('⚠️ ImageKit: Deletion failed or file already gone:', ikErr.message);
+                console.error('⚠️ Cloudinary: Deletion failed or file already gone:', ikErr.message);
             }
         }
 
         doc.videoUrl = null;
         doc.videoTitle = null;
-        doc.ikFileId = null;
+        doc.cloudFileId = null;
         await doc.save();
 
         res.json({ message: 'Video removed successfully', doc });

@@ -743,42 +743,40 @@ export default function AdminPortal() {
             if (docForm.videoFile && savedId) {
                 setIsUploading(true);
                 try {
-                    // 1. Get ImageKit Auth parameters from backend
-                    const authR = await axios.get(`${API}/docs/admin/imagekit-auth`, authH());
-                    const { token, expire, signature } = authR.data;
+                    // 1. Get Cloudinary Auth parameters from backend
+                    const authR = await axios.get(`${API}/docs/admin/cloudinary-auth`, authH());
+                    const { signature, timestamp, cloud_name, api_key, folder } = authR.data;
 
-                    // 2. Upload directly to ImageKit
+                    // 2. Upload directly to Cloudinary
                     const fd = new FormData();
                     fd.append('file', docForm.videoFile);
-                    fd.append('fileName', docForm.videoFile.name);
-                    fd.append('publicKey', 'public_YHr7km+CX79vEjrA6vs11E85QIw=');
+                    fd.append('api_key', api_key);
+                    fd.append('timestamp', timestamp);
                     fd.append('signature', signature);
-                    fd.append('expire', expire);
-                    fd.append('token', token);
-                    fd.append('folder', '/aranya-tutorials/');
+                    fd.append('folder', folder);
 
-                    const ikUrl = 'https://upload.imagekit.io/api/v1/files/upload';
-                    const uploadR = await axios.post(ikUrl, fd, {
+                    const cloudUrl = `https://api.cloudinary.com/v1_1/${cloud_name}/video/upload`;
+                    const uploadR = await axios.post(cloudUrl, fd, {
                         onUploadProgress: (pe) => {
                             const pct = Math.round((pe.loaded * 100) / pe.total);
                             setUploadProgress(pct);
                         }
                     });
 
-                    const videoUrl = uploadR.data.url;
-                    const ikFileId = uploadR.data.fileId;
+                    const videoUrl = uploadR.data.secure_url;
+                    const cloudFileId = uploadR.data.public_id;
 
                     // 3. Update the article in MongoDB with the new video URL
                     await axios.put(`${API}/docs/${savedId}`, {
                         videoUrl,
                         videoTitle: docForm.videoFile.name,
-                        ikFileId
+                        cloudFileId
                     }, authH());
 
                     setUploadSuccess(true);
                     setTimeout(() => setUploadSuccess(false), 3500);
                 } catch (err) {
-                    console.error('ImageKit Upload error:', err);
+                    console.error('Cloudinary Upload error:', err);
                     push('Video upload failed. Check file size or connection.', 'err');
                 } finally {
                     setIsUploading(false);
