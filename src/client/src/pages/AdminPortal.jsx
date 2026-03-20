@@ -744,10 +744,13 @@ export default function AdminPortal() {
                 setIsUploading(true);
                 try {
                     // 1. Get Cloudinary Auth parameters from backend
+                    console.log('Fetching Cloudinary auth...');
                     const authR = await axios.get(`${API}/docs/admin/cloudinary-auth`, authH());
+                    console.log('Auth received:', authR.data);
                     const { signature, timestamp, cloud_name, api_key, folder } = authR.data;
 
                     // 2. Upload directly to Cloudinary
+                    console.log('Uploading to Cloudinary...');
                     const fd = new FormData();
                     fd.append('file', docForm.videoFile);
                     fd.append('api_key', api_key);
@@ -759,10 +762,12 @@ export default function AdminPortal() {
                     const uploadR = await axios.post(cloudUrl, fd, {
                         onUploadProgress: (pe) => {
                             const pct = Math.round((pe.loaded * 100) / pe.total);
+                            console.log(`Upload Progress: ${pct}%`);
                             setUploadProgress(pct);
                         }
                     });
 
+                    console.log('Cloudinary Success:', uploadR.data);
                     const videoUrl = uploadR.data.secure_url;
                     const cloudFileId = uploadR.data.public_id;
 
@@ -776,8 +781,8 @@ export default function AdminPortal() {
                     setUploadSuccess(true);
                     setTimeout(() => setUploadSuccess(false), 3500);
                 } catch (err) {
-                    console.error('Cloudinary Upload error:', err);
-                    push('Video upload failed. Check file size or connection.', 'err');
+                    console.error('Cloudinary Upload error:', err.response?.data || err.message);
+                    push(`Upload failed: ${err.response?.data?.error?.message || err.message}`, 'err');
                 } finally {
                     setIsUploading(false);
                     setUploadProgress(0);
