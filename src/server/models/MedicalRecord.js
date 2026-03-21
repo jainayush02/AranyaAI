@@ -24,6 +24,10 @@ const medicalRecordSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    fileSize: {
+        type: Number,
+        default: 0
+    },
     ocrData: {
         text: String,
         parsedMeta: mongoose.Schema.Types.Mixed

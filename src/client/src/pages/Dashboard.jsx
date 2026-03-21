@@ -82,7 +82,8 @@ export default function Dashboard() {
             showToast('Aranya added successfully!');
         } catch (err) {
             console.error('Failed to add animal', err);
-            showToast('Failed to add animal. See console.', 'error');
+            const errorMsg = err.response?.data?.msg || 'Failed to add animal. Please try again.';
+            showToast(errorMsg, 'error');
         }
     };
 

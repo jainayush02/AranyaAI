@@ -4,6 +4,8 @@ const auth = require('../middleware/auth');
 const Animal = require('../models/Animal');
 const HealthLog = require('../models/HealthLog');
 const MedicalRecord = require('../models/MedicalRecord');
+const User = require('../models/User');
+const Plan = require('../models/Plan');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
 const multer = require('multer');
@@ -56,6 +58,24 @@ router.post('/', auth, async (req, res) => {
 
     try {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+
+        // --- PLAN LIMIT ENFORCEMENT ---
+        const user = await User.findById(ownerId);
+        if (!user) return res.status(401).json({ msg: 'User not found' });
+
+        const userPlan = await Plan.findOne({ code: user.plan, active: true });
+        const maxAnimals = userPlan ? userPlan.maxAnimals : 1; // Default to 1 if no plan found
+
+        if (maxAnimals !== -1) { // -1 means unlimited
+            const currentAnimalCount = await Animal.countDocuments({ user_id: ownerId });
+            if (currentAnimalCount >= maxAnimals) {
+                return res.status(403).json({ 
+                    msg: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxAnimals} animal(s). Please upgrade your plan to add more.` 
+                });
+            }
+        }
+        // --- END PLAN LIMIT ENFORCEMENT ---
+
         const newAnimal = new Animal({
             user_id: ownerId,
             name: name.trim().substring(0, 100), // Enforce name limit & trim
@@ -230,6 +250,16 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
         
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        // --- PLAN LIMIT ENFORCEMENT: Bulk Import ---
+        const user = await User.findById(ownerId);
+        const userPlan = await Plan.findOne({ code: user.plan, active: true });
+        if (userPlan && !userPlan.allowBulkImport) {
+            return res.status(403).json({ 
+                msg: `Bulk Logistics is not included in your "${userPlan.name}" plan. Please upgrade to import logs via CSV.` 
+            });
+        }
+        // --- END PLAN LIMIT ENFORCEMENT ---
 
         const logs = req.body.logs;
         if (!logs || !Array.isArray(logs)) return res.status(400).json({ msg: 'Invalid logs format' });
@@ -465,6 +495,24 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         const { recordType, title } = req.body;
         if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
 
+        // --- PLAN LIMIT ENFORCEMENT: Vault Storage ---
+        const user = await User.findById(ownerId);
+        const userPlan = await Plan.findOne({ code: user.plan, active: true });
+        const maxStorageMB = userPlan ? userPlan.medicalVaultStorageMB : 10;
+
+        if (maxStorageMB !== -1) {
+            const records = await MedicalRecord.find({ user_id: ownerId });
+            const currentTotalBytes = records.reduce((acc, r) => acc + (r.fileSize || 0), 0);
+            const nextTotalBytes = currentTotalBytes + req.file.size;
+
+            if (nextTotalBytes > maxStorageMB * 1024 * 1024) {
+                return res.status(403).json({ 
+                    msg: `Storage limit reached! Your "${userPlan?.name || 'Free'}" plan offers ${maxStorageMB} MB of storage. Please upgrade for more space.` 
+                });
+            }
+        }
+        // --- END PLAN LIMIT ENFORCEMENT ---
+
         // Upload to ImageKit
         const uploadResponse = await imagekit.upload({
             file: req.file.buffer,
@@ -477,7 +525,8 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
             user_id: ownerId,
             recordType: recordType || 'General',
             title: title || req.file.originalname,
-            fileUrl: uploadResponse.url
+            fileUrl: uploadResponse.url,
+            fileSize: req.file.size
         });
 
         await newRecord.save();

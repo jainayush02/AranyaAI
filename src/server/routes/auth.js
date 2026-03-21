@@ -1302,12 +1302,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
         
         if (user.plan) {
             const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
-            if (planDoc) planRules = planDoc;
+            if (planDoc) {
+                planRules = planDoc;
+                user.planName = planDoc.name; // Dynamic name from DB
+            }
         } else {
             const defaultPlan = await PlanModel.findOne({ isDefault: true }).lean();
             if (defaultPlan) {
                 planRules = defaultPlan;
                 user.plan = defaultPlan.code;
+                user.planName = defaultPlan.name;
                 await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
             }
         }
@@ -1341,9 +1345,22 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
     try {
         const { full_name, email, mobile, password } = req.body;
 
-        // 1. Get the owner's record to customize the invite email
+        // 1. Get the owner's record and plan limits
         const owner = await User.findById(req.user.id);
         const ownerName = owner?.full_name || 'an Aranya Owner';
+
+        const Plan = require('../models/Plan');
+        const userPlan = await Plan.findOne({ code: owner.plan, active: true });
+        const maxMembers = userPlan ? userPlan.maxCareCircleMembers : 0;
+
+        if (maxMembers !== -1) {
+            const currentMemberCount = await User.countDocuments({ managedBy: req.user.id, role: 'caretaker' });
+            if (currentMemberCount >= maxMembers) {
+                return res.status(403).json({ 
+                    message: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxMembers} Care Circle members. Please upgrade to add more.` 
+                });
+            }
+        }
 
         // 2. Check if user already exists
         let existingUser = await User.findOne({

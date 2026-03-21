@@ -4,6 +4,8 @@ const auth = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const ChatMessage = require('../models/ChatMessage');
 const SystemSettings = require('../models/SystemSettings');
+const User = require('../models/User');
+const Plan = require('../models/Plan');
 const OpenAI = require('openai');
 const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
@@ -117,6 +119,29 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
         if (conversation.user_id.toString() !== req.user.id) {
             return res.status(404).json({ msg: 'Chat not found' });
         }
+
+        // --- PLAN LIMIT ENFORCEMENT: AI Daily Limit ---
+        const user = await User.findById(req.user.id);
+        const userPlan = await Plan.findOne({ code: user.plan, active: true });
+        const dailyLimit = userPlan ? userPlan.dailyChatMessages : 5;
+
+        if (dailyLimit !== -1) {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+
+            const messageCount = await ChatMessage.countDocuments({
+                user_id: req.user.id,
+                role: 'user',
+                createdAt: { $gte: startOfToday }
+            });
+
+            if (messageCount >= dailyLimit) {
+                return res.status(403).json({
+                    msg: `You've reached your daily limit of ${dailyLimit} AI messages on the "${userPlan?.name || 'Free'}" plan. Please upgrade to chat more today.`
+                });
+            }
+        }
+        // --- END PLAN LIMIT ENFORCEMENT ---
 
         // Save User Message
         const userMsg = new ChatMessage({
