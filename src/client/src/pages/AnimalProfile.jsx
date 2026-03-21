@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale } from 'lucide-react';
+import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
@@ -339,6 +339,16 @@ export default function AnimalProfile() {
                             </div>
                             <div className={styles.heroMetadataRow}>
                                 <div className={styles.metaPill}><Zap size={14} /> <span>{animal.breed}</span></div>
+                                <div className={styles.metaPill}>
+                                    {animal.gender === 'Male' ? (
+                                        <Mars size={14} style={{ color: '#3b82f6' }} />
+                                    ) : animal.gender === 'Female' ? (
+                                        <Venus size={14} style={{ color: '#ec4899' }} />
+                                    ) : (
+                                        <Zap size={14} />
+                                    )}
+                                    <span>{animal.gender || 'Unknown'}</span>
+                                </div>
                                 {animal.dob && <div className={styles.metaPill}><Calendar size={14} /> <span>{calculateAge(animal.dob)}</span></div>}
                                 <button onClick={handleToggleVaccination} className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}>
                                     <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccine Required'}</span>

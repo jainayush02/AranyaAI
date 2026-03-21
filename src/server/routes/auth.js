@@ -550,6 +550,53 @@ router.put('/profile', authMiddleware, async (req, res) => {
     }
 });
 
+// @route DELETE /api/auth/profile
+// @desc  Delete user account and all related data
+router.delete('/profile', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Find user first
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Don't allow platform admins to delete their account through this route easily for safety
+        if (user.role === 'admin') {
+            return res.status(403).json({ message: 'Administrator accounts cannot be deleted through this portal. Please contact the platform owner.' });
+        }
+
+        const Animal = require('../models/Animal');
+        const HealthLog = require('../models/HealthLog');
+        const MedicalRecord = require('../models/MedicalRecord');
+
+        // Delete all related animals
+        const userAnimals = await Animal.find({ user_id: userId });
+        const animalIds = userAnimals.map(a => a._id);
+
+        // Delete health logs and medical records for all animals
+        if (animalIds.length > 0) {
+            await HealthLog.deleteMany({ animal_id: { $in: animalIds } });
+            await MedicalRecord.deleteMany({ animal_id: { $in: animalIds } });
+        }
+        
+        // Delete all animals
+        await Animal.deleteMany({ user_id: userId });
+
+        // Delete activity logs
+        await ActivityLog.deleteMany({ user: { $in: [user.full_name, user.email, user.mobile].filter(Boolean) } });
+
+        // Finally delete the user
+        await User.findByIdAndDelete(userId);
+
+        console.log(`[ACCOUNT_DELETED] User account for ${user.email || user.mobile} removed permanently.`);
+        
+        res.status(200).json({ message: 'Account and all related data deleted successfully.' });
+    } catch (error) {
+        console.error('[Account Deletion Error]:', error);
+        res.status(500).json({ message: 'Server Error during account deletion.' });
+    }
+});
+
 // @route POST /api/auth/send-report
 // @desc  Manually trigger the Weekly Performance Digest
 router.post('/send-report', authMiddleware, async (req, res) => {

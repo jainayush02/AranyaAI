@@ -466,3 +466,84 @@
         transform: rotate(360deg);
     }
 }
+/* -- DANGER ZONE -- */
+.dangerZone {
+    margin-top: 2rem;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.02);
+}
+
+.dangerZone .cardHeader {
+    border-bottom-color: rgba(239, 68, 68, 0.1);
+}
+
+.dangerContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+.dangerInfo {
+    flex: 1;
+}
+
+.dangerTitle {
+    color: #ef4444;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.dangerDesc {
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.deleteAccountBtn {
+    background: #ef4444;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.deleteAccountBtn:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+}
+
+.deleteAccountBtn:active {
+    transform: translateY(0);
+}
+
+.deleteAccountBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    .dangerContent {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+    }
+    
+    .deleteAccountBtn {
+        width: 100%;
+        justify-content: center;
+    }
+}

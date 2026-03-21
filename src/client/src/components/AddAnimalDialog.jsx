@@ -15,6 +15,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
     const [breed, setBreed] = useState('');
+    const [gender, setGender] = useState(''); // New state
     const [birthYear, setBirthYear] = useState('');
     const [birthMonth, setBirthMonth] = useState('');
     const [vaccinated, setVaccinated] = useState('');
@@ -33,17 +34,18 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
     }, [isOpen]);
 
     const handleSubmit = () => {
-        if (!name.trim() || !category || !breed || vaccinated === '') return; // Basic validation
+        if (!name.trim() || !category || !breed || !gender || vaccinated === '') return; // Basic validation
 
         const d = new Date();
         if (birthYear) d.setFullYear(parseInt(birthYear));
         if (birthMonth) d.setMonth(parseInt(birthMonth) - 1);
 
-        onAdd({ name, category, breed, dob: d.toISOString(), vaccinated: vaccinated === 'true' });
+        onAdd({ name, category, breed, dob: d.toISOString(), vaccinated: vaccinated === 'true', gender });
         // Reset form
         setName('');
         setCategory('');
         setBreed('');
+        setGender('');
         setBirthYear('');
         setBirthMonth('');
         setVaccinated('');
@@ -116,6 +118,24 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                         {(dynamicCategories[category] || []).map(b => (
                                             <option key={b} value={b}>{b}</option>
                                         ))}
+                                    </select>
+                                    <div className={styles.selectIcon}>
+                                        <ChevronDown size={20} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Gender</label>
+                                <div className={styles.selectContainer}>
+                                    <select
+                                        className={styles.select}
+                                        value={gender}
+                                        onChange={(e) => setGender(e.target.value)}
+                                    >
+                                        <option value="" disabled>Select gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
                                     </select>
                                     <div className={styles.selectIcon}>
                                         <ChevronDown size={20} />
@@ -258,8 +278,8 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                             <button
                                 className={styles.submitButton}
                                 onClick={handleSubmit}
-                                disabled={!name.trim() || !category || !breed || vaccinated === ''}
-                                style={{ opacity: (!name.trim() || !category || !breed || vaccinated === '') ? 0.5 : 1, cursor: (!name.trim() || !category || !breed || vaccinated === '') ? 'not-allowed' : 'pointer' }}
+                                disabled={!name.trim() || !category || !breed || !gender || vaccinated === ''}
+                                style={{ opacity: (!name.trim() || !category || !breed || !gender || vaccinated === '') ? 0.5 : 1, cursor: (!name.trim() || !category || !breed || !gender || vaccinated === '') ? 'not-allowed' : 'pointer' }}
                             >
                                 Add Aranya
                             </button>

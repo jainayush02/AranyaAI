@@ -5,6 +5,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdvancedLoader from '../components/AdvancedLoader';
 import styles from './Profile.module.css';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // Helper to get auth headers
 const getAuthHeaders = () => ({
@@ -55,6 +56,10 @@ export default function Profile() {
     const [verifyMsg, setVerifyMsg] = useState('');
     const [verifyError, setVerifyError] = useState('');
     const [resendTimer, setResendTimer] = useState(0);
+
+    // Delete account state
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -313,8 +318,26 @@ export default function Profile() {
         setEmail(user.email || '');
     };
 
+    const handleDeleteAccount = async () => {
+        try {
+            setIsDeleting(true);
+            const res = await axios.delete('/api/auth/profile', getAuthHeaders());
+            
+            // Success! Clear local storage and redirect to login
+            localStorage.clear();
+            alert(res.data.message || 'Your account has been deleted permanently.');
+            navigate('/login');
+        } catch (err) {
+            console.error('Account deletion failed', err);
+            alert(err.response?.data?.message || 'Failed to delete account. Please try again.');
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
+        }
+    };
+
     const genderLabel = (g) => {
-        const map = { male: 'Male', female: 'Female', other: 'Other', prefer_not_to_say: 'Prefer not to say', '': '—' };
+        const map = { male: 'Male', female: 'Female', prefer_not_to_say: 'Prefer not to say', '': '—' };
         return map[g] || '—';
     };
 
@@ -527,7 +550,6 @@ export default function Profile() {
                                     <option value="">Choose...</option>
                                     <option value="male">Male</option>
                                     <option value="female">Female</option>
-                                    <option value="other">Other</option>
                                     <option value="prefer_not_to_say">Private</option>
                                 </select>
                             </div>
@@ -571,8 +593,38 @@ export default function Profile() {
                             )}
                         </div>
                     </div>
-                </main>
+                        {/* section 3: Security & Danger Zone */}
+                        <div className={`${styles.card} ${styles.dangerZone}`}>
+                            <div className={styles.cardHeader}>
+                                <ShieldCheck className={styles.cardIcon} size={22} style={{ color: '#ef4444' }} />
+                                <h3 className={styles.cardTitle} style={{ color: '#ef4444' }}>Danger Zone</h3>
+                            </div>
+                            <div className={styles.dangerContent}>
+                                <div className={styles.dangerInfo}>
+                                    <h4 className={styles.dangerTitle}>Delete Account</h4>
+                                    <p className={styles.dangerDesc}>Permanently remove your account and all associated data (animals, health logs, etc.). This action cannot be undone.</p>
+                                </div>
+                                <button 
+                                    className={styles.deleteAccountBtn} 
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    disabled={isDeleting}
+                                >
+                                    {isDeleting ? <Loader2 className={styles.spin} size={18} /> : 'Delete Permanently'}
+                                </button>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+
+                <ConfirmDialog
+                    isOpen={showDeleteConfirm}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={handleDeleteAccount}
+                    title="Delete Account Permanently"
+                    message="Are you absolutely sure you want to delete your Aranya account? This will erase all your animals, records, and preferences. This action is IRREVERSIBLE."
+                    confirmText={isDeleting ? "Deleting..." : "Yes, Delete Everything"}
+                    type="danger"
+                />
             </div>
-        </div>
     );
 }

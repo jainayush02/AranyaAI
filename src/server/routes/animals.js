@@ -48,9 +48,9 @@ router.get('/', auth, async (req, res) => {
 // @desc    Add new animal
 // @access  Private
 router.post('/', auth, async (req, res) => {
-    const { name, category, breed, dob, vaccinated } = req.body;
+    const { name, category, breed, dob, vaccinated, gender } = req.body;
 
-    if (!name || !category || !breed) {
+    if (!name || !category || !breed || !gender) {
         return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
@@ -61,6 +61,7 @@ router.post('/', auth, async (req, res) => {
             name: name.trim().substring(0, 100), // Enforce name limit & trim
             category: category.trim(),
             breed: breed.trim(),
+            gender,
             dob,
             vaccinated: vaccinated === true || vaccinated === 'true',
             status: 'Healthy', // default

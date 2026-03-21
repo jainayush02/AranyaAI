@@ -24,6 +24,11 @@ const animalSchema = new mongoose.Schema({
         enum: ['Healthy', 'Warning', 'Critical'],
         default: 'Healthy'
     },
+    gender: {
+        type: String,
+        enum: ['Male', 'Female'],
+        required: [true, 'Please specify the animal gender']
+    },
     dob: {
         type: Date,
         required: false

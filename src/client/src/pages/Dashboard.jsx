@@ -70,7 +70,8 @@ export default function Dashboard() {
                 category: newAnimalData.category,
                 breed: newAnimalData.breed,
                 dob: newAnimalData.dob,
-                vaccinated: newAnimalData.vaccinated
+                vaccinated: newAnimalData.vaccinated,
+                gender: newAnimalData.gender
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
