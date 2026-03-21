@@ -73,7 +73,7 @@ export default function AnimalProfile() {
 
     const handleExportCSV = () => {
         if (!healthLogs.length) return showToast("No data to export", "warning");
-        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Notes", "Health Status"];
+        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Health Status"];
         const rows = healthLogs.map(log => {
             const d = new Date(log.createdAt);
             return [
@@ -86,7 +86,6 @@ export default function AnimalProfile() {
                 log.heartRate, 
                 log.activityLevel, 
                 log.appetite, 
-                `"${log.notes || ''}"`,
                 calculateLogStatus(log)
             ].join(",");
         });
@@ -97,6 +96,55 @@ export default function AnimalProfile() {
         link.href = url;
         link.download = `${animal.name}_Medical_Report.csv`;
         link.click();
+    };
+
+    const handleImportCSV = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target.result;
+                const rows = text.split('\n').map(r => r.trim()).filter(r => r && !r.startsWith('Date'));
+                const parsedLogs = [];
+                for (const row of rows) {
+                    // Split by comma but preserve commas inside quotes (rudimentary CSV parse)
+                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+                    if (cols.length >= 8) {
+                        parsedLogs.push({
+                            temperature: parseFloat(cols[5]),
+                            heartRate: parseFloat(cols[6]),
+                            activityLevel: parseFloat(cols[7]),
+                            appetite: parseFloat(cols[8])
+                        });
+                    }
+                }
+                
+                if (parsedLogs.length === 0) throw new Error("No valid logs found in CSV");
+
+                const token = localStorage.getItem('token');
+                await axios.post(`/api/animals/${id}/bulk-logs`, { logs: parsedLogs }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                showToast(`Successfully imported ${parsedLogs.length} logs!`, 'success');
+                
+                // Refresh logs
+                const logsRes = await axios.get(`/api/animals/${id}/logs`, { 
+                    headers: { Authorization: `Bearer ${token}` } 
+                });
+                setHealthLogs(logsRes.data);
+                handleReanalyze(); 
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Failed to import logs', 'error');
+            } finally {
+                setIsImporting(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
     };
 
     const filteredLogs = React.useMemo(() => {
@@ -518,7 +566,7 @@ export default function AnimalProfile() {
                                     </button>
                                     <button className={styles.viewBtn} onClick={handleExportCSV}><Download size={16} /> Export CSV</button>
                                 </div>
-                                <input type="file" ref={fileInputRef} onChange={() => {}} style={{ display: 'none' }} accept=".csv" />
+                                <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} accept=".csv" />
                             </div>
 
                             {healthLogs.length === 0 ? (
