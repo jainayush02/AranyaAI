@@ -12,6 +12,7 @@ import Layout from './components/Layout'
 import Docs from './pages/Docs'
 import axios from 'axios'
 import { GoogleOAuthProvider } from '@react-oauth/google'
+import { ToastProvider } from './components/ToastProvider'
 
 // Prevent infinite loading by setting a global 15-second timeout
 axios.defaults.timeout = 15000;
@@ -48,27 +49,29 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={CLIENT_ID}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/admin" element={<Navigate to="/admin-portal" replace />} />
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin" element={<Navigate to="/admin-portal" replace />} />
 
-          <Route path="/" element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="admin-portal" element={<AdminPortal />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="billing" element={<Billing />} />
-            <Route path="help" element={<HelpCenter />} />
-            <Route path="docs" element={<Docs />} />
-            <Route path="animal/:id" element={<AnimalProfile />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+            <Route path="/" element={
+              <PrivateRoute>
+                <Layout />
+              </PrivateRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="admin-portal" element={<AdminPortal />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="billing" element={<Billing />} />
+              <Route path="help" element={<HelpCenter />} />
+              <Route path="docs" element={<Docs />} />
+              <Route path="animal/:id" element={<AnimalProfile />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </GoogleOAuthProvider>
   )
 }

@@ -265,5 +265,5 @@ def health_check():
 
 
 if __name__ == '__main__':
-    print("\n[START] Starting Aranya AI Microservice on port 8000...")
-    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+    print("\n[START] Starting Aranya AI Microservice on port 8005...")
+    app.run(host='0.0.0.0', port=8005, debug=False, use_reloader=False)

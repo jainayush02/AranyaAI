@@ -2,7 +2,7 @@
 🚀 Aranya AI - One-Click Launcher
 ===================================
 Starts all 3 services with a single command:
-  1. Python AI Model    (port 8000)
+  1. Python AI Model    (port 8005)
   2. Node.js Backend    (port 5000)
   3. React Frontend     (port 5173)
 
@@ -110,13 +110,13 @@ def main():
 ╚══════════════════════════════════════════════╝{RESET}
 """)
 
-    # ── 1. AI Microservice (port 8000) ─────────────────
+    # ── 1. AI Microservice (port 8005) ─────────────────
     # TensorFlow doesn't play well with piped stdout on Windows,
     # so we redirect AI output to a log file and tail it.
     ai_python = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
     ai_script = os.path.join(AI_DIR, "ai_server.py")
     log(MAGENTA, "AI ", f"Python: {ai_python}")
-    log(MAGENTA, "AI ", "Starting AI Microservice (port 8000)...")
+    log(MAGENTA, "AI ", "Starting AI Microservice (port 8005)...")
 
     # Clear old log
     with open(AI_LOG, 'w') as f:
@@ -173,7 +173,7 @@ def main():
 
     print(f"""
 {BOLD}{'='*50}
-  {MAGENTA}🧠 AI Model   →  http://localhost:8000{RESET}
+  {MAGENTA}🧠 AI Model   →  http://localhost:8005{RESET}
   {GREEN}{BOLD}🔧 Backend    →  http://localhost:5000{RESET}
   {CYAN}{BOLD}🌐 Frontend   →  http://localhost:5173{RESET}
 {BOLD}{'='*50}{RESET}

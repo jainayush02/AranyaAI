@@ -8,11 +8,36 @@ import styles from './AnimalProfile.module.css';
 import AdvancedLoader from '../components/AdvancedLoader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EditAnimalDialog from '../components/EditAnimalDialog';
+import { useToast } from '../components/ToastProvider';
+
+const calculateLogStatus = (log) => {
+    let score = 0;
+    const t = Number(log.temperature);
+    if (t > 40.0 || t < 37.0) score += 3;
+    else if (t > 39.3 || t < 37.6) score += 1;
+
+    const hr = Number(log.heartRate);
+    if (hr > 100 || hr < 40) score += 3;
+    else if (hr > 85 || hr < 50) score += 1;
+
+    const act = Number(log.activityLevel || 5);
+    if (act < 2) score += 2;
+    else if (act < 3) score += 1;
+
+    const app = Number(log.appetite || 3.5);
+    if (app < 1.5) score += 2;
+    else if (app < 2.5) score += 1;
+
+    if (score >= 4) return 'Critical';
+    if (score >= 2) return 'Warning';
+    return 'Healthy';
+};
 
 export default function AnimalProfile() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { role } = useOutletContext();
+    const { showToast } = useToast();
 
     const [animal, setAnimal] = useState(null);
     const [healthLogs, setHealthLogs] = useState([]);
@@ -47,8 +72,8 @@ export default function AnimalProfile() {
     const [timeRange, setTimeRange] = useState('all');
 
     const handleExportCSV = () => {
-        if (!healthLogs.length) return alert("No data to export");
-        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Notes"];
+        if (!healthLogs.length) return showToast("No data to export", "warning");
+        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Notes", "Health Status"];
         const rows = healthLogs.map(log => {
             const d = new Date(log.createdAt);
             return [
@@ -61,7 +86,8 @@ export default function AnimalProfile() {
                 log.heartRate, 
                 log.activityLevel, 
                 log.appetite, 
-                `"${log.notes || ''}"`
+                `"${log.notes || ''}"`,
+                calculateLogStatus(log)
             ].join(",");
         });
         const csv = "\ufeff" + headers.join(",") + "\r\n" + rows.join("\r\n");
@@ -144,7 +170,7 @@ export default function AnimalProfile() {
             setMedicalRecords(prev => prev.filter(r => r._id !== recordId));
         } catch (err) {
             console.error('Failed to delete record', err);
-            alert('Failed to delete record');
+            showToast('Failed to delete record', 'error');
         }
     };
 
@@ -163,7 +189,7 @@ export default function AnimalProfile() {
             setIsEditingWeight(false);
         } catch (err) {
             console.error('Weight update failed', err);
-            alert('Failed to update weight');
+            showToast('Failed to update weight', 'error');
         }
     };
 
@@ -174,10 +200,10 @@ export default function AnimalProfile() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setAnimal(res.data);
-            alert('Aranya profile updated successfully!');
+            showToast('Aranya profile updated successfully!');
         } catch (err) {
             console.error('Update error:', err);
-            alert('Failed to update Aranya details.');
+            showToast('Failed to update Aranya details.', 'error');
         }
     };
 
@@ -201,11 +227,11 @@ export default function AnimalProfile() {
 
                 if (logsRes.data.length > 0) {
                     try {
-                        const recalcRes = await axios.post(`/api/animals/${id}/recalculate`, {}, config);
+                        const recalcRes = await axios.post(`/api/animals/${id}/reanalyze`, {}, config);
                         setAnimal(prev => ({ ...prev, status: recalcRes.data.animalStatus }));
                         setAiScore(recalcRes.data.aiErrorScore);
                     } catch (recalcErr) {
-                        console.log('AI recalculation skipped');
+                        console.log('AI reanalysis skipped');
                     }
                 }
             } catch (err) {
@@ -217,15 +243,17 @@ export default function AnimalProfile() {
         fetchAnimal();
     }, [id]);
 
-    const handleRecalculate = async () => {
+    const handleReanalyze = async () => {
         setRecalculating(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`/api/animals/${id}/recalculate`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            const res = await axios.post(`/api/animals/${id}/reanalyze`, {}, { headers: { Authorization: `Bearer ${token}` } });
             setAnimal(prev => ({ ...prev, status: res.data.animalStatus }));
             setAiScore(res.data.aiErrorScore);
+            showToast('Reanalysis complete!', 'success');
         } catch (err) {
-            console.error('Recalculation failed', err);
+            console.error('Reanalysis failed', err);
+            showToast(err.response?.data?.msg || 'Reanalysis failed', 'error');
         } finally {
             setRecalculating(false);
         }
@@ -240,7 +268,7 @@ export default function AnimalProfile() {
             navigate('/');
         } catch (err) {
             console.error('Failed to delete animal', err);
-            alert('Failed to delete animal.');
+            showToast('Failed to delete animal.', 'error');
         }
     };
 
@@ -359,8 +387,8 @@ export default function AnimalProfile() {
                                     <button onClick={() => setShowEditDialog(true)} className={styles.glassActionBtn}>
                                         <Edit size={14} /> Profile
                                     </button>
-                                    <button onClick={handleRecalculate} disabled={recalculating} className={styles.glassActionBtn}>
-                                        <RefreshCw size={14} className={recalculating ? 'spin' : ''} /> Recalculate
+                                    <button onClick={handleReanalyze} disabled={recalculating} className={styles.glassActionBtn}>
+                                        <RefreshCw size={14} className={recalculating ? 'spin' : ''} /> {recalculating ? 'Reanalyzing...' : 'Reanalyze'}
                                     </button>
                                     {role !== 'caretaker' && (
                                         <button onClick={() => setShowConfirm(true)} className={styles.deleteActionBtn}><Trash2 size={14} /></button>
@@ -474,11 +502,6 @@ export default function AnimalProfile() {
                                     <div className={styles.rangeLabels}><span>Poor Appetite</span><span>Excellent Appetite</span></div>
                                 </div>
 
-                                <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
-                                    <label className={styles.label}>Additional Notes (Optional)</label>
-                                    <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Any observations or concerns about the animal..." className={`${styles.input} ${styles.textarea}`}></textarea>
-                                </div>
-
                                 <button type="submit" className={styles.saveBtn} disabled={submitting}>
                                     <Save size={20} /> {submitting ? 'Saving...' : 'Save Health Log'}
                                 </button>
@@ -514,6 +537,7 @@ export default function AnimalProfile() {
                                                     <th>Heart Rate</th>
                                                     <th>Activity</th>
                                                     <th>Appetite</th>
+                                                    <th>Health Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -527,6 +551,12 @@ export default function AnimalProfile() {
                                                         <td>{log.heartRate}</td>
                                                         <td>{log.activityLevel || 5}/10</td>
                                                         <td>{log.appetite || 3}/5</td>
+                                                        <td>
+                                                            <span className={`${styles.statusBadge} ${styles[`status${calculateLogStatus(log)}`]}`}>
+                                                                <div className={styles.statusDot}></div>
+                                                                {calculateLogStatus(log)}
+                                                            </span>
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

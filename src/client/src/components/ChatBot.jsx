@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
 import { Paperclip } from 'lucide-react'; // Added Paperclip
+import { useToast } from '../components/ToastProvider';
 
 const AILogo = ({ size = 24, className }) => (
     <svg
@@ -88,6 +89,7 @@ const parseMessage = (content) => {
 };
 
 export default function ChatBot() {
+    const { showToast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [conversations, setConversations] = useState([]);
 
@@ -161,7 +163,7 @@ export default function ChatBot() {
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert('Your browser does not support Speech Recognition.');
+            showToast('Your browser does not support Speech Recognition.', 'error');
             return;
         }
 
@@ -365,7 +367,7 @@ export default function ChatBot() {
         const filesToProcess = files.slice(0, remainingSlots);
 
         if (files.length > remainingSlots) {
-            alert(`You can only upload up to 4 images. Added ${remainingSlots} images.`);
+            showToast(`You can only upload up to 4 images. Added ${remainingSlots} images.`, 'warning');
         }
 
         setIsUploadingImage(true);
@@ -478,7 +480,7 @@ export default function ChatBot() {
                 }
             } catch (err) {
                 console.error(`Failed to parse file ${file.name}:`, err);
-                alert(`Failed to parse ${file.name}. Ensure it is a valid text or PDF file.`);
+                showToast(`Failed to parse ${file.name}. Ensure it is a valid text or PDF file.`, 'error');
             }
         }
 

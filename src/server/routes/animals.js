@@ -183,10 +183,10 @@ router.get('/:id/logs', auth, async (req, res) => {
     }
 });
 
-// @route   POST /api/animals/:id/recalculate
+// @route   POST /api/animals/:id/reanalyze
 // @desc    Re-run AI prediction on existing logs
 // @access  Private
-router.post('/:id/recalculate', auth, async (req, res) => {
+router.post('/:id/reanalyze', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
@@ -198,21 +198,65 @@ router.post('/:id/recalculate', auth, async (req, res) => {
         if (logs.length === 0) return res.json({ animalStatus: animal.status, msg: 'No logs found' });
 
         const chronologicalLogs = logs.reverse();
-        let status = 'Healthy';
+        let status = animal.status || 'Healthy';
         let aiErrorScore = null;
         try {
-            const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
+            const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8005') + '/predict_anomaly', {
                 history: chronologicalLogs
-            }, { timeout: 2500 });
+            }, { timeout: 10000 });
             status = aiResponse.data.status;
             aiErrorScore = aiResponse.data.error_score;
         } catch (aiErr) {
-            console.error('AI Microservice unavailable or slow:', aiErr.message);
+            console.error('AI Microservice error:', aiErr.message);
+            return res.status(503).json({ msg: 'AI Service Unavailable: ' + aiErr.message, animalStatus: status });
         }
 
         animal.status = status;
         await animal.save();
         res.json({ animalStatus: status, aiErrorScore });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   POST /api/animals/:id/bulk-logs
+// @desc    Add multiple health logs via CSV
+// @access  Private
+router.post('/:id/bulk-logs', auth, async (req, res) => {
+    try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+        
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        const logs = req.body.logs;
+        if (!logs || !Array.isArray(logs)) return res.status(400).json({ msg: 'Invalid logs format' });
+
+        const formattedLogs = logs.map(l => ({
+            animal_id: animal._id,
+            temperature: l.temperature,
+            heartRate: l.heartRate,
+            activityLevel: l.activityLevel,
+            appetite: l.appetite,
+            notes: l.notes
+        }));
+
+        await HealthLog.insertMany(formattedLogs);
+
+        if (formattedLogs.length > 0) {
+            const lastLog = formattedLogs[formattedLogs.length - 1];
+            animal.recentVitals = {
+                temperature: lastLog.temperature,
+                heartRate: lastLog.heartRate,
+                weight: animal.recentVitals?.weight || null,
+                lastUpdate: new Date()
+            };
+            await animal.save();
+        }
+
+        res.json({ msg: 'Logs imported successfully' });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -283,7 +327,7 @@ router.post('/:id/logs', auth, async (req, res) => {
                 
                 try {
                     // We can use a longer timeout here because it's not blocking the user
-                    const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000') + '/predict_anomaly', {
+                    const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8005') + '/predict_anomaly', {
                         history: chronologicalLogs
                     }, { timeout: 15000 });
                     

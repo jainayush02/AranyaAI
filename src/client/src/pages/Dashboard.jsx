@@ -7,10 +7,12 @@ import AddAnimalDialog from '../components/AddAnimalDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import axios from 'axios';
 import AdvancedLoader from '../components/AdvancedLoader';
+import { useToast } from '../components/ToastProvider';
 
 export default function Dashboard() {
     const { role, user } = useOutletContext(); // Get the role and user from Layout
     const navigate = useNavigate();
+    const { showToast } = useToast();
 
 
 
@@ -37,11 +39,11 @@ export default function Dashboard() {
             setAnimals(res.data);
             setLoading(false);
 
-            // Auto-recalculate all animals' status via AI in background
+            // Auto-reanalyze all animals' status via AI in background
             for (const animal of res.data) {
                 try {
                     const recalcRes = await axios.post(
-                        `/api/animals/${animal._id}/recalculate`, {}, config
+                        `/api/animals/${animal._id}/reanalyze`, {}, config
                     );
                     setAnimals(prev => prev.map(a =>
                         a._id === animal._id ? { ...a, status: recalcRes.data.animalStatus } : a
@@ -77,9 +79,10 @@ export default function Dashboard() {
             });
             // Update local state by prepending the newly saved item from MongoDB
             setAnimals([res.data, ...animals]);
+            showToast('Aranya added successfully!');
         } catch (err) {
             console.error('Failed to add animal', err);
-            alert('Failed to add animal. See console.');
+            showToast('Failed to add animal. See console.', 'error');
         }
     };
 
@@ -99,9 +102,10 @@ export default function Dashboard() {
                     });
                     setAnimals(prev => prev.filter(a => (a._id || a.id) !== id));
                     setSelectedAnimals(prev => prev.filter(sid => sid !== id));
+                    showToast('Animal deleted successfully!');
                 } catch (err) {
                     console.error('Delete failed', err);
-                    alert('Failed to delete animal');
+                    showToast('Failed to delete animal', 'error');
                 }
             }
         });
@@ -162,9 +166,10 @@ export default function Dashboard() {
 
                     setAnimals(prev => prev.filter(a => !selectedAnimals.includes(a._id || a.id)));
                     setSelectedAnimals([]);
+                    showToast(`${selectedAnimals.length} animals deleted successfully!`);
                 } catch (err) {
                     console.error('Bulk delete failed', err);
-                    alert('Failed to delete some animals');
+                    showToast('Failed to delete some animals', 'error');
                 }
             }
         });

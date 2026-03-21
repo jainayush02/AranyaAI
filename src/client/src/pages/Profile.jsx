@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdvancedLoader from '../components/AdvancedLoader';
 import styles from './Profile.module.css';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { useToast } from '../components/ToastProvider';
 
 // Helper to get auth headers
 const getAuthHeaders = () => ({
@@ -27,6 +28,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : 'N/A';
 
 export default function Profile() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const [user, setUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [fullName, setFullName] = useState('');
@@ -160,7 +162,7 @@ export default function Profile() {
             setPreviewUrl('');
         } catch (error) {
             console.error('Upload failed', error);
-            alert('Failed to upload image.');
+            showToast('Failed to upload image.', 'error');
         } finally {
             setIsUploading(false);
         }
@@ -325,11 +327,11 @@ export default function Profile() {
             
             // Success! Clear local storage and redirect to login
             localStorage.clear();
-            alert(res.data.message || 'Your account has been deleted permanently.');
+            showToast(res.data.message || 'Your account has been deleted permanently.', 'success');
             navigate('/login');
         } catch (err) {
             console.error('Account deletion failed', err);
-            alert(err.response?.data?.message || 'Failed to delete account. Please try again.');
+            showToast(err.response?.data?.message || 'Failed to delete account. Please try again.', 'error');
         } finally {
             setIsDeleting(false);
             setShowDeleteConfirm(false);

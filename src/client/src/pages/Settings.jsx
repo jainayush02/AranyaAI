@@ -4,10 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import styles from './Settings.module.css';
+import { useToast } from '../components/ToastProvider';
 
 export default function Settings() {
     const { role, user: loggedInUser } = useOutletContext();
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const initialTab = queryParams.get('tab') || 'pricing';
@@ -120,11 +122,11 @@ export default function Settings() {
             await axios.post('/api/auth/care-circle/invite', inviteForm, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert('✅ Member added to your Care Circle!');
+            showToast('Member added to your Care Circle!', 'success');
             setInviteForm({ full_name: '', email: '', mobile: '', password: '' });
             fetchCircleMembers();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to invite member');
+            showToast(err.response?.data?.message || 'Failed to invite member', 'error');
         } finally {
             setIsInviting(false);
         }
@@ -139,7 +141,7 @@ export default function Settings() {
             });
             fetchCircleMembers();
         } catch (err) {
-            alert('Failed to remove member');
+            showToast('Failed to remove member', 'error');
         }
     };
 
@@ -172,10 +174,10 @@ export default function Settings() {
                 await axios.post('/api/settings/update', item, config);
             }
 
-            alert('✨ System Configuration and Pricing updated successfully!');
+            showToast('System Configuration and Pricing updated successfully!', 'success');
         } catch (err) {
             console.error("Save error:", err);
-            alert('❌ Failed to update global settings.');
+            showToast('Failed to update global settings.', 'error');
         } finally {
             setIsSaving(false);
         }
