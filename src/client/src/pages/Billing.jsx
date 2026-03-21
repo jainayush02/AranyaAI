@@ -1,27 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { CreditCard, Check, Zap } from 'lucide-react';
 import axios from 'axios';
 import styles from './Billing.module.css';
 
 export default function Billing() {
     const navigate = useNavigate();
-    const [prices, setPrices] = useState({
-        proPrice: 499,
-        freeLimit: 5,
-        plans: []
-    });
+    const { user } = useOutletContext();
+    const [prices, setPrices] = useState({ plans: [] });
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const fetchPricing = async () => {
             try {
-                const res = await axios.get('/api/settings');
-                // Ensure we handle numeric strings correctly
-                if (res.data.proPrice) setPrices(prev => ({ ...prev, proPrice: Number(res.data.proPrice) }));
-                if (res.data.freeLimit) setPrices(prev => ({ ...prev, freeLimit: Number(res.data.freeLimit) }));
-                if (res.data.plans) setPrices(prev => ({ ...prev, plans: typeof res.data.plans === 'string' ? JSON.parse(res.data.plans) : res.data.plans }));
-
+                const token = localStorage.getItem('token');
+                const config = { headers: { Authorization: `Bearer ${token}` } };
+                const res = await axios.get('/api/plans', config);
+                
+                const mappedPlans = res.data.map(dbPlan => {
+                    let f = [];
+                    f.push(dbPlan.maxAnimals === -1 ? 'Unlimited Animals' : `${dbPlan.maxAnimals} Animal Capacity`);
+                    f.push(dbPlan.dailyChatMessages === -1 ? 'Unlimited AI Pings' : `${dbPlan.dailyChatMessages} AI Pings / day`);
+                    f.push(dbPlan.medicalVaultStorageMB === -1 ? 'Unlimited Vault' : `${dbPlan.medicalVaultStorageMB} MB Vault Storage`);
+                    if (dbPlan.maxCareCircleMembers === -1) f.push('Unlimited Care Circle');
+                    else f.push(`${dbPlan.maxCareCircleMembers} Care Circle Members`);
+                    if (dbPlan.allowExport) f.push('Digital Data Export');
+                    if (dbPlan.allowBulkImport) f.push('Bulk CSV Import');
+                    if (dbPlan.allowAdvancedAI) f.push('Advanced AI Models');
+                    
+                    const isCurrent = user?.plan === dbPlan.code || (dbPlan.isDefault && !user?.plan);
+                    
+                    return {
+                        id: dbPlan._id,
+                        code: dbPlan.code,
+                        name: dbPlan.name,
+                        price: dbPlan.price.toString(),
+                        isRecommended: dbPlan.isRecommended,
+                        features: f.join('\n'),
+                        cta: isCurrent ? 'Current Plan' : (dbPlan.price === 0 ? 'Select Plan' : 'Upgrade to this Plan'),
+                        isCurrent
+                    };
+                });
+                setPrices({ plans: mappedPlans });
             } catch (err) {
                 console.error("Failed to fetch platform pricing:", err);
             } finally {
@@ -29,7 +49,7 @@ export default function Billing() {
             }
         };
         fetchPricing();
-    }, []);
+    }, [user]);
 
     return (
         <div className={`container ${styles.pageContainer} animate-fade-in`}>
@@ -46,17 +66,13 @@ export default function Billing() {
                         <span>Loading billing plans...</span>
                     </div>
                 ) : (
-                    (prices.plans.length > 0 ? prices.plans : [
-                        { id: 'free', name: 'Free Plan', price: '0', isRecommended: false, features: `Up to ${prices.freeLimit} animals\nBasic health tracking\nAI veterinary assistant\nWeekly reports`, cta: 'Current Plan' },
-                        { id: 'pro', name: 'Pro Plan', price: prices.proPrice, isRecommended: true, features: 'Unlimited animals\nAdvanced analytics\nPriority support\nCustom reports\nMultiple users', cta: 'Upgrade to this Plan' },
-                        { id: 'enterprise', name: 'Enterprise Plan', price: 'Custom', isRecommended: false, features: 'Everything in Pro\nDedicated support\nCustom integrations\nAPI access\nOn-site training', cta: 'Contact Sales' }
-                    ]).map((plan) => (
+                    prices.plans.map((plan) => (
                         <div key={plan.id} className={`${styles.planCard} ${plan.isRecommended ? styles.recommended : ''}`}>
                             {plan.isRecommended && <div className={styles.recommendedBadge}>Recommended</div>}
                             <div className={styles.planName}>{plan.name}</div>
                             <div className={styles.planPrice}>
-                                {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
-                                {!isNaN(Number(plan.price)) && <span className={styles.month}>/month</span>}
+                                {plan.price === '0' ? 'FREE' : `₹${plan.price}`}
+                                {plan.price !== '0' && <span className={styles.month}>/month</span>}
                             </div>
 
                             <ul className={styles.featureList}>
@@ -68,10 +84,10 @@ export default function Billing() {
                             </ul>
 
                             <button
-                                className={`${styles.btnPlan} ${plan.isRecommended ? styles.btnPro : (plan.price === '0' ? styles.btnCurrent : styles.btnEnterprise)}`}
-                                disabled={plan.price === '0'}
+                                className={`${styles.btnPlan} ${plan.isRecommended ? styles.btnPro : (plan.isCurrent ? styles.btnCurrent : styles.btnEnterprise)}`}
+                                disabled={plan.isCurrent}
                             >
-                                {plan.price !== '0' && <Zap size={16} />} {plan.cta || 'Select Plan'}
+                                {plan.price !== '0' && !plan.isCurrent && <Zap size={16} />} {plan.cta}
                             </button>
                         </div>
                     )))}

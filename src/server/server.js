@@ -176,6 +176,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/docs', require('./routes/docs'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/plans', require('./routes/plans'));
 
 // Start local server (not on Vercel)
 const PORT = process.env.PORT || 5000;

@@ -598,6 +598,28 @@ router.put('/users/:id/role', authenticate, adminOnly, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// Update user plan
+router.put('/users/:id/plan', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { plan } = req.body;
+        const user = await User.findByIdAndUpdate(req.params.id, { plan }, { new: true }).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        await log('admin', req.user, `Updated ${user.full_name || user.email}'s plan to ${plan}`);
+        res.json(user);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Update user plan overrides
+router.put('/users/:id/overrides', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { overrides } = req.body;
+        const user = await User.findByIdAndUpdate(req.params.id, { planOverrides: overrides }, { new: true }).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        await log('admin', req.user, `Updated limit overrides for ${user.full_name || user.email}`);
+        res.json(user);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // Delete user + their data
 router.delete('/users/:id', authenticate, adminOnly, async (req, res) => {
     try {

@@ -61,6 +61,7 @@ export default function Profile() {
 
     // Delete account state
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [planDisplayName, setPlanDisplayName] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
@@ -91,6 +92,26 @@ export default function Profile() {
         }
         fetchProfile();
     }, []);
+
+    // Fetch plans to resolve plan code -> display name
+    useEffect(() => {
+        const fetchPlanName = async () => {
+            try {
+                const res = await axios.get('/api/plans', getAuthHeaders());
+                const plans = res.data || [];
+                const currentCode = user?.plan;
+                if (currentCode) {
+                    const match = plans.find(p => p.code === currentCode);
+                    if (match) setPlanDisplayName(match.name);
+                    else setPlanDisplayName(currentCode);
+                } else {
+                    const defaultPlan = plans.find(p => p.isDefault);
+                    setPlanDisplayName(defaultPlan?.name || 'Free');
+                }
+            } catch { setPlanDisplayName(user?.plan || 'Free'); }
+        };
+        if (user) fetchPlanName();
+    }, [user?.plan]);
 
     // Auto-calculate age when DOB changes
     useEffect(() => {
@@ -420,7 +441,7 @@ export default function Profile() {
                         <div className={styles.highlightPill}>
                             <span className={styles.pillLabel}>Membership</span>
                             <span className={styles.pillValue}>
-                                {user.plan || 'Standard'}
+                                {planDisplayName || user.plan || 'Free'}
                                 <span className={styles.pillSubtext}>Account Plan</span>
                             </span>
                         </div>

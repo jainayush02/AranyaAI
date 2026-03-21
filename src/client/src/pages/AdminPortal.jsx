@@ -9,7 +9,7 @@ import {
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
     Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
     ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes,
-    ZoomIn, ZoomOut
+    ZoomIn, ZoomOut, Check, Info, Rocket, Gem, Briefcase, Zap as ZapIcon, Terminal, Share2, Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -245,8 +245,10 @@ export default function AdminPortal() {
     const [videoPreview, setVideoPreview] = useState(null);
 
     const [pricingLoading, setPricingLoading] = useState(false);
+    const [plans, setPlans] = useState([]);
+    const [planModal, setPlanModal] = useState(null);
+    const [editingPlan, setEditingPlan] = useState({ name: '', code: '', price: 0, maxAnimals: 3, dailyChatMessages: 5, dailyImageUploads: 0, medicalVaultStorageMB: 10, maxCareCircleMembers: 0, allowExport: false, allowBulkImport: false, allowAdvancedAI: false, isDefault: false, isRecommended: false });
     const [settingsLoading, setSettingsLoading] = useState(false);
-
     // Animal Taxonomy Management
     const DEFAULT_CATEGORIES = {
         Cow: ['Holstein', 'Jersey', 'Gir', 'Sahiwal', 'Redsindhi'],
@@ -355,6 +357,30 @@ export default function AdminPortal() {
         } catch { push('Docs fetch failing', 'err'); }
         finally { setArticlesLoading(false); }
     }, [push]);
+
+    const fetchPlans = useCallback(async () => {
+        setPricingLoading(true);
+        try {
+            const r = await axios.get(`${API}/plans?all=true`, authH());
+            setPlans(r.data);
+        } catch { push('Failed to load plans', 'err'); }
+        finally { setPricingLoading(false); }
+    }, [push]);
+
+    const handleSavePlan = async () => {
+        if (!editingPlan.name || !editingPlan.code) return push('Name and Custom Code are required', 'err');
+        try {
+            if (planModal === 'create') {
+                await axios.post(`${API}/plans`, editingPlan, authH());
+                push('New tier created!');
+            } else {
+                await axios.put(`${API}/plans/${planModal._id}`, editingPlan, authH());
+                push('Tier updated!');
+            }
+            setPlanModal(null);
+            fetchPlans();
+        } catch { push('Failed to update plan', 'err'); }
+    };
 
     const fetchAdminAccess = useCallback(async () => {
         setAdminAccessLoading(true);
@@ -612,12 +638,7 @@ export default function AdminPortal() {
     useEffect(() => { if (activeTab === 'settings') fetchAiConfig(); }, [activeTab, fetchAiConfig]);
     useEffect(() => { if (activeTab === 'taxonomy') fetchTaxonomy(); }, [activeTab, fetchTaxonomy]);
 
-    useEffect(() => {
-        if (activeTab === 'pricing') {
-            setPricingLoading(true);
-            setTimeout(() => setPricingLoading(false), 300); // Small delay for effect
-        }
-    }, [activeTab]);
+    useEffect(() => { if (activeTab === 'pricing' || activeTab === 'users') fetchPlans(); }, [activeTab, fetchPlans]);
 
     const blockToggle = async u => {
         try {
@@ -646,6 +667,23 @@ export default function AdminPortal() {
             push(`Role → ${newRole}`);
             fetchUsers();
         } catch { push('Failed', 'err'); }
+    };
+
+    const updateUserPlan = async (userId, planCode) => {
+        try {
+            await axios.put(`${API}/admin/users/${userId}/plan`, { plan: planCode }, authH());
+            push('User plan updated');
+            if (focusedUser?.user?._id === userId) fetchFocusedUser(userId);
+            fetchUsers();
+        } catch { push('Failed to update plan', 'err'); }
+    };
+
+    const updateUserOverrides = async (userId, overrides) => {
+        try {
+            await axios.put(`${API}/admin/users/${userId}/overrides`, { overrides }, authH());
+            push('System overrides saved');
+            fetchFocusedUser(userId);
+        } catch { push('Failed to save overrides', 'err'); }
     };
 
     // ── FAQ actions ──────────────────────────────
@@ -806,7 +844,7 @@ export default function AdminPortal() {
         { id: 'logs', label: 'Activity Logs', icon: Activity },
         { id: 'content', label: 'Help Center FAQs', icon: HelpCircle },
         { id: 'docs', label: 'Knowledge Base', icon: BookOpen },
-        { id: 'pricing', label: 'Pricing Plans', icon: Crown },
+        { id: 'pricing', label: 'Subscription', icon: Zap },
         { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
         { id: 'settings', label: 'System Configuration', icon: SettingsIcon },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
@@ -823,7 +861,7 @@ export default function AdminPortal() {
         logs: { title: 'ACTIVITY', subtitle: 'LOGS', desc: 'Monitor all platform events and user actions', icon: Activity },
         content: { title: 'CONTENT', subtitle: 'MANAGER', desc: 'Manage Help Center FAQs and Documentation', icon: HelpCircle },
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
-        pricing: { title: 'PRICING', subtitle: 'PLANS', desc: 'Manage subscription tiers and payment settings', icon: Crown },
+        pricing: { title: 'SUBSCRIPTION', subtitle: 'CENTER', desc: 'Manage tiers and subscription framework', icon: Zap },
         taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
         settings: { title: 'SYSTEM', subtitle: 'CONFIG', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
@@ -1119,12 +1157,7 @@ export default function AdminPortal() {
                                 </button>
                             );
                         })}
-                        <div className={s.sidebarFooter}>
-                            <button className={s.navItem} onClick={() => navigate('/dashboard')} style={{ marginTop: 'auto', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', borderRadius: 0 }}>
-                                <ArrowLeftCircle size={17} />
-                                {isSidebarOpen && <span>Exit Portal</span>}
-                            </button>
-                        </div>
+
                     </nav>
                 </motion.aside>
 
@@ -1220,7 +1253,6 @@ export default function AdminPortal() {
                                                     <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                         <Zap size={20} color="#3b82f6" /> Real-time LLM Usage & Configuration
                                                     </h2>
-                                                    <button className={s.linkBtn} onClick={() => setTab('settings')}>Configure Models →</button>
                                                 </div>
                                                 {llmStats.length === 0 ? (
                                                     <p className={s.emptyMsg} style={{ padding: '2rem', textAlign: 'center' }}>No LLM configuration found.</p>
@@ -1629,9 +1661,23 @@ export default function AdminPortal() {
                                                                     )}
                                                                     Activity Log
                                                                 </button>
+                                                                <button
+                                                                    onClick={() => setUserLogSubTab('limits')}
+                                                                    style={{
+                                                                        padding: '0.6rem 1.4rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700, border: 'none', cursor: 'pointer', zIndex: 1, position: 'relative',
+                                                                        background: 'transparent',
+                                                                        color: userLogSubTab === 'limits' ? '#166534' : '#64748b',
+                                                                        transition: 'color 0.3s ease'
+                                                                    }}
+                                                                >
+                                                                    {userLogSubTab === 'limits' && (
+                                                                        <motion.div layoutId="subTabPill" style={{ position: 'absolute', inset: 0, background: '#fff', borderRadius: '8px', zIndex: -1, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }} transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
+                                                                    )}
+                                                                    Plan & Limits
+                                                                </button>
                                                             </div>
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                {(userLogSubTab === 'animals') ? `${(focusedUser.animals || []).length} Records` : `${(focusedUser.logs || []).length} Actions`}
+                                                                {(userLogSubTab === 'animals') ? `${(focusedUser.animals || []).length} Records` : (userLogSubTab === 'activity' ? `${(focusedUser.logs || []).length} Actions` : 'Rules Management')}
                                                             </div>
                                                         </div>
 
@@ -1678,7 +1724,7 @@ export default function AdminPortal() {
                                                                         </div>
                                                                     )}
                                                                 </motion.div>
-                                                            ) : (
+                                                            ) : userLogSubTab === 'activity' ? (
                                                                 <motion.div
                                                                     key="activity-panel"
                                                                     initial={{ opacity: 0, scale: 0.98 }}
@@ -1707,16 +1753,169 @@ export default function AdminPortal() {
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'center' }}>
                                                                                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Type</span>
-                                                                                        <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 800, background: '#f1f5f9', padding: '3px 10px', borderRadius: '8px', display: 'inline-block' }}>{log.type || 'system'}</span>
+                                                                                        <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 800, background: '#f1f5f9', padding: '3px 10px', borderRadius: '8px', display: 'inline-block' }}>{log.type.replace('_', ' ')}</span>
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'right' }}>
                                                                                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Time</span>
-                                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>{fmtDate(log.createdAt)}<br /><span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{fmtTime(log.createdAt)}</span></span>
+                                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>{ago(log.createdAt)}<br /><span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{fmtTime(log.createdAt)}</span></span>
                                                                                     </div>
                                                                                 </motion.div>
                                                                             ))}
                                                                         </div>
                                                                     )}
+                                                                </motion.div>
+                                                            ) : (
+                                                                <motion.div
+                                                                    key="limits-panel"
+                                                                    initial={{ opacity: 0, y: 15 }}
+                                                                    animate={{ opacity: 1, y: 0 }}
+                                                                    exit={{ opacity: 0, y: -15 }}
+                                                                    className={s.customScroll}
+                                                                    style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem', padding: '0.5rem' }}
+                                                                >
+                                                                    {/* Plan Assignment Section */}
+                                                                    <div style={{ background: '#f8fafc', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                                                                            <Crown size={18} color="#2d5f3f" />
+                                                                            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Subscription Tier</h3>
+                                                                        </div>
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+                                                                            {plans.map(p => (
+                                                                                <button
+                                                                                    key={p.code}
+                                                                                    onClick={() => updateUserPlan(focusedUser.user._id, p.code)}
+                                                                                    style={{
+                                                                                        padding: '1rem',
+                                                                                        borderRadius: '12px',
+                                                                                        border: '2px solid',
+                                                                                        borderColor: focusedUser.user.plan === p.code ? '#2d5f3f' : '#e2e8f0',
+                                                                                        background: focusedUser.user.plan === p.code ? '#f0f9f3' : '#fff',
+                                                                                        textAlign: 'left',
+                                                                                        cursor: 'pointer',
+                                                                                        transition: 'all 0.2s ease',
+                                                                                        display: 'flex',
+                                                                                        flexDirection: 'column',
+                                                                                        gap: '4px'
+                                                                                    }}
+                                                                                >
+                                                                                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: focusedUser.user.plan === p.code ? '#166534' : '#0f172a' }}>{p.name}</div>
+                                                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Code: {p.code}</div>
+                                                                                    {focusedUser.user.plan === p.code && (
+                                                                                        <div style={{ marginTop: '4px', fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: '#166534' }}>Current Plan</div>
+                                                                                    )}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Individual Overrides Section */}
+                                                                    <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                                <ShieldAlert size={18} color="#ef4444" />
+                                                                                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Limit Overrides</h3>
+                                                                            </div>
+                                                                            <p style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Overrides take priority over the base plan.</p>
+                                                                        </div>
+
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Max Animals</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className={s.inp}
+                                                                                        value={focusedUser.user.planOverrides?.maxAnimals ?? ''}
+                                                                                        placeholder="Use base plan"
+                                                                                        onChange={e => {
+                                                                                            const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                                                                            const next = { ...focusedUser.user.planOverrides, maxAnimals: val };
+                                                                                            if (val === undefined) delete next.maxAnimals;
+                                                                                            setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                        }}
+                                                                                    />
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Daily Chat Messages</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className={s.inp}
+                                                                                        value={focusedUser.user.planOverrides?.dailyChatMessages ?? ''}
+                                                                                        placeholder="Use base plan"
+                                                                                        onChange={e => {
+                                                                                            const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                                                                            const next = { ...focusedUser.user.planOverrides, dailyChatMessages: val };
+                                                                                            if (val === undefined) delete next.dailyChatMessages;
+                                                                                            setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                        }}
+                                                                                    />
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Storage (MB)</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className={s.inp}
+                                                                                        value={focusedUser.user.planOverrides?.medicalVaultStorageMB ?? ''}
+                                                                                        placeholder="Use base plan"
+                                                                                        onChange={e => {
+                                                                                            const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                                                                                            const next = { ...focusedUser.user.planOverrides, medicalVaultStorageMB: val };
+                                                                                            if (val === undefined) delete next.medicalVaultStorageMB;
+                                                                                            setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                        }}
+                                                                                    />
+                                                                                </label>
+                                                                            </div>
+
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '12px' }}>
+                                                                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Feature Toggles</span>
+
+                                                                                <ToggleSwitch
+                                                                                    label="Allow Export"
+                                                                                    checked={focusedUser.user.planOverrides?.allowExport ?? false}
+                                                                                    onChange={val => {
+                                                                                        const next = { ...focusedUser.user.planOverrides, allowExport: val };
+                                                                                        setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                    }}
+                                                                                />
+                                                                                <ToggleSwitch
+                                                                                    label="Allow Bulk Import"
+                                                                                    checked={focusedUser.user.planOverrides?.allowBulkImport ?? false}
+                                                                                    onChange={val => {
+                                                                                        const next = { ...focusedUser.user.planOverrides, allowBulkImport: val };
+                                                                                        setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                    }}
+                                                                                />
+                                                                                <ToggleSwitch
+                                                                                    label="Advanced AI Models"
+                                                                                    checked={focusedUser.user.planOverrides?.allowAdvancedAI ?? false}
+                                                                                    onChange={val => {
+                                                                                        const next = { ...focusedUser.user.planOverrides, allowAdvancedAI: val };
+                                                                                        setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                    }}
+                                                                                />
+
+                                                                                <div style={{ marginTop: 'auto', paddingTop: '1rem', display: 'flex', gap: '10px' }}>
+                                                                                    <button
+                                                                                        onClick={() => updateUserOverrides(focusedUser.user._id, focusedUser.user.planOverrides)}
+                                                                                        style={{ flex: 1, padding: '0.7rem', background: '#2d5f3f', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}
+                                                                                    >
+                                                                                        Apply Overrides
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            const next = {};
+                                                                                            setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
+                                                                                            updateUserOverrides(focusedUser.user._id, next);
+                                                                                        }}
+                                                                                        style={{ padding: '0.7rem', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}
+                                                                                    >
+                                                                                        Clear All
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
                                                                 </motion.div>
                                                             )}
                                                         </AnimatePresence>
@@ -1741,9 +1940,9 @@ export default function AdminPortal() {
                                                 </select>
                                                 <select className={s.sel} value={userPlan} onChange={e => { setUserPlan(e.target.value); setUserPage(1); }}>
                                                     <option value="">All Plans</option>
-                                                    <option value="free">Free</option>
-                                                    <option value="pro">Pro</option>
-                                                    <option value="enterprise">Enterprise</option>
+                                                    {(plans.length > 0 ? plans : [{code:'free', name:'Free'}, {code:'pro', name:'Pro'}, {code:'enterprise', name:'Enterprise'}]).map(p => (
+                                                        <option key={p.code} value={p.code}>{p.name}</option>
+                                                    ))}
                                                 </select>
                                                 <select className={s.sel} value={userRole} onChange={e => { setUserRole(e.target.value); setUserPage(1); }}>
                                                     <option value="all">All Roles</option>
@@ -1777,7 +1976,28 @@ export default function AdminPortal() {
                                                                             </div>
                                                                         </div>
                                                                     </td>
-                                                                    <td><span className={`${s.pill} ${s[`plan_${u.plan || 'free'}`]}`}>{u.plan || 'free'}</span></td>
+                                                                    <td onClick={e => e.stopPropagation()}>
+                                                                        <select
+                                                                            value={u.plan || 'free'}
+                                                                            onChange={e => updateUserPlan(u._id, e.target.value)}
+                                                                            style={{
+                                                                                padding: '5px 10px',
+                                                                                fontSize: '0.75rem',
+                                                                                fontWeight: 700,
+                                                                                color: '#166534',
+                                                                                background: '#f0fdf4',
+                                                                                border: '1px solid #bbf7d0',
+                                                                                borderRadius: '8px',
+                                                                                cursor: 'pointer',
+                                                                                outline: 'none',
+                                                                                fontFamily: 'inherit'
+                                                                            }}
+                                                                        >
+                                                                            {(plans.length > 0 ? plans : [{code:'free', name:'Free'}, {code:'pro', name:'Pro'}]).map(p => (
+                                                                                <option key={p.code} value={p.code}>{p.name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </td>
                                                                     <td><span className={`${s.pill} ${u.blocked ? s.pillBlocked : s.pillActive}`}>{u.blocked ? 'Blocked' : 'Active'}</span></td>
                                                                     <td className={s.tdMuted}>{fmtDate(u.createdAt)}</td>
                                                                     <td className={s.tdMuted}>{ago(u.lastLoginAt)}</td>
@@ -2046,62 +2266,7 @@ export default function AdminPortal() {
                                 </motion.div>
                             )}
 
-                            {/* ── PRICING ── */}
-                            {activeTab === 'pricing' && (
-                                <motion.div key="pr" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
-                                    <div className={s.sectionHead}>
-                                        <div />
-                                        <button className={s.primaryBtn} onClick={() => navigate('/settings?tab=pricing')}><Crown size={16} /> Subscription Settings</button>
-                                    </div>
 
-                                    {pricingLoading ? (
-                                        <AdvancedLoader type="pricing" compact={false} fullScreen={false} />
-                                    ) : (
-                                        <>
-
-                                            <div className={s.heroCard} style={{ background: '#1e293b', color: '#fff', textAlign: 'left', alignItems: 'flex-start' }}>
-                                                <div style={{ position: 'relative', zIndex: 1, display: 'flex', width: '100%', alignItems: 'center', gap: '4rem' }}>
-                                                    <div style={{ flex: 1 }}>
-                                                        <h2 className={s.heroCardTitle} style={{ color: '#fff' }}>Revenue Optimization</h2>
-                                                        <p className={s.heroCardDesc} style={{ color: '#94a3b8' }}>Monitor real-time subscription performance and adjust tier pricing to maximize LTV.</p>
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '2rem' }}>
-                                                        <div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Total MRR</div>
-                                                            <div style={{ fontSize: '2rem', fontWeight: 900, color: '#22c55e' }}>₹4.2L</div>
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Growth</div>
-                                                            <div style={{ fontSize: '2rem', fontWeight: 900, color: '#3b82f6' }}>+12%</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className={s.featureGrid}>
-                                                <div className={s.featureCard}>
-                                                    <div className={s.featureCardIcon} style={{ background: 'rgba(71, 85, 105, 0.1)', color: '#475569' }}><Zap size={22} /></div>
-                                                    <div className={s.featureCardTitle}>Free Tier</div>
-                                                    <p className={s.featureCardDesc}>Basic health tracking for 2 animals. No AI features.</p>
-                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>₹0<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
-                                                </div>
-                                                <div className={s.featureCard} style={{ border: '2px solid #2d5f3f' }}>
-                                                    <div className={s.featureCardIcon} style={{ background: '#2d5f3f', color: '#fff' }}><Crown size={22} /></div>
-                                                    <div className={s.featureCardTitle}>Pro Tier</div>
-                                                    <p className={s.featureCardDesc}>Unlimited animals & full AI diagnostics. Priority support.</p>
-                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto', color: '#2d5f3f' }}>₹499<small style={{ fontSize: '0.8rem', opacity: 0.5 }}>/mo</small></div>
-                                                </div>
-                                                <div className={s.featureCard}>
-                                                    <div className={s.featureCardIcon} style={{ background: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed' }}><TrendingUp size={22} /></div>
-                                                    <div className={s.featureCardTitle}>Enterprise</div>
-                                                    <p className={s.featureCardDesc}>Custom deployment for labs & shelters. Dedicated SLA.</p>
-                                                    <div style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: 'auto' }}>Custom</div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </motion.div>
-                            )}
 
                             {/* ── SETTINGS ── */}
                             {tab === 'settings' && (
@@ -2714,6 +2879,207 @@ export default function AdminPortal() {
                                             )}
                                         </div>
                                     </div>
+                                </motion.div>
+                            )}
+
+                            {/* ── PRICING PLANS ── */}
+                            {activeTab === 'pricing' && (
+                                <motion.div key="pricing" className={s.section} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                                    
+                                    {planModal && (
+                                        <div className={s.overlay}>
+                                            <motion.div 
+                                                className={s.modal} 
+                                                initial={{ y: 20, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                style={{ maxWidth: '650px' }}
+                                            >
+                                                <div style={{ padding: '1.75rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(to right, #ffffff, #f8fafc)' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <div style={{ width: 42, height: 42, borderRadius: '14px', background: 'rgba(45, 95, 63, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            {planModal === 'create' ? <Rocket size={22} color="#2d5f3f" /> : <Gem size={22} color="#2d5f3f" />}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.1rem' }}>{planModal === 'create' ? 'Deploy New Pricing Tier' : 'Modify Subscription Matrix'}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Global tier configuration & limit enforcement</div>
+                                                        </div>
+                                                    </div>
+                                                    <button className={s.closeBtn} onClick={() => setPlanModal(null)}><X size={18} /></button>
+                                                </div>
+
+                                                <div className={s.modalContent}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                                                        <div style={{ gridColumn: 'span 2' }}>
+                                                            <label className={s.inputLabel}>Display Name</label>
+                                                            <input className={s.field} value={editingPlan.name} onChange={e => setEditingPlan(p => ({...p, name: e.target.value}))} placeholder="e.g. MaxPro Enterprise" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '1rem' }} />
+                                                        </div>
+                                                        <div>
+                                                            <label className={s.inputLabel}><Terminal size={14} /> System Code ID</label>
+                                                            <input className={s.field} value={editingPlan.code} onChange={e => setEditingPlan(p => ({...p, code: e.target.value}))} placeholder="e.g. maxpro-1" disabled={planModal !== 'create'} style={{ background: planModal !== 'create' ? '#f1f5f9' : '#fff', fontFamily: 'monospace' }} />
+                                                        </div>
+                                                        <div>
+                                                            <label className={s.inputLabel}>Price Setting (INR)</label>
+                                                            <input type="number" className={s.field} value={editingPlan.price} onChange={e => setEditingPlan(p => ({...p, price: e.target.value === '' ? '' : Number(e.target.value)}))} style={{ fontWeight: 800, color: '#2d5f3f' }} />
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', marginBottom: '2rem' }}>
+                                                        <h3 style={{ margin: '0 0 1.25rem', fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                                            <Database size={16} color="#2d5f3f" /> Resource Limit Architecture
+                                                        </h3>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                                            <div>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>MAX ANIMALS</label>
+                                                                <input type="number" className={s.field} value={editingPlan.maxAnimals} onChange={e => setEditingPlan(p => ({...p, maxAnimals: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                                <p style={{ margin: '0.3rem 0 0', fontSize: '0.65rem', color: '#94a3b8' }}>-1 for unlimited capacity</p>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>DAILY AI QUOTA</label>
+                                                                <input type="number" className={s.field} value={editingPlan.dailyChatMessages} onChange={e => setEditingPlan(p => ({...p, dailyChatMessages: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>VISION ENGINE CAP</label>
+                                                                <input type="number" className={s.field} value={editingPlan.dailyImageUploads} onChange={e => setEditingPlan(p => ({...p, dailyImageUploads: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>VAULT STORAGE (MB)</label>
+                                                                <input type="number" className={s.field} value={editingPlan.medicalVaultStorageMB} onChange={e => setEditingPlan(p => ({...p, medicalVaultStorageMB: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                            </div>
+                                                            <div style={{ gridColumn: 'span 2' }}>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>MAX CARE CLAN MEMBERS</label>
+                                                                <input type="number" className={s.field} value={editingPlan.maxCareCircleMembers} onChange={e => setEditingPlan(p => ({...p, maxCareCircleMembers: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ background: '#ffffff', padding: '1.5rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', marginBottom: '2rem' }}>
+                                                        <h3 style={{ margin: '0 0 1.25rem', fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                                            <ZapIcon size={16} color="#2d5f3f" /> Feature Access Matrix
+                                                        </h3>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                    <Share2 size={16} color="#64748b" />
+                                                                    <div>
+                                                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Bulk CSV Logistics</div>
+                                                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Allow historical data import via CSV</div>
+                                                                    </div>
+                                                                </div>
+                                                                <ToggleSwitch checked={editingPlan.allowBulkImport} onChange={v => setEditingPlan(p => ({...p, allowBulkImport: v}))} />
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                    <Database size={16} color="#64748b" />
+                                                                    <div>
+                                                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Digital Data Export</div>
+                                                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Enable full ownership CSV exports</div>
+                                                                    </div>
+                                                                </div>
+                                                                <ToggleSwitch checked={editingPlan.allowExport} onChange={v => setEditingPlan(p => ({...p, allowExport: v}))} />
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                    <Terminal size={16} color="#64748b" />
+                                                                    <div>
+                                                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>Advanced AI Protocols</div>
+                                                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Access to high-fidelity AI models</div>
+                                                                    </div>
+                                                                </div>
+                                                                <ToggleSwitch checked={editingPlan.allowAdvancedAI} onChange={v => setEditingPlan(p => ({...p, allowAdvancedAI: v}))} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+
+                                                    <div style={{ marginBottom: '2rem', padding: '1.5rem', border: '1.5px solid #3b82f6', borderRadius: '24px', background: 'rgba(59, 130, 246, 0.05)', position: 'relative', overflow: 'hidden' }}>
+                                                        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                            <div>
+                                                                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e3a8a' }}>Recommended Badge</div>
+                                                                <div style={{ fontSize: '0.75rem', color: '#2563eb' }}>Highlight this plan as the best value option</div>
+                                                            </div>
+                                                            <ToggleSwitch checked={editingPlan.isRecommended} onChange={v => setEditingPlan(p => ({...p, isRecommended: v}))} activeColor="#3b82f6" />
+                                                        </div>
+                                                    </div>
+
+                                                    <button className={s.premiumButton} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', background: '#0f172a', color: '#fff', padding: '1.25rem' }} onClick={handleSavePlan}>
+                                                        <Save size={20} /> Deploy Subscription Tier
+                                                    </button>
+                                                </div>
+                                            </motion.div>
+                                        </div>
+                                    )}
+
+                                    <div className={s.sectionHead} style={{ marginBottom: '1.25rem' }}>
+                                        <div />
+                                        <button className={s.primaryBtn} onClick={() => { setEditingPlan({ name: '', code: '', price: 0, maxAnimals: 3, dailyChatMessages: 5, dailyImageUploads: 0, medicalVaultStorageMB: 10, maxCareCircleMembers: 0, allowExport: false, allowBulkImport: false, allowAdvancedAI: false, isDefault: false, isRecommended: false }); setPlanModal('create'); }}><Plus size={16} /> Create Custom Tier</button>
+                                    </div>
+                                    
+                                    {pricingLoading ? <AdvancedLoader type="admin" compact={true} fullScreen={false} /> : (
+                                        <div className={s.pricingGrid}>
+                                            {plans.map(pl => (
+                                                <div key={pl._id} className={`${s.planCard} ${pl.isRecommended ? s.planCardRecommended : ''}`}>
+                                                    {pl.isRecommended && (
+                                                        <div className={s.planBadgeContainer}>
+                                                            <div className={`${s.planDefaultBadge} ${s.planRecommendedBadge}`}>Recommended</div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div className={s.planHeader}>
+                                                        <div>
+                                                            <h3 className={s.planTitle}>{pl.name}</h3>
+                                                            <div className={s.planCode}><Terminal size={12} /> {pl.code}</div>
+                                                        </div>
+                                                        <div className={s.planPrice}>
+                                                            {pl.price === 0 ? 'FREE' : `₹${pl.price}`}
+                                                            {pl.price > 0 && <span>/mo</span>}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className={s.planFeatureList}>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><Shapes size={14} /> Animal Capacity</div>
+                                                            <div className={s.featureValue}>{pl.maxAnimals === -1 ? 'Unlimited ∞' : `${pl.maxAnimals} Species`}</div>
+                                                        </div>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><ZapIcon size={14} /> AI Daily Limit</div>
+                                                            <div className={s.featureValue}>{pl.dailyChatMessages === -1 ? 'Unlimited' : `${pl.dailyChatMessages} Pings`}</div>
+                                                        </div>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><Database size={14} /> Vault Storage</div>
+                                                            <div className={s.featureValue}>{pl.medicalVaultStorageMB === -1 ? 'Unlimited' : `${pl.medicalVaultStorageMB} MB`}</div>
+                                                        </div>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><Users size={14} /> Care Circle</div>
+                                                            <div className={s.featureValue}>{pl.maxCareCircleMembers === -1 ? 'Unlimited' : `${pl.maxCareCircleMembers} Members`}</div>
+                                                        </div>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><Share2 size={14} /> Bulk Logistics</div>
+                                                            <div className={`${s.featureCheck} ${pl.allowBulkImport ? s.active : s.inactive}`}>
+                                                                {pl.allowBulkImport ? <Check size={16} /> : <X size={16} />}
+                                                                {pl.allowBulkImport ? 'Included' : 'Locked'}
+                                                            </div>
+                                                        </div>
+                                                        <div className={s.planFeatureItem}>
+                                                            <div className={s.featureLabel}><Database size={14} /> Data Portability</div>
+                                                            <div className={`${s.featureCheck} ${pl.allowExport ? s.active : s.inactive}`}>
+                                                                {pl.allowExport ? <Check size={16} /> : <X size={16} />}
+                                                                {pl.allowExport ? 'Included' : 'Locked'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={s.planActions}>
+                                                        <button 
+                                                            className={s.configBtn}
+                                                            onClick={() => { setEditingPlan(pl); setPlanModal(pl); }}
+                                                        >
+                                                            <SettingsIcon size={18} /> Configure Entitlements
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </motion.div>
                             )}
 

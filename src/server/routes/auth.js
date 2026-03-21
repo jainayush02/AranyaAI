@@ -483,8 +483,27 @@ router.post('/admin-login', authLimiter, async (req, res) => {
 // @desc  Get current user profile
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password');
+        const user = await User.findById(req.user.id).select('-password').lean();
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const mongoose = require('mongoose');
+        const PlanModel = mongoose.model('Plan');
+        let planRules = {};
+        
+        if (user.plan) {
+            const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
+            if (planDoc) planRules = planDoc;
+        } else {
+            const defaultPlan = await PlanModel.findOne({ isDefault: true }).lean();
+            if (defaultPlan) {
+                planRules = defaultPlan;
+                user.plan = defaultPlan.code;
+                await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
+            }
+        }
+        
+        user.limits = { ...planRules, ...(user.planOverrides || {}) };
+
         res.json(user);
     } catch (error) {
         console.error(error);
@@ -1274,8 +1293,27 @@ router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
 // @desc  Get current user profile
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password -otp -otpExpires');
+        const user = await User.findById(req.user.id).select('-password -otp -otpExpires').lean();
         if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const mongoose = require('mongoose');
+        const PlanModel = mongoose.model('Plan');
+        let planRules = {};
+        
+        if (user.plan) {
+            const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
+            if (planDoc) planRules = planDoc;
+        } else {
+            const defaultPlan = await PlanModel.findOne({ isDefault: true }).lean();
+            if (defaultPlan) {
+                planRules = defaultPlan;
+                user.plan = defaultPlan.code;
+                await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
+            }
+        }
+        
+        user.limits = { ...planRules, ...(user.planOverrides || {}) };
+
         res.json(user);
     } catch (error) {
         console.error(error);
