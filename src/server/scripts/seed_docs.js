@@ -180,6 +180,82 @@ const SEED_DOCS = [
             'Rename or delete conversations by hovering over them in the sidebar'
         ]
     },
+    {
+        title: 'Importing & Exporting CSV Data',
+        category: 'features',
+        order: 5,
+        published: true,
+        content: `
+<p>Aranya AI gives you full control over your animal's health data through Excel-compatible CSV exports and imports.</p>
+<h3>Exporting Data</h3>
+<p>You can quickly download a complete historical record of any animal's vitals by clicking the <strong>Export CSV</strong> button inside their profile. This is perfect for sharing spreadsheets with veterinarians.</p>
+<h3>Importing Bulk Logs</h3>
+<p>Need to migrate from an old system or bulk upload past records? Use the <strong>Import CSV</strong> button. Because both features use the exact same format, you can easily Export your data, edit it in Excel, and Import it right back into the system in seconds!</p>
+        `.trim(),
+        steps: [
+            'Go to an animal profile and scroll down to the Historical Health Logs section',
+            'Click Export CSV to download a template of your data',
+            'Open the file in Excel, add new rows following the exact column structure',
+            'Click Import CSV to upload the newly added rows back into Aranya AI'
+        ]
+    },
+    {
+        title: 'Managing Your Care Circle',
+        category: 'features',
+        order: 6,
+        published: true,
+        content: `
+<p>Farming is rarely a solo job. The Care Circle feature allows you to securely invite team members, farmhands, or veterinarians to collaborate on your account.</p>
+<h3>Roles and Permissions</h3>
+<p>Invited members are assigned the <strong>Caretaker</strong> role. They can view animals, add health logs, and upload medical documents, but they cannot permanently delete animals or modify your billing settings.</p>
+<h3>Adding Members</h3>
+<p>You can invite someone directly via their email address. Once they sign up, they will automatically sync to your farm's dashboard.</p>
+        `.trim(),
+        steps: [
+            'Click on "Settings" in your user portal sidebar',
+            'Scroll to the Care Circle section',
+            'Enter the email address of your team member and send the invite',
+            'You can view and remove existing members from this same section'
+        ]
+    },
+    {
+        title: 'Using the Medical Vault',
+        category: 'features',
+        order: 7,
+        published: true,
+        content: `
+<p>The Medical Vault acts as a highly secure digital filing cabinet for all of your animal's hardcopy records, lab results, prescriptions, and veterinary bills.</p>
+<h3>Supported Formats</h3>
+<p>You can upload PDFs, JPEGs, and PNG images. The system will automatically tag the file based on keywords in its filename (e.g., "blood_test.pdf" automatically tags as Lab Results).</p>
+<h3>Organization</h3>
+<p>All files are stored safely in the cloud and tied permanently to the specific animal's profile, making them instantly accessible from any device when a vet asks for them.</p>
+        `.trim(),
+        steps: [
+            'Open an Animal Profile and toggle to the "Medical Vault" tab',
+            'Click "Add Record" or drag and drop your document',
+            'The system securely uploads the file to the cloud',
+            'Click the download arrow icon at any time to retrieve the file'
+        ]
+    },
+    {
+        title: 'Meet Arion: Your Multimodal AI Assistant',
+        category: 'features',
+        order: 8,
+        published: true,
+        content: `
+<p>Arion is the dedicated artificial intelligence embedded into the heart of the Aranya platform. Designed specifically as a clinical and operational companion for farmers, Arion does much more than just chat.</p>
+<h3>Multimodal Analysis</h3>
+<p>Arion can "see." If you upload a photo of a skin lesion, a blurry lab report, or a complex veterinary prescription, Arion will read and interpret it for you, breaking down complex medical jargon into easy-to-understand advice.</p>
+<h3>Context-Aware Intelligence</h3>
+<p>Because Arion is integrated into Aranya, it is context-aware. It understands the clinical behavior rules set by our admin portal and helps guide you on vaccination schedules, dietary needs, and general farm management.</p>
+        `.trim(),
+        steps: [
+            'Click the floating chat bubble in the bottom right corner to summon Arion',
+            'Type your question or click the attachment icon to upload an image',
+            "Ask Arion to analyze a specific animal's symptoms or interpret a blood test",
+            "You can download Arion's responses directly as a text file for your records"
+        ]
+    },
 
     // ── Video Tutorials ───────────────────────────────────
     {
