@@ -108,6 +108,46 @@ router.delete('/:id', auth, async (req, res) => {
     }
 });
 
+// @route   PUT /api/animals/:id
+// @desc    Update animal details
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
+    const { name, category, breed, dob, vaccinated, gender } = req.body;
+
+    // Build update object
+    const updateFields = {};
+    if (name) updateFields.name = name.trim().substring(0, 100);
+    if (category) updateFields.category = category.trim();
+    if (breed) updateFields.breed = breed.trim();
+    if (gender) updateFields.gender = gender;
+    if (dob) updateFields.dob = dob;
+    if (vaccinated !== undefined) updateFields.vaccinated = vaccinated === true || vaccinated === 'true';
+
+    try {
+        let animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
+        // Authorization check
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) {
+            return res.status(401).json({ msg: 'Not authorized' });
+        }
+
+        // Apply updates
+        animal = await Animal.findByIdAndUpdate(
+            req.params.id,
+            { $set: updateFields },
+            { new: true }
+        );
+
+        await logActivity('animal_registry', req.user, `Updated animal details: ${animal.name}`);
+        res.json(animal);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 // @route   GET /api/animals/:id
 // @desc    Get single animal
 // @access  Private

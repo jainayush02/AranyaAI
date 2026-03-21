@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars } from 'lucide-react';
+import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars, Dna, HelpCircle, Edit } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
 import AdvancedLoader from '../components/AdvancedLoader';
 import ConfirmDialog from '../components/ConfirmDialog';
+import EditAnimalDialog from '../components/EditAnimalDialog';
 
 export default function AnimalProfile() {
     const { id } = useParams();
@@ -31,6 +32,7 @@ export default function AnimalProfile() {
     const [aiScore, setAiScore] = useState(null);
     const [recalculating, setRecalculating] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [showEditDialog, setShowEditDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('health'); // Options: 'health', 'vault'
     
     // Care Hub States
@@ -46,10 +48,21 @@ export default function AnimalProfile() {
 
     const handleExportCSV = () => {
         if (!healthLogs.length) return alert("No data to export");
-        const headers = ["Date", "Time", "Temp", "Heart Rate", "Weight", "Activity", "Appetite", "Notes"];
+        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Notes"];
         const rows = healthLogs.map(log => {
             const d = new Date(log.createdAt);
-            return [d.toLocaleDateString(), d.toLocaleTimeString(), log.temperature, log.heartRate, log.weight, log.activityLevel, log.appetite, `"${log.notes || ''}"`].join(",");
+            return [
+                d.toLocaleDateString(), 
+                d.toLocaleTimeString(), 
+                animal.category,
+                animal.breed,
+                animal.gender || 'Not Specified',
+                log.temperature, 
+                log.heartRate, 
+                log.activityLevel, 
+                log.appetite, 
+                `"${log.notes || ''}"`
+            ].join(",");
         });
         const csv = "\ufeff" + headers.join(",") + "\r\n" + rows.join("\r\n");
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -151,6 +164,20 @@ export default function AnimalProfile() {
         } catch (err) {
             console.error('Weight update failed', err);
             alert('Failed to update weight');
+        }
+    };
+
+    const handleUpdateAnimal = async (updatedData) => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await axios.put(`/api/animals/${id}`, updatedData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnimal(res.data);
+            alert('Aranya profile updated successfully!');
+        } catch (err) {
+            console.error('Update error:', err);
+            alert('Failed to update Aranya details.');
         }
     };
 
@@ -329,6 +356,9 @@ export default function AnimalProfile() {
                                     </span>
                                 </div>
                                 <div className={styles.heroActionsGroup}>
+                                    <button onClick={() => setShowEditDialog(true)} className={styles.glassActionBtn}>
+                                        <Edit size={14} /> Profile
+                                    </button>
                                     <button onClick={handleRecalculate} disabled={recalculating} className={styles.glassActionBtn}>
                                         <RefreshCw size={14} className={recalculating ? 'spin' : ''} /> Recalculate
                                     </button>
@@ -338,20 +368,20 @@ export default function AnimalProfile() {
                                 </div>
                             </div>
                             <div className={styles.heroMetadataRow}>
-                                <div className={styles.metaPill}><Zap size={14} /> <span>{animal.breed}</span></div>
+                                <div className={styles.metaPill}><Dna size={14} style={{ color: '#8b5cf6' }} /> <span>{animal.breed}</span></div>
                                 <div className={styles.metaPill}>
                                     {animal.gender === 'Male' ? (
                                         <Mars size={14} style={{ color: '#3b82f6' }} />
                                     ) : animal.gender === 'Female' ? (
                                         <Venus size={14} style={{ color: '#ec4899' }} />
                                     ) : (
-                                        <Zap size={14} />
+                                        <HelpCircle size={14} style={{ color: '#64748b' }} />
                                     )}
-                                    <span>{animal.gender || 'Unknown'}</span>
+                                    <span>{animal.gender || 'Not Specified'}</span>
                                 </div>
-                                {animal.dob && <div className={styles.metaPill}><Calendar size={14} /> <span>{calculateAge(animal.dob)}</span></div>}
+                                {animal.dob && <div className={styles.metaPill}><Calendar size={14} style={{ color: '#f59e0b' }} /> <span>{calculateAge(animal.dob)}</span></div>}
                                 <button onClick={handleToggleVaccination} className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}>
-                                    <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccine Required'}</span>
+                                    <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccination Due'}</span>
                                 </button>
                             </div>
                         </div>
@@ -477,9 +507,11 @@ export default function AnimalProfile() {
                                             <thead>
                                                 <tr>
                                                     <th>Date & Time</th>
+                                                    <th>Category</th>
+                                                    <th>Breed</th>
+                                                    <th>Gender</th>
                                                     <th>Temp (°C)</th>
                                                     <th>Heart Rate</th>
-                                                    <th>Weight (kg)</th>
                                                     <th>Activity</th>
                                                     <th>Appetite</th>
                                                 </tr>
@@ -487,10 +519,12 @@ export default function AnimalProfile() {
                                             <tbody>
                                                 {healthLogs.slice((currentPage - 1) * logsPerPage, currentPage * logsPerPage).map(log => (
                                                     <tr key={log._id}>
-                                                        <td>{new Date(log.createdAt).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
+                                                        <td>{new Date(log.createdAt).toLocaleString([], { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</td>
+                                                        <td>{animal.category}</td>
+                                                        <td>{animal.breed}</td>
+                                                        <td>{animal.gender || '—'}</td>
                                                         <td>{log.temperature}</td>
                                                         <td>{log.heartRate}</td>
-                                                        <td>{log.weight || 'N/A'}</td>
                                                         <td>{log.activityLevel || 5}/10</td>
                                                         <td>{log.appetite || 3}/5</td>
                                                     </tr>
@@ -616,6 +650,13 @@ export default function AnimalProfile() {
                     </motion.div>
                 )}
             </motion.div>
+
+            <EditAnimalDialog
+                isOpen={showEditDialog}
+                onClose={() => setShowEditDialog(false)}
+                onUpdate={handleUpdateAnimal}
+                animal={animal}
+            />
 
             <ConfirmDialog
                 isOpen={showConfirm}

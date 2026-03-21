@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, Dna, HelpCircle } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 import styles from './AddAnimalDialog.module.css';
 
 const categoryBreeds = {
@@ -11,15 +11,31 @@ const categoryBreeds = {
     Horse: ["Arabian", "Thoroughbred", "Quarter Horse", "Appaloosa", "Paint Horse"]
 };
 
-export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
+export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) {
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
     const [breed, setBreed] = useState('');
-    const [gender, setGender] = useState(''); // New state
+    const [gender, setGender] = useState('');
     const [birthYear, setBirthYear] = useState('');
     const [birthMonth, setBirthMonth] = useState('');
     const [vaccinated, setVaccinated] = useState('');
     const [dynamicCategories, setDynamicCategories] = useState(categoryBreeds);
+
+    useEffect(() => {
+        if (isOpen && animal) {
+            setName(animal.name || '');
+            setCategory(animal.category || '');
+            setBreed(animal.breed || '');
+            setGender(animal.gender || '');
+            setVaccinated(animal.vaccinated ? 'true' : 'false');
+            
+            if (animal.dob) {
+                const date = new Date(animal.dob);
+                setBirthYear(date.getFullYear().toString());
+                setBirthMonth((date.getMonth() + 1).toString());
+            }
+        }
+    }, [isOpen, animal]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -30,25 +46,24 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                     setDynamicCategories(data.animal_categories);
                 }
             })
-            .catch(() => {}); // silently fallback to hardcoded defaults
+            .catch(() => {});
     }, [isOpen]);
 
     const handleSubmit = () => {
-        if (!name.trim() || !category || !breed || !gender || vaccinated === '') return; // Basic validation
+        if (!name.trim() || !category || !breed || !gender || vaccinated === '') return;
 
-        const d = new Date();
+        const d = new Date(animal.dob || Date.now());
         if (birthYear) d.setFullYear(parseInt(birthYear));
         if (birthMonth) d.setMonth(parseInt(birthMonth) - 1);
 
-        onAdd({ name, category, breed, dob: d.toISOString(), vaccinated: vaccinated === 'true', gender });
-        // Reset form
-        setName('');
-        setCategory('');
-        setBreed('');
-        setGender('');
-        setBirthYear('');
-        setBirthMonth('');
-        setVaccinated('');
+        onUpdate({ 
+            name: name.trim(), 
+            category, 
+            breed, 
+            dob: d.toISOString(), 
+            vaccinated: vaccinated === 'true', 
+            gender 
+        });
         onClose();
     };
 
@@ -57,7 +72,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
             {isOpen && (
                 <div className={styles.overlay} onClick={onClose}>
                     <motion.div
-                        onClick={(e) => e.stopPropagation()} // Prevent clicking inside modal from closing it
+                        onClick={(e) => e.stopPropagation()}
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -65,7 +80,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                         className={styles.modal}
                     >
                         <div className={styles.header}>
-                            <h2 className={styles.title}>Add New Aranya</h2>
+                            <h2 className={styles.title}>Edit Aranya Details</h2>
                             <button className={styles.closeButton} onClick={onClose}>
                                 <X size={24} />
                             </button>
@@ -91,7 +106,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                         value={category}
                                         onChange={(e) => {
                                             setCategory(e.target.value);
-                                            setBreed(''); // Reset breed when category changes
+                                            setBreed('');
                                         }}
                                     >
                                         <option value="" disabled>Select category</option>
@@ -173,7 +188,6 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                             onChange={(e) => {
                                                 const val = e.target.value;
                                                 const currentYear = new Date().getFullYear();
-                                                // Allow intermediate typing (like '2') but block invalid/future peaks
                                                 if (val === '' || (parseInt(val) <= currentYear && val.length <= 4)) {
                                                     setBirthYear(val);
                                                 }
@@ -187,87 +201,30 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                         />
                                     </div>
                                 </div>
-                                <small style={{ color: '#64748b', marginTop: '4px', display: 'block' }}>Correct DOB is essential for Aranya growth models.</small>
                             </div>
 
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Is your Aranya vaccinated?</label>
-
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                     <div
                                         className={`${styles.radioCard} ${vaccinated === 'true' ? styles.radioCardSelectedYes : ''}`}
                                         onClick={() => setVaccinated('true')}
                                     >
                                         <div className={styles.radioRadio}>
-                                            {vaccinated === 'true' && <motion.div layoutId="radioInner" className={styles.radioInner} />}
+                                            {vaccinated === 'true' && <motion.div layoutId="radioInnerEdit" className={styles.radioInner} />}
                                         </div>
-                                        <span>Yes, vaccinated</span>
+                                        <span>Yes</span>
                                     </div>
                                     <div
                                         className={`${styles.radioCard} ${vaccinated === 'false' ? styles.radioCardSelectedNo : ''}`}
                                         onClick={() => setVaccinated('false')}
                                     >
                                         <div className={styles.radioRadio}>
-                                            {vaccinated === 'false' && <motion.div layoutId="radioInner" className={styles.radioInner} />}
+                                            {vaccinated === 'false' && <motion.div layoutId="radioInnerEdit" className={styles.radioInner} />}
                                         </div>
-                                        <span>No, not yet</span>
+                                        <span>No</span>
                                     </div>
                                 </div>
-
-                                <AnimatePresence mode="wait">
-                                    {vaccinated === 'true' && (
-                                        <motion.div
-                                            key="vacc-yes"
-                                            initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                                            exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                                            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                                            style={{
-                                                marginTop: '8px',
-                                                padding: '8px 12px',
-                                                backgroundColor: '#f0fdf4',
-                                                borderLeft: '3px solid #22c55e',
-                                                color: '#166534',
-                                                borderRadius: '0 6px 6px 0',
-                                                fontSize: '0.8rem',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px'
-                                            }}
-                                        >
-                                            <div style={{ fontSize: '1rem' }}>🎉</div>
-                                            <div style={{ lineHeight: '1.2' }}>
-                                                <strong>Awesome.</strong> Vaccinated animals keep the herd safe.
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                    {vaccinated === 'false' && (
-                                        <motion.div
-                                            key="vacc-no"
-                                            initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                                            exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                                            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                                            style={{
-                                                marginTop: '8px',
-                                                padding: '8px 12px',
-                                                backgroundColor: '#fffbeb',
-                                                borderLeft: '3px solid #f59e0b',
-                                                color: '#b45309',
-                                                borderRadius: '0 6px 6px 0',
-                                                fontSize: '0.8rem',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px'
-                                            }}
-                                        >
-                                            <div style={{ fontSize: '1rem' }}>💡</div>
-                                            <div style={{ lineHeight: '1.2' }}>
-                                                <strong>Heads up:</strong> Unvaccinated animals pose risks. Ask <strong>Arion</strong> for advice!
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
                             </div>
                         </div>
 
@@ -281,7 +238,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                 disabled={!name.trim() || !category || !breed || !gender || vaccinated === ''}
                                 style={{ opacity: (!name.trim() || !category || !breed || !gender || vaccinated === '') ? 0.5 : 1, cursor: (!name.trim() || !category || !breed || !gender || vaccinated === '') ? 'not-allowed' : 'pointer' }}
                             >
-                                Add Aranya
+                                Save Changes
                             </button>
                         </div>
                     </motion.div>
