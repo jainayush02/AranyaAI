@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars, Dna, HelpCircle, Edit } from 'lucide-react';
+import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars, Dna, HelpCircle, Edit, HardDrive } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
@@ -59,6 +59,7 @@ export default function AnimalProfile() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('health'); // Options: 'health', 'vault'
+    const [userProfile, setUserProfile] = useState(null);
     
     // Care Hub States
     const [medicalRecords, setMedicalRecords] = useState([]);
@@ -203,6 +204,8 @@ export default function AnimalProfile() {
             console.log('Record scanned successfully');
         } catch (err) {
             console.error('Upload failed', err);
+            const errorMsg = err.response?.data?.msg || 'Failed to upload medical record.';
+            showToast(errorMsg, 'error');
         } finally {
             setIsUploadingRecord(false);
         }
@@ -272,6 +275,12 @@ export default function AnimalProfile() {
                 setHealthLogs(logsRes.data);
                 setMedicalRecords(recordsRes.data);
                 setLoading(false);
+
+                // Fetch full limits/usage
+                try {
+                    const profileRes = await axios.get('/api/auth/profile', config);
+                    setUserProfile(profileRes.data);
+                } catch { console.log('Profile sync skipped'); }
 
                 if (logsRes.data.length > 0) {
                     try {
@@ -699,6 +708,33 @@ export default function AnimalProfile() {
                                 <div>
                                     <h3 className={styles.formHeader}><FolderHeart size={20} style={{ marginRight: '8px' }} /> Medical Records Vault</h3>
                                     <p className={styles.vaultSubtitle}>Upload vaccinations and lab results.</p>
+                                    
+                                    {userProfile && (
+                                        <div style={{ marginTop: '1.2rem', minWidth: '260px', background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(10px)', padding: '12px 16px', borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <HardDrive size={12} style={{ color: 'var(--primary)' }} />
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', letterSpacing: '0.05em' }}>VAULT STORAGE</span>
+                                                </div>
+                                                <span style={{ 
+                                                    fontSize: '0.75rem', 
+                                                    fontWeight: 700, 
+                                                    color: (userProfile.limits?.medicalVaultStorageMB !== -1 && (userProfile.usage?.storageBytes || 0) / (1024*1024) >= userProfile.limits?.medicalVaultStorageMB * 0.9) ? '#ef4444' : 'var(--primary)'
+                                                }}>
+                                                    {((userProfile.usage?.storageBytes || 0) / (1024*1024)).toFixed(2)} MB <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ {userProfile.limits?.medicalVaultStorageMB === -1 ? '∞' : `${userProfile.limits?.medicalVaultStorageMB} MB`}</span>
+                                                </span>
+                                            </div>
+                                            <div style={{ height: '6px', background: 'rgba(226, 232, 240, 0.5)', borderRadius: '10px', overflow: 'hidden', border: '1px solid #f8fafc' }}>
+                                                <div style={{ 
+                                                    height: '100%', 
+                                                    width: `${userProfile.limits?.medicalVaultStorageMB === -1 ? 0 : Math.min(((userProfile.usage?.storageBytes || 0) / (1024*1024) / userProfile.limits?.medicalVaultStorageMB) * 100, 100)}%`, 
+                                                    background: (userProfile.limits?.medicalVaultStorageMB !== -1 && (userProfile.usage?.storageBytes || 0) / (1024*1024) >= userProfile.limits?.medicalVaultStorageMB) ? '#ef4444' : 'var(--primary)',
+                                                    transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                    borderRadius: '10px'
+                                                }} />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <button className={styles.uploadBtn} onClick={() => recordFileInputRef.current?.click()} disabled={isUploadingRecord}>
                                     <Upload size={18} /> {isUploadingRecord ? 'Scanning...' : 'Upload New'}

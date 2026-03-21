@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useOutletContext, useNavigate, Navigate } from 'react-router-dom';
+import { useOutletContext, useNavigate, Navigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise, Calendar } from 'lucide-react';
 import styles from './Dashboard.module.css';

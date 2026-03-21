@@ -1318,6 +1318,26 @@ router.get('/profile', authMiddleware, async (req, res) => {
         
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
+        // Calculate storage usage across all animals
+        try {
+            const AnimalModel = mongoose.model('Animal');
+            const MedicalRecordModel = mongoose.model('MedicalRecord');
+            const userAnimals = await AnimalModel.find({ owner: req.user.id }).select('_id');
+            const animalIds = userAnimals.map(a => a._id);
+            
+            const storageStats = await MedicalRecordModel.aggregate([
+                { $match: { animal: { $in: animalIds } } },
+                { $group: { _id: null, totalSize: { $sum: '$fileSize' } } }
+            ]);
+            
+            user.usage = {
+                storageBytes: storageStats.length > 0 ? storageStats[0].totalSize : 0
+            };
+        } catch (storageErr) {
+            console.error('Usage calculation error:', storageErr);
+            user.usage = { storageBytes: 0 };
+        }
+
         res.json(user);
     } catch (error) {
         console.error(error);

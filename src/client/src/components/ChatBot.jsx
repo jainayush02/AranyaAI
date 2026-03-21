@@ -699,6 +699,8 @@ export default function ChatBot() {
                 console.log('Request canceled');
             } else {
                 console.error('Send failed', err);
+                const errorMsg = err.response?.data?.msg || 'Failed to send message. Please try again.';
+                showToast(errorMsg, 'error');
             }
             setIsGenerating(false); // Set to false only on error
         } finally {
@@ -1271,7 +1273,7 @@ export default function ChatBot() {
                                                 </button>
                                             )}
                                         </div>
-                                    </div>
+                                     </div>
                                     <div className={styles.disclaimerText}>
                                         <span className={styles.pingEffect}></span>
                                         Arion is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.

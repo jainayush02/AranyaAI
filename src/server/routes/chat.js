@@ -106,6 +106,24 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
     }
 });
 
+// @route   GET /api/chat/daily-count
+// @desc    Get current daily chat count
+router.get('/daily-count', auth, async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const count = await ChatMessage.countDocuments({
+            sender: req.user.id,
+            role: 'user',
+            createdAt: { $gte: today }
+        });
+        res.json({ count });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 // @route   POST /api/chat/conversations/:id/messages
 // @desc    Send a message & get AI response
 // @access  Private
