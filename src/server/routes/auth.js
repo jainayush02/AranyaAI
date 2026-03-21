@@ -848,7 +848,12 @@ router.post('/google', async (req, res) => {
             const payload = ticket.getPayload();
             userData = { email: payload.email, name: payload.name, picture: payload.picture };
         } else if (accessToken) {
-            const response = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+            // Standard approach for GSI access tokens
+            const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                params: { access_token: accessToken },
+                timeout: 8000
+            });
             userData = { email: response.data.email, name: response.data.name, picture: response.data.picture };
         } else {
             return res.status(400).json({ message: 'Google Token is required' });
@@ -909,7 +914,16 @@ router.post('/google', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Google Login] Error:', error.response?.data || error.message);
+        const errorDetail = error.response?.data || error.message;
+        console.error('[Google Login] Error:', errorDetail);
+        
+        // Temporary diagnostic logging
+        try {
+            const fs = require('fs');
+            const logPath = require('path').join(__dirname, 'google_auth_error.log');
+            fs.appendFileSync(logPath, `${new Date().toISOString()} - ${JSON.stringify(errorDetail)}\n`);
+        } catch (_) {}
+
         res.status(401).json({ message: 'Invalid Google Token' });
     }
 });
@@ -929,7 +943,12 @@ router.post('/google-admin', async (req, res) => {
             const payload = ticket.getPayload();
             userData = { email: payload.email, name: payload.name, picture: payload.picture };
         } else if (accessToken) {
-            const response = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+            // Standard approach for GSI access tokens
+            const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                params: { access_token: accessToken },
+                timeout: 8000
+            });
             userData = { email: response.data.email, name: response.data.name, picture: response.data.picture };
         } else {
             return res.status(400).json({ message: 'Google Token is required' });
@@ -974,7 +993,16 @@ router.post('/google-admin', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Google Admin Login] Error:', error.response?.data || error.message);
+        const errorDetail = error.response?.data || error.message;
+        console.error('[Google Admin Login] Error:', errorDetail);
+
+        // Temporary diagnostic logging
+        try {
+            const fs = require('fs');
+            const logPath = require('path').join(__dirname, 'google_auth_error.log');
+            fs.appendFileSync(logPath, `${new Date().toISOString()} [ADMIN] - ${JSON.stringify(errorDetail)}\n`);
+        } catch (_) {}
+
         res.status(401).json({ message: 'Google authentication failed.' });
     }
 });

@@ -27,6 +27,7 @@ app.use(helmet({
     contentSecurityPolicy: false, // Disable if using external scripts/images
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, // Allow Google SSO popups
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
