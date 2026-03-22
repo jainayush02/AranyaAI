@@ -17,7 +17,7 @@ const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
+    windowMs: 15 * 60 * 1000,
     max: 10, // Max 10 attempts in 15 mins (slightly more generous for human error)
     message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' }
 });
@@ -241,7 +241,7 @@ router.post('/register', authLimiter, async (req, res) => {
 
         // Password hashing is now handled in User model pre-save hook
         if (password) {
-            user.password = password; 
+            user.password = password;
         }
 
         user.full_name = full_name || user.full_name || '';
@@ -263,7 +263,7 @@ router.post('/register', authLimiter, async (req, res) => {
         const payload = { user: { id: user.id, role: user.role, managedBy: user.managedBy } };
         const secret = process.env.JWT_SECRET;
         if (!secret) { console.error('[SECURITY] JWT_SECRET not set!'); return res.status(500).json({ message: 'Server configuration error.' }); }
-        
+
         // Users get 24h sessions (Admins are handled separately)
         jwt.sign(payload, secret, { expiresIn: '24h' }, (err, token) => {
             if (err) throw err;
@@ -491,7 +491,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
         const mongoose = require('mongoose');
         const PlanModel = mongoose.model('Plan');
         let planRules = {};
-        
+
         if (user.plan) {
             const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
             if (planDoc) planRules = planDoc;
@@ -503,7 +503,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
                 await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
             }
         }
-        
+
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
         res.json(user);
@@ -576,7 +576,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 router.delete('/profile', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
-        
+
         // Find user first
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -599,7 +599,7 @@ router.delete('/profile', authMiddleware, async (req, res) => {
             await HealthLog.deleteMany({ animal_id: { $in: animalIds } });
             await MedicalRecord.deleteMany({ animal_id: { $in: animalIds } });
         }
-        
+
         // Delete all animals
         await Animal.deleteMany({ user_id: userId });
 
@@ -610,7 +610,7 @@ router.delete('/profile', authMiddleware, async (req, res) => {
         await User.findByIdAndDelete(userId);
 
         console.log(`[ACCOUNT_DELETED] User account for ${user.email || user.mobile} removed permanently.`);
-        
+
         res.status(200).json({ message: 'Account and all related data deleted successfully.' });
     } catch (error) {
         console.error('[Account Deletion Error]:', error);
@@ -630,7 +630,7 @@ router.post('/send-report', authMiddleware, async (req, res) => {
 
         const { sendWeeklyDigest } = require('../utils/notifications');
         console.log(`[ReportRequest] Starting manual trigger for user ID: ${user._id} (${user.email})`);
-        
+
         if (!user.email) {
             return res.status(400).json({ message: 'No email address found for your account. Please set an email in your profile to receive reports.' });
         }
@@ -984,13 +984,13 @@ router.post('/google', async (req, res) => {
     } catch (error) {
         const errorDetail = error.response?.data || error.message;
         console.error('[Google Login] Error:', errorDetail);
-        
+
         // Temporary diagnostic logging
         try {
             const fs = require('fs');
             const logPath = require('path').join(__dirname, 'google_auth_error.log');
             fs.appendFileSync(logPath, `${new Date().toISOString()} - ${JSON.stringify(errorDetail)}\n`);
-        } catch (_) {}
+        } catch (_) { }
 
         res.status(401).json({ message: 'Invalid Google Token' });
     }
@@ -1069,7 +1069,7 @@ router.post('/google-admin', async (req, res) => {
             const fs = require('fs');
             const logPath = require('path').join(__dirname, 'google_auth_error.log');
             fs.appendFileSync(logPath, `${new Date().toISOString()} [ADMIN] - ${JSON.stringify(errorDetail)}\n`);
-        } catch (_) {}
+        } catch (_) { }
 
         res.status(401).json({ message: 'Google authentication failed.' });
     }
@@ -1301,7 +1301,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
         const mongoose = require('mongoose');
         const PlanModel = mongoose.model('Plan');
         let planRules = {};
-        
+
         if (user.plan) {
             const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
             if (planDoc) {
@@ -1317,28 +1317,34 @@ router.get('/profile', authMiddleware, async (req, res) => {
                 await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
             }
         }
-        
+
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
-        // Calculate storage usage across all records (Role-aware and Legacy-safe fix)
-        try {
-            const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-            
-            if (ownerId) {
-                const storageStats = await MedicalRecord.aggregate([
-                    { $match: { user_id: new mongoose.Types.ObjectId(ownerId.toString()) } },
+        // High-Performance Storage Logic with Self-Healing Sync
+        if (req.user.role === 'caretaker') {
+            const manager = await mongoose.model('User').findById(req.user.managedBy).select('usage');
+            user.usage = manager ? manager.usage : { storageBytes: 0 };
+        } else if (!user.usage || user.usage.storageBytes === 0) {
+            // Self-Healing: If counter is zero, perform one-time background sync
+            try {
+                const stats = await MedicalRecord.aggregate([
+                    { $match: { user_id: new mongoose.Types.ObjectId(req.user.id.toString()) } },
                     { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
                 ]);
-                
-                user.usage = {
-                    storageBytes: (storageStats && storageStats.length > 0) ? storageStats[0].totalSize : 0
-                };
-            } else {
+                const total = (stats && stats.length > 0) ? stats[0].totalSize : 0;
+
+                if (total > 0) {
+                    await mongoose.model('User').findByIdAndUpdate(req.user.id, { "usage.storageBytes": total });
+                    user.usage = { storageBytes: total };
+                } else {
+                    user.usage = { storageBytes: 0 };
+                }
+            } catch (err) {
                 user.usage = { storageBytes: 0 };
             }
-        } catch (storageErr) {
-            console.error('Usage calculation error:', storageErr);
-            user.usage = { storageBytes: 0 };
+        } else {
+            // Standard Production Load: Fast O(1) read
+            if (!user.usage) user.usage = { storageBytes: 0 };
         }
 
         res.json(user);
@@ -1379,8 +1385,8 @@ router.post('/care-circle/invite', authMiddleware, async (req, res) => {
         if (maxMembers !== -1) {
             const currentMemberCount = await User.countDocuments({ managedBy: req.user.id, role: 'caretaker' });
             if (currentMemberCount >= maxMembers) {
-                return res.status(403).json({ 
-                    message: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxMembers} Care Circle members. Please upgrade to add more.` 
+                return res.status(403).json({
+                    message: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxMembers} Care Circle members. Please upgrade to add more.`
                 });
             }
         }

@@ -530,6 +530,12 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         });
 
         await newRecord.save();
+        
+        // --- PRODUCTION SYNC: Atomic total storage update ---
+        await User.findByIdAndUpdate(ownerId, { 
+            $inc: { "usage.storageBytes": req.file.size } 
+        });
+
         await logActivity('medical_vault', req.user, `Uploaded record for animal: ${animal.name}`);
         res.json(newRecord);
     } catch (err) {
@@ -548,6 +554,12 @@ router.delete('/:id/records/:recordId', auth, async (req, res) => {
         if (record.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         await MedicalRecord.findByIdAndDelete(req.params.recordId);
+
+        // --- PRODUCTION SYNC: Atomic total storage decrement ---
+        await User.findByIdAndUpdate(ownerId, { 
+            $inc: { "usage.storageBytes": -(record.fileSize || 0) } 
+        });
+
         await logActivity('medical_vault', req.user, `Deleted record: ${record.title}`);
         res.json({ msg: 'Record removed' });
     } catch (err) {

@@ -29,7 +29,19 @@ const userSchema = new mongoose.Schema({
     blocked: { type: Boolean, default: false },
     lastLoginAt: { type: Date, default: null },
     plan: { type: String, default: 'free' },
-    planOverrides: { type: Object, default: {} },
+    planOverrides: {
+        maxAnimals: Number,
+        dailyChatMessages: Number,
+        medicalVaultStorageMB: Number,
+        careCircleMembers: Number,
+        canBulkImport: Boolean
+    },
+    usage: {
+        storageBytes: {
+            type: Number,
+            default: 0
+        }
+    },
     loginCount: { type: Number, default: 0 },
     gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say', ''], default: '' },
     dateOfBirth: { type: Date, default: null },

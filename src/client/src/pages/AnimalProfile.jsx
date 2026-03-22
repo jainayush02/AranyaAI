@@ -60,7 +60,7 @@ export default function AnimalProfile() {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('health'); // Options: 'health', 'vault'
     const [userProfile, setUserProfile] = useState(null);
-    
+
     // Care Hub States
     const [medicalRecords, setMedicalRecords] = useState([]);
     const recordFileInputRef = React.useRef(null);
@@ -78,15 +78,15 @@ export default function AnimalProfile() {
         const rows = healthLogs.map(log => {
             const d = new Date(log.createdAt);
             return [
-                d.toLocaleDateString(), 
-                d.toLocaleTimeString(), 
+                d.toLocaleDateString(),
+                d.toLocaleTimeString(),
                 animal.category,
                 animal.breed,
                 animal.gender || 'Not Specified',
-                log.temperature, 
-                log.heartRate, 
-                log.activityLevel, 
-                log.appetite, 
+                log.temperature,
+                log.heartRate,
+                log.activityLevel,
+                log.appetite,
                 calculateLogStatus(log)
             ].join(",");
         });
@@ -121,7 +121,7 @@ export default function AnimalProfile() {
                         });
                     }
                 }
-                
+
                 if (parsedLogs.length === 0) throw new Error("No valid logs found in CSV");
 
                 const token = localStorage.getItem('token');
@@ -130,13 +130,13 @@ export default function AnimalProfile() {
                 });
 
                 showToast(`Successfully imported ${parsedLogs.length} logs!`, 'success');
-                
+
                 // Refresh logs
-                const logsRes = await axios.get(`/api/animals/${id}/logs`, { 
-                    headers: { Authorization: `Bearer ${token}` } 
+                const logsRes = await axios.get(`/api/animals/${id}/logs`, {
+                    headers: { Authorization: `Bearer ${token}` }
                 });
                 setHealthLogs(logsRes.data);
-                handleReanalyze(); 
+                handleReanalyze();
             } catch (err) {
                 console.error(err);
                 showToast(err.message || 'Failed to import logs', 'error');
@@ -169,7 +169,7 @@ export default function AnimalProfile() {
             const token = localStorage.getItem('token');
             const formData = new FormData();
             formData.append('recordFile', file);
-            
+
             // Intelligence: Simple keyword parsing for smarter labels
             let detectedType = 'General';
             const fileName = file.name.toLowerCase();
@@ -184,22 +184,22 @@ export default function AnimalProfile() {
             formData.append('title', file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' '));
             formData.append('recordType', detectedType);
 
-            const res = await axios.post(`/api/animals/${id}/records`, formData, { 
-                headers: { 
+            const res = await axios.post(`/api/animals/${id}/records`, formData, {
+                headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'
-                } 
+                }
             });
-            
+
             // Absolute synchronization
             const recordsRes = await axios.get(`/api/animals/${id}/records`, { headers: { Authorization: `Bearer ${token}` } });
             setMedicalRecords(recordsRes.data);
-            
+
             const logsRes = await axios.get(`/api/animals/${id}/logs`, { headers: { Authorization: `Bearer ${token}` } });
             setHealthLogs(logsRes.data);
-            e.target.value = ''; 
+            e.target.value = '';
             console.log('Care records synchronized');
-            
+
             // Success feedback
             console.log('Record scanned successfully');
         } catch (err) {
@@ -229,10 +229,10 @@ export default function AnimalProfile() {
         if (!tempWeight) return setIsEditingWeight(false);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.put(`/api/animals/${id}/vitals`, { 
-                weight: parseFloat(tempWeight) 
+            const res = await axios.put(`/api/animals/${id}/vitals`, {
+                weight: parseFloat(tempWeight)
             }, { headers: { Authorization: `Bearer ${token}` } });
-            
+
             setAnimal(prev => ({
                 ...prev,
                 recentVitals: { ...prev.recentVitals, weight: res.data.recentVitals.weight }
@@ -350,18 +350,18 @@ export default function AnimalProfile() {
         try {
             const token = localStorage.getItem('token');
             // Explicitly merging current animal weight since it's no longer in the form
-            const submitData = { 
-                ...formData, 
-                weight: animal.recentVitals?.weight 
+            const submitData = {
+                ...formData,
+                weight: animal.recentVitals?.weight
             };
             const res = await axios.post(`/api/animals/${id}/logs`, submitData, { headers: { Authorization: `Bearer ${token}` } });
             setAnimal(prev => ({
                 ...prev,
                 status: res.data.animalStatus,
-                recentVitals: { 
-                    temperature: parseFloat(formData.temperature), 
+                recentVitals: {
+                    temperature: parseFloat(formData.temperature),
                     heartRate: parseInt(formData.heartRate),
-                    weight: animal.recentVitals?.weight 
+                    weight: animal.recentVitals?.weight
                 }
             }));
             setAiScore(res.data.aiErrorScore);
@@ -485,8 +485,8 @@ export default function AnimalProfile() {
                     <div className={`${styles.vitalCard} ${styles.vitalWeight}`}>
                         <div className={styles.vitalLabel}>
                             <Scale size={16} /> Weight (kg)
-                            <button 
-                                className={styles.editPillBtn} 
+                            <button
+                                className={styles.editPillBtn}
                                 onClick={() => {
                                     setTempWeight(animal.recentVitals?.weight || '');
                                     setIsEditingWeight(!isEditingWeight);
@@ -497,10 +497,10 @@ export default function AnimalProfile() {
                         </div>
                         {isEditingWeight ? (
                             <div className={styles.inlineEditGroup}>
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    value={tempWeight} 
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={tempWeight}
                                     onChange={(e) => setTempWeight(e.target.value)}
                                     className={styles.inlineInput}
                                     autoFocus
@@ -621,16 +621,16 @@ export default function AnimalProfile() {
                                     </div>
                                     {healthLogs.length > logsPerPage && (
                                         <div className={styles.pagination}>
-                                            <button 
-                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 disabled={currentPage === 1}
                                                 className={styles.pageBtn}
                                             >
                                                 &lt; Prev
                                             </button>
                                             <span className={styles.pageInfo}>Page {currentPage} of {Math.ceil(healthLogs.length / logsPerPage)}</span>
-                                            <button 
-                                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(healthLogs.length / logsPerPage), p + 1))} 
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(healthLogs.length / logsPerPage), p + 1))}
                                                 disabled={currentPage === Math.ceil(healthLogs.length / logsPerPage)}
                                                 className={styles.pageBtn}
                                             >
@@ -659,24 +659,24 @@ export default function AnimalProfile() {
                                             </div>
                                         </div>
                                         <div className={styles.filterTrack}>
-                                        {['1h', '1d', '7d', 'all'].map(r => (
-                                            <button 
-                                                key={r} 
-                                                onClick={() => setTimeRange(r)} 
-                                                className={`${styles.filterItem} ${timeRange === r ? styles.filterItemActive : ''}`}
-                                            >
-                                                {timeRange === r && (
-                                                    <motion.div 
-                                                        layoutId="activeFilter" 
-                                                        className={styles.activeHighlight} 
-                                                        transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
-                                                    />
-                                                )}
-                                                <span className={styles.filterLabel}>
-                                                    {r.toUpperCase()}
-                                                </span>
-                                            </button>
-                                        ))}
+                                            {['1h', '1d', '7d', 'all'].map(r => (
+                                                <button
+                                                    key={r}
+                                                    onClick={() => setTimeRange(r)}
+                                                    className={`${styles.filterItem} ${timeRange === r ? styles.filterItemActive : ''}`}
+                                                >
+                                                    {timeRange === r && (
+                                                        <motion.div
+                                                            layoutId="activeFilter"
+                                                            className={styles.activeHighlight}
+                                                            transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
+                                                        />
+                                                    )}
+                                                    <span className={styles.filterLabel}>
+                                                        {r.toUpperCase()}
+                                                    </span>
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
@@ -684,8 +684,8 @@ export default function AnimalProfile() {
                                     <ResponsiveContainer width="100%" height="90%">
                                         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <defs>
-                                                <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#166534" stopOpacity={0.1}/><stop offset="95%" stopColor="#166534" stopOpacity={0}/></linearGradient>
-                                                <linearGradient id="colorHR" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1}/><stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/></linearGradient>
+                                                <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#166534" stopOpacity={0.1} /><stop offset="95%" stopColor="#166534" stopOpacity={0} /></linearGradient>
+                                                <linearGradient id="colorHR" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1} /><stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} /></linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
@@ -708,31 +708,24 @@ export default function AnimalProfile() {
                                 <div>
                                     <h3 className={styles.formHeader}><FolderHeart size={20} style={{ marginRight: '8px' }} /> Medical Records Vault</h3>
                                     <p className={styles.vaultSubtitle}>Upload vaccinations and lab results.</p>
-                                    
+
                                     {userProfile && (
-                                        <div style={{ marginTop: '1.2rem', minWidth: '260px', background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(10px)', padding: '12px 16px', borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <HardDrive size={12} style={{ color: 'var(--primary)' }} />
-                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', letterSpacing: '0.05em' }}>VAULT STORAGE</span>
-                                                </div>
-                                                <span style={{ 
-                                                    fontSize: '0.75rem', 
-                                                    fontWeight: 700, 
-                                                    color: (userProfile.limits?.medicalVaultStorageMB !== -1 && (userProfile.usage?.storageBytes || 0) / (1024*1024) >= userProfile.limits?.medicalVaultStorageMB * 0.9) ? '#ef4444' : 'var(--primary)'
-                                                }}>
-                                                    {((userProfile.usage?.storageBytes || 0) / (1024*1024)).toFixed(2)} MB <span style={{ color: '#94a3b8', fontWeight: 500 }}>/ {userProfile.limits?.medicalVaultStorageMB === -1 ? '∞' : `${userProfile.limits?.medicalVaultStorageMB} MB`}</span>
-                                                </span>
+                                        <div style={{ marginTop: '0.8rem', padding: '10px 16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <HardDrive size={14} style={{ color: '#64748b' }} />
+                                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>STORAGE USAGE</span>
                                             </div>
-                                            <div style={{ height: '6px', background: 'rgba(226, 232, 240, 0.5)', borderRadius: '10px', overflow: 'hidden', border: '1px solid #f8fafc' }}>
-                                                <div style={{ 
-                                                    height: '100%', 
-                                                    width: `${userProfile.limits?.medicalVaultStorageMB === -1 ? 0 : Math.min(((userProfile.usage?.storageBytes || 0) / (1024*1024) / userProfile.limits?.medicalVaultStorageMB) * 100, 100)}%`, 
-                                                    background: (userProfile.limits?.medicalVaultStorageMB !== -1 && (userProfile.usage?.storageBytes || 0) / (1024*1024) >= userProfile.limits?.medicalVaultStorageMB) ? '#ef4444' : 'var(--primary)',
-                                                    transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                    borderRadius: '10px'
+                                            <div style={{ flex: 1, height: '4px', background: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                                                <div style={{
+                                                    height: '100%',
+                                                    width: `${userProfile.limits?.medicalVaultStorageMB === -1 ? 0 : Math.min(((userProfile.usage?.storageBytes || 0) / (1024 * 1024) / userProfile.limits?.medicalVaultStorageMB) * 100, 100)}%`,
+                                                    background: 'var(--primary)',
+                                                    transition: 'width 0.5s ease-out'
                                                 }} />
                                             </div>
+                                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                                                {((userProfile.usage?.storageBytes || 0) / (1024 * 1024)).toFixed(2)} MB <span style={{ color: '#94a3b8' }}>/ {userProfile.limits?.medicalVaultStorageMB === -1 ? '∞' : `${userProfile.limits?.medicalVaultStorageMB} MB`}</span>
+                                            </span>
                                         </div>
                                     )}
                                 </div>
