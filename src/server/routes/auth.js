@@ -1318,15 +1318,11 @@ router.get('/profile', authMiddleware, async (req, res) => {
         
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
-        // Calculate storage usage across all animals
+        // Calculate storage usage across all records owned by this user
         try {
-            const AnimalModel = mongoose.model('Animal');
             const MedicalRecordModel = mongoose.model('MedicalRecord');
-            const userAnimals = await AnimalModel.find({ user_id: req.user.id }).select('_id');
-            const animalIds = userAnimals.map(a => a._id);
-            
             const storageStats = await MedicalRecordModel.aggregate([
-                { $match: { animal_id: { $in: animalIds } } },
+                { $match: { user_id: new mongoose.Types.ObjectId(req.user.id) } },
                 { $group: { _id: null, totalSize: { $sum: '$fileSize' } } }
             ]);
             

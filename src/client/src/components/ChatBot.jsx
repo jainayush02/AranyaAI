@@ -701,8 +701,11 @@ export default function ChatBot() {
                 console.error('Send failed', err);
                 const errorMsg = err.response?.data?.msg || 'Failed to send message. Please try again.';
                 showToast(errorMsg, 'error');
+                
+                // CRITICAL: Filter out the failed messages so the UI is correct
+                setMessages(prev => prev.filter(m => m.tempId !== tempMsgId && m._id !== tempMsgId && m._id !== (tempMsgId + 1)));
             }
-            setIsGenerating(false); // Set to false only on error
+            setIsGenerating(false);
         } finally {
             setIsTyping(false);
             isSendingRef.current = false;
