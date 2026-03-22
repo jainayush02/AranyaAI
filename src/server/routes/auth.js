@@ -11,6 +11,8 @@ const nodemailer = require('nodemailer');
 const axios = require('axios');
 const { OAuth2Client } = require('google-auth-library');
 const ActivityLog = require('../models/ActivityLog');
+const MedicalRecord = require('../models/MedicalRecord');
+const Plan = require('../models/Plan');
 const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 
@@ -1318,17 +1320,22 @@ router.get('/profile', authMiddleware, async (req, res) => {
         
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
-        // Calculate storage usage across all records (Final Reactive Fix for legacy records)
+        // Calculate storage usage across all records (Role-aware and Legacy-safe fix)
         try {
-            const MedicalRecordModel = mongoose.model('MedicalRecord');
-            const storageStats = await MedicalRecordModel.aggregate([
-                { $match: { user_id: new mongoose.Types.ObjectId(req.user.id.toString()) } },
-                { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
-            ]);
+            const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
             
-            user.usage = {
-                storageBytes: (storageStats && storageStats.length > 0) ? storageStats[0].totalSize : 0
-            };
+            if (ownerId) {
+                const storageStats = await MedicalRecord.aggregate([
+                    { $match: { user_id: new mongoose.Types.ObjectId(ownerId.toString()) } },
+                    { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
+                ]);
+                
+                user.usage = {
+                    storageBytes: (storageStats && storageStats.length > 0) ? storageStats[0].totalSize : 0
+                };
+            } else {
+                user.usage = { storageBytes: 0 };
+            }
         } catch (storageErr) {
             console.error('Usage calculation error:', storageErr);
             user.usage = { storageBytes: 0 };
