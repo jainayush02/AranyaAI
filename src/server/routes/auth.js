@@ -1318,12 +1318,12 @@ router.get('/profile', authMiddleware, async (req, res) => {
         
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
 
-        // Calculate storage usage across all records owned by this user
+        // Calculate storage usage across all records (Final Reactive Fix for legacy records)
         try {
             const MedicalRecordModel = mongoose.model('MedicalRecord');
             const storageStats = await MedicalRecordModel.aggregate([
-                { $match: { user_id: new mongoose.Types.ObjectId(req.user.id) } },
-                { $group: { _id: null, totalSize: { $sum: '$fileSize' } } }
+                { $match: { user_id: new mongoose.Types.ObjectId(req.user.id.toString()) } },
+                { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
             ]);
             
             user.usage = {
