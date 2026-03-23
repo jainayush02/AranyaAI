@@ -5,10 +5,10 @@ import { X, ChevronDown } from 'lucide-react';
 import styles from './AddAnimalDialog.module.css';
 
 const categoryBreeds = {
-    Cow: ["Holstein", "Jersey", "Gir", "Sahiwal", "Redsindhi"],
-    Dog: ["Labrador", "German Shepherd", "Golden Retriever", "Beagle", "Bulldog"],
+    Cow: ["Holstein", "Jersey", "Angus", "Hereford", "Brahman"],
+    Dog: ["Labrador Retriever", "German Shepherd", "Golden Retriever", "Beagle", "Great Dane"],
     Cat: ["Persian", "Maine Coon", "Siamese", "Ragdoll", "Bengal"],
-    Horse: ["Arabian", "Thoroughbred", "Quarter Horse", "Appaloosa", "Paint Horse"]
+    Horse: ["Thoroughbred", "Arabian", "Quarter Horse", "Clydesdale", "Shetland Pony"]
 };
 
 export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) {
@@ -19,6 +19,8 @@ export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) 
     const [birthYear, setBirthYear] = useState('');
     const [birthMonth, setBirthMonth] = useState('');
     const [vaccinated, setVaccinated] = useState('');
+    const [location, setLocation] = useState('');
+    const [syncRealTime, setSyncRealTime] = useState(true);
     const [dynamicCategories, setDynamicCategories] = useState(categoryBreeds);
 
     useEffect(() => {
@@ -28,6 +30,8 @@ export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) 
             setBreed(animal.breed || '');
             setGender(animal.gender || '');
             setVaccinated(animal.vaccinated ? 'true' : 'false');
+            setLocation(animal.location || '');
+            setSyncRealTime(animal.syncRealTime ?? true);
             
             if (animal.dob) {
                 const date = new Date(animal.dob);
@@ -62,7 +66,9 @@ export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) 
             breed, 
             dob: d.toISOString(), 
             vaccinated: vaccinated === 'true', 
-            gender 
+            gender,
+            location: location.trim(),
+            syncRealTime: syncRealTime === true || syncRealTime === 'true'
         });
         onClose();
     };
@@ -225,6 +231,28 @@ export default function EditAnimalDialog({ isOpen, onClose, onUpdate, animal }) 
                                         <span>No</span>
                                     </div>
                                 </div>
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Location / Farm Zone</label>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    placeholder="e.g., North Barn or Jaipur Farm"
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                />
+                            </div>
+
+                            <div className={styles.formGroup} style={{ marginTop: '0.5rem' }}>
+                                <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={syncRealTime} 
+                                        onChange={(e) => setSyncRealTime(e.target.checked)}
+                                        style={{ width: '18px', height: '18px' }}
+                                    />
+                                    Sync Ambient Temp with real-time location data
+                                </label>
                             </div>
                         </div>
 

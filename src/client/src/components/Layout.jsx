@@ -205,7 +205,7 @@ export default function Layout() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.4 }}
-                className={styles.main}
+                className={`${styles.main} ${role === 'admin' ? styles.adminMain : ''}`}
             >
                 <Outlet context={{ role, user }} />
             </motion.main>

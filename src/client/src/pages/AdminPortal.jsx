@@ -8,8 +8,9 @@ import {
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
     Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
-    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes,
-    ZoomIn, ZoomOut, Check, Info, Rocket, Gem, Briefcase, Zap as ZapIcon, Terminal, Share2, Database
+    ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes, Shield,
+    ZoomIn, ZoomOut, Check, Info, Rocket, Gem, Briefcase, Zap as ZapIcon, Terminal, Share2, Database,
+    MessageSquare, Server, PlusCircle, RefreshCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -134,27 +135,45 @@ function VendorIcon({ vendor, icon, color, focused }) {
     );
 }
 
-
-function ToggleSwitch({ checked, onChange, disabled, label, activeColor = '#2d5f3f' }) {
+function ToggleSwitch({ checked, onChange, disabled, activeColor = '#2d5f3f' }) {
     return (
-        <div
-            className={s.switchWrapper}
+        <div 
             onClick={() => !disabled && onChange(!checked)}
-            style={{ opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+            style={{ 
+                cursor: disabled ? 'default' : 'pointer', 
+                opacity: disabled ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center'
+            }}
         >
-            <div
-                className={s.switchTrack}
-                style={{
+            <div 
+                style={{ 
+                    width: '42px',
+                    height: '24px',
+                    borderRadius: '24px',
                     backgroundColor: checked ? activeColor : '#e2e8f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '3px',
+                    transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: checked ? `0 0 12px ${activeColor}30` : 'none',
+                    border: `1.5px solid ${checked ? activeColor : '#edf2f7'}`
                 }}
             >
-                <motion.div
-                    className={s.switchThumb}
-                    animate={{ x: checked ? 20 : 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                <motion.div 
+                    animate={{ x: checked ? 18 : 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    style={{ 
+                        width: '18px',
+                        height: '18px',
+                        backgroundColor: '#fff',
+                        borderRadius: '50%',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                        position: 'relative',
+                        zIndex: 2
+                    }}
                 />
             </div>
-            {label && <span className={s.switchLabel} style={{ color: checked ? activeColor : '#64748b' }}>{label}</span>}
         </div>
     );
 }
@@ -169,7 +188,7 @@ export default function AdminPortal() {
     const initialSubTab = queryParams.get('sub') || '';
 
     const [tab, setTab] = useState(initialTab);
-    const [subTab, setSubTab] = useState(initialSubTab); // For Docs
+    const [subTab, setSubTab] = useState('getting-started'); // For Docs
     const [userLogSubTab, setUserLogSubTab] = useState('animals'); // For User details
 
     // To avoid flicker, we use the values from URL directly for UI rendering
@@ -190,6 +209,8 @@ export default function AdminPortal() {
     const [isPinging, setIsPinging] = useState(false);
     const [liveUpdates, setLiveUpdates] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [aiEngine, setAiEngine] = useState('scientist_js');
+    const [aiEngineLoading, setAiEngineLoading] = useState(false);
 
     // Users
     const [users, setUsers] = useState([]);
@@ -251,10 +272,10 @@ export default function AdminPortal() {
     const [settingsLoading, setSettingsLoading] = useState(false);
     // Animal Taxonomy Management
     const DEFAULT_CATEGORIES = {
-        Cow: ['Holstein', 'Jersey', 'Gir', 'Sahiwal', 'Redsindhi'],
-        Dog: ['Labrador', 'German Shepherd', 'Golden Retriever', 'Beagle', 'Bulldog'],
-        Cat: ['Persian', 'Maine Coon', 'Siamese', 'Ragdoll', 'Bengal'],
-        Horse: ['Arabian', 'Thoroughbred', 'Quarter Horse', 'Appaloosa', 'Paint Horse'],
+        Cow: ["Holstein", "Jersey", "Angus", "Hereford", "Brahman"],
+        Dog: ["Labrador Retriever", "German Shepherd", "Golden Retriever", "Beagle", "Great Dane"],
+        Cat: ["Persian", "Maine Coon", "Siamese", "Ragdoll", "Bengal"],
+        Horse: ["Thoroughbred", "Arabian", "Quarter Horse", "Clydesdale", "Shetland Pony"]
     };
     const [animalCategories, setAnimalCategories] = useState(DEFAULT_CATEGORIES);
     const [taxonomySaving, setTaxonomySaving] = useState(false);
@@ -436,13 +457,33 @@ export default function AdminPortal() {
     };
 
     const fetchAiConfig = useCallback(async () => {
-        setSettingsLoading(true);
+        setAiConfigLoading(true);
         try {
             const r = await axios.get(`${API}/admin/config/ai`, authH());
             setAiConfig(r.data);
         } catch { push('Failed to load AI config', 'err'); }
-        finally { setSettingsLoading(false); }
+        finally { setAiConfigLoading(false); }
     }, [push]);
+
+    const fetchAiEngine = useCallback(async () => {
+        setAiEngineLoading(true);
+        try {
+            const r = await axios.get(`${API}/admin/config/ai-engine`, authH());
+            setAiEngine(r.data.engine);
+        } catch { push('Failed to load AI engine setting', 'err'); }
+        finally { setAiEngineLoading(false); }
+    }, [push]);
+
+    const toggleAiEngine = async () => {
+        const next = aiEngine === 'scientist_js' ? 'legacy_python' : 'scientist_js';
+        setAiEngineLoading(true);
+        try {
+            await axios.post(`${API}/admin/config/ai-engine`, { engine: next }, authH());
+            setAiEngine(next);
+            push(`AI Engine Optimized: ${next === 'scientist_js' ? 'V2 Neural Core' : 'V1 Standard Core'}`);
+        } catch { push('Failed to update AI engine', 'err'); }
+        finally { setAiEngineLoading(false); }
+    };
 
     // ── Animal Taxonomy helpers ───────────────────
     const fetchTaxonomy = useCallback(async () => {
@@ -635,8 +676,9 @@ export default function AdminPortal() {
     useEffect(() => { if (activeTab === 'content') fetchFaqs(); }, [activeTab, fetchFaqs]);
     useEffect(() => { if (activeTab === 'docs') fetchArticles(); }, [activeTab, fetchArticles]);
     useEffect(() => { if (activeTab === 'adminaccess') fetchAdminAccess(); }, [activeTab, fetchAdminAccess]);
-    useEffect(() => { if (activeTab === 'settings') fetchAiConfig(); }, [activeTab, fetchAiConfig]);
+    useEffect(() => { if (activeTab === 'infrastructure') fetchAiConfig(); }, [activeTab, fetchAiConfig]);
     useEffect(() => { if (activeTab === 'taxonomy') fetchTaxonomy(); }, [activeTab, fetchTaxonomy]);
+    useEffect(() => { if (activeTab === 'overview') { fetchOverview(); fetchAiEngine(); } }, [activeTab, fetchOverview, fetchAiEngine]);
 
     useEffect(() => { if (activeTab === 'pricing' || activeTab === 'users') fetchPlans(); }, [activeTab, fetchPlans]);
 
@@ -846,7 +888,7 @@ export default function AdminPortal() {
         { id: 'docs', label: 'Knowledge Base', icon: BookOpen },
         { id: 'pricing', label: 'Subscription', icon: Zap },
         { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
-        { id: 'settings', label: 'System Configuration', icon: SettingsIcon },
+        { id: 'infrastructure', label: 'Core Infrastructure', icon: SettingsIcon },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
     ];
 
@@ -863,7 +905,7 @@ export default function AdminPortal() {
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
         pricing: { title: 'SUBSCRIPTION', subtitle: 'CENTER', desc: 'Manage tiers and subscription framework', icon: Zap },
         taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
-        settings: { title: 'SYSTEM', subtitle: 'CONFIG', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
+        infrastructure: { title: 'CORE', subtitle: 'INFRASTRUCTURE', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
     const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
@@ -1186,11 +1228,8 @@ export default function AdminPortal() {
                                     exit={{ opacity: 0, x: -20 }}
                                     transition={{ duration: 0.3 }}>
                                     {/* Header with Poll Controls */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-                                        <div>
-                                            <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Business Platform Overview</h2>
-                                            <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '4px 0 0' }}>Real-time growth and system status metrics.</p>
-                                        </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+
                                         <div style={{ display: 'flex', gap: '0.75rem' }}>
                                             <div
                                                 onClick={() => setLiveUpdates(!liveUpdates)}
@@ -1238,15 +1277,33 @@ export default function AdminPortal() {
                                     ) : (
                                         <>
                                             <div className={s.statsGrid}>
-                                                <Stat icon={Users} label="Total Users" value={stats.totalUsers} sub={`+${stats.newToday} today`} color="#3b82f6" />
-                                                <Stat icon={TrendingUp} label="New This Week" value={stats.newThisWeek} sub={`${stats.newThisMonth} this month`} color="#22c55e" />
-                                                <Stat icon={Globe} label="Active Today" value={stats.activeToday} sub="logged in today" color="#06b6d4" />
-                                                <Stat icon={MousePointer2} label="Traffic Index" value={stats.pageViews?.toLocaleString()} sub="total views" color="#7c3aed" />
+                                                <Stat icon={Users} label="Total Users" value={stats.totalUsers} sub={`+${stats.newToday} today`} color="#10b981" />
+                                                <Stat icon={TrendingUp} label="New This Week" value={stats.newThisWeek} sub={`${stats.newThisMonth} this month`} color="#059669" />
+                                                <Stat icon={Globe} label="Active Today" value={stats.activeToday} sub="logged in today" color="#0d9488" />
+                                                <Stat icon={MousePointer2} label="Traffic Index" value={stats.pageViews?.toLocaleString()} sub="total views" color="#8b5cf6" />
                                                 <Stat icon={Zap} label="Engagement" value={`${stats.avgSessionMin}m`} sub="avg session" color="#f59e0b" />
-                                                <Stat icon={UserX} label="Blocked Users" value={stats.blockedUsers} sub="access denied" color="#ef4444" />
-                                                <Stat icon={Crown} label="Pro Users" value={stats.proUsers} sub="paid plan" color="#a855f7" />
+                                                <Stat icon={UserX} label="Blocked Users" value={stats.blockedUsers} sub="access denied" color="#f43f5e" />
                                                 <Stat icon={ShieldAlert} label="Critical Alerts" value={stats.criticalAnimals} sub="animals need vet" color="#f97316" />
+
+                                                {/* Dynamic Subscription Plan Stats */}
+                                                {(stats.planStats || []).map(p => {
+                                                    const shortName = p.name
+                                                        .replace(' Starter', '')
+                                                        .replace(' Standard', '')
+                                                        .replace(' Enterprise', '');
+                                                    return (
+                                                        <Stat
+                                                            key={p.code}
+                                                            icon={Crown}
+                                                            label={`${shortName} Users`}
+                                                            value={p.count}
+                                                            sub={p.price === 0 ? "free tier" : "paid plan"}
+                                                            color={p.color || "#ec4899"}
+                                                        />
+                                                    );
+                                                })}
                                             </div>
+
 
                                             <div className={s.llmStatsCard} style={{ marginTop: '2rem', padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                                                 <div className={s.actCardHead} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -1541,7 +1598,7 @@ export default function AdminPortal() {
                                             {focusLoading ? (
                                                 <AdvancedLoader type="profile" compact={false} fullScreen={false} />
                                             ) : (
-                                                <div className={s.userDetailGrid} style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.35fr) 1fr', gap: '1rem', alignItems: 'stretch', maxHeight: '800px' }}>
+                                                <div className={s.userDetailGrid} style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.35fr) 1fr', gap: '1rem', alignItems: 'stretch' }}>
                                                     <div className={s.userCard} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', height: '100%', minHeight: '650px' }}>
                                                         <div className={s.bigAvatar} style={{ background: '#2d5f3f', color: '#fff', borderRadius: '16px', width: '64px', height: '64px', fontSize: '1.5rem' }}>{(focusedUser.user?.full_name || focusedUser.user?.email || '?')[0].toUpperCase()}</div>
                                                         <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '1rem', color: '#0f172a' }}>{focusedUser.user?.full_name || '(no name)'}</h2>
@@ -1629,7 +1686,7 @@ export default function AdminPortal() {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className={s.userDetailRight} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', overflow: 'hidden' }}>
+                                                    <div className={s.userDetailRight} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px' }}>
                                                         {/* Animated Tab Section */}
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                                                             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', gap: '4px', position: 'relative' }}>
@@ -1695,7 +1752,7 @@ export default function AdminPortal() {
                                                                             <p style={{ color: '#64748b', fontWeight: 600 }}>No animals registered in this account</p>
                                                                         </div>
                                                                     ) : (
-                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
+                                                                        <div className={s.customScroll} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
                                                                             {(focusedUser.animals || []).map((a, idx) => (
                                                                                 <motion.div
                                                                                     key={a._id}
@@ -1737,7 +1794,7 @@ export default function AdminPortal() {
                                                                             <p style={{ color: '#64748b', fontWeight: 600 }}>No activities recorded yet for this profile</p>
                                                                         </div>
                                                                     ) : (
-                                                                        <div className={s.customScroll} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
+                                                                        <div className={s.customScroll} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem' }}>
                                                                             {(focusedUser.logs || []).map((log, idx) => (
                                                                                 <motion.div
                                                                                     key={log._id}
@@ -1770,11 +1827,10 @@ export default function AdminPortal() {
                                                                     initial={{ opacity: 0, y: 15 }}
                                                                     animate={{ opacity: 1, y: 0 }}
                                                                     exit={{ opacity: 0, y: -15 }}
-                                                                    className={s.customScroll}
-                                                                    style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem', padding: '0.5rem' }}
+                                                                    style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem' }}
                                                                 >
                                                                     {/* Plan Assignment Section */}
-                                                                    <div style={{ background: '#f8fafc', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0' }}>
+                                                                    <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '1rem 1.25rem', border: '1px solid #e2e8f0' }}>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
                                                                             <Crown size={18} color="#2d5f3f" />
                                                                             <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Subscription Tier</h3>
@@ -1809,24 +1865,27 @@ export default function AdminPortal() {
                                                                     </div>
 
                                                                     {/* Individual Overrides Section */}
-                                                                    <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0' }}>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                                                <ShieldAlert size={18} color="#ef4444" />
-                                                                                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Limit Overrides</h3>
+                                                                    <div className={s.overridePanel}>
+                                                                        <div className={s.overrideHeader}>
+                                                                            <div className={s.overrideTitleWrap}>
+                                                                                <Shield size={18} color="#2d5f3f" />
+                                                                                <h3>Administrative Limit Overrides</h3>
                                                                             </div>
-                                                                            <p style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Overrides take priority over the base plan.</p>
+                                                                            <div className={s.infoWrap}>
+                                                                                <Info size={14} />
+                                                                                <span>Overrides supersede base plan parameters</span>
+                                                                            </div>
                                                                         </div>
 
-                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Max Animals</span>
+                                                                        <div className={s.overrideBody}>
+                                                                            <div className={s.limitGrid}>
+                                                                                <div className={s.limitField}>
+                                                                                    <label><Shapes size={14} /> Max Species Capacity</label>
                                                                                     <input
                                                                                         type="number"
-                                                                                        className={s.inp}
+                                                                                        className={s.premiumInput}
                                                                                         value={focusedUser.user.planOverrides?.maxAnimals ?? ''}
-                                                                                        placeholder="Use base plan"
+                                                                                        placeholder="Inherit from base plan"
                                                                                         onChange={e => {
                                                                                             const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                                                                                             const next = { ...focusedUser.user.planOverrides, maxAnimals: val };
@@ -1834,14 +1893,14 @@ export default function AdminPortal() {
                                                                                             setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                         }}
                                                                                     />
-                                                                                </label>
-                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Daily Chat Messages</span>
+                                                                                </div>
+                                                                                <div className={s.limitField}>
+                                                                                    <label><MessageSquare size={14} /> Daily Message Quota</label>
                                                                                     <input
                                                                                         type="number"
-                                                                                        className={s.inp}
+                                                                                        className={s.premiumInput}
                                                                                         value={focusedUser.user.planOverrides?.dailyChatMessages ?? ''}
-                                                                                        placeholder="Use base plan"
+                                                                                        placeholder="Inherit from base plan"
                                                                                         onChange={e => {
                                                                                             const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                                                                                             const next = { ...focusedUser.user.planOverrides, dailyChatMessages: val };
@@ -1849,14 +1908,14 @@ export default function AdminPortal() {
                                                                                             setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                         }}
                                                                                     />
-                                                                                </label>
-                                                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Storage (MB)</span>
+                                                                                </div>
+                                                                                <div className={s.limitField}>
+                                                                                    <label><Database size={14} /> Cloud Vault Storage (MB)</label>
                                                                                     <input
                                                                                         type="number"
-                                                                                        className={s.inp}
+                                                                                        className={s.premiumInput}
                                                                                         value={focusedUser.user.planOverrides?.medicalVaultStorageMB ?? ''}
-                                                                                        placeholder="Use base plan"
+                                                                                        placeholder="Inherit from base plan"
                                                                                         onChange={e => {
                                                                                             const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                                                                                             const next = { ...focusedUser.user.planOverrides, medicalVaultStorageMB: val };
@@ -1864,53 +1923,54 @@ export default function AdminPortal() {
                                                                                             setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                         }}
                                                                                     />
-                                                                                </label>
+                                                                                </div>
                                                                             </div>
 
-                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '12px' }}>
-                                                                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Feature Toggles</span>
-
-                                                                                <ToggleSwitch
-                                                                                    label="Allow Export"
-                                                                                    checked={focusedUser.user.planOverrides?.allowExport ?? false}
-                                                                                    onChange={val => {
+                                                                            <div className={s.featurePanel}>
+                                                                                <span className={s.featureTitle}>Privilege Toggles</span>
+                                                                                <div className={s.toggleGrid}>
+                                                                                    <div className={s.switchWrapperPremium} onClick={() => {
+                                                                                        const val = !(focusedUser.user.planOverrides?.allowExport ?? false);
                                                                                         const next = { ...focusedUser.user.planOverrides, allowExport: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
-                                                                                    }}
-                                                                                />
-                                                                                <ToggleSwitch
-                                                                                    label="Allow Bulk Import"
-                                                                                    checked={focusedUser.user.planOverrides?.allowBulkImport ?? false}
-                                                                                    onChange={val => {
+                                                                                    }}>
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowExport ?? false} onChange={() => {}} />
+                                                                                        <span className={s.toggleLabel}>Data Export Control</span>
+                                                                                    </div>
+                                                                                    <div className={s.switchWrapperPremium} onClick={() => {
+                                                                                        const val = !(focusedUser.user.planOverrides?.allowBulkImport ?? false);
                                                                                         const next = { ...focusedUser.user.planOverrides, allowBulkImport: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
-                                                                                    }}
-                                                                                />
-                                                                                <ToggleSwitch
-                                                                                    label="Advanced AI Models"
-                                                                                    checked={focusedUser.user.planOverrides?.allowAdvancedAI ?? false}
-                                                                                    onChange={val => {
+                                                                                    }}>
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowBulkImport ?? false} onChange={() => {}} />
+                                                                                        <span className={s.toggleLabel}>Bulk Ingestion Access</span>
+                                                                                    </div>
+                                                                                    <div className={s.switchWrapperPremium} onClick={() => {
+                                                                                        const val = !(focusedUser.user.planOverrides?.allowAdvancedAI ?? false);
                                                                                         const next = { ...focusedUser.user.planOverrides, allowAdvancedAI: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
-                                                                                    }}
-                                                                                />
+                                                                                    }}>
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowAdvancedAI ?? false} onChange={() => {}} />
+                                                                                        <span className={s.toggleLabel}>Advanced LLM Models</span>
+                                                                                    </div>
+                                                                                </div>
 
-                                                                                <div style={{ marginTop: 'auto', paddingTop: '1rem', display: 'flex', gap: '10px' }}>
+                                                                                <div className={s.actionRow}>
                                                                                     <button
+                                                                                        className={s.applyBtn}
                                                                                         onClick={() => updateUserOverrides(focusedUser.user._id, focusedUser.user.planOverrides)}
-                                                                                        style={{ flex: 1, padding: '0.7rem', background: '#2d5f3f', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}
                                                                                     >
-                                                                                        Apply Overrides
+                                                                                        <Save size={18} /> Apply Overrides
                                                                                     </button>
                                                                                     <button
+                                                                                        className={s.resetBtn}
                                                                                         onClick={() => {
                                                                                             const next = {};
                                                                                             setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                             updateUserOverrides(focusedUser.user._id, next);
                                                                                         }}
-                                                                                        style={{ padding: '0.7rem', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}
                                                                                     >
-                                                                                        Clear All
+                                                                                        Reset
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
@@ -1940,7 +2000,7 @@ export default function AdminPortal() {
                                                 </select>
                                                 <select className={s.sel} value={userPlan} onChange={e => { setUserPlan(e.target.value); setUserPage(1); }}>
                                                     <option value="">All Plans</option>
-                                                    {(plans.length > 0 ? plans : [{code:'free', name:'Free'}, {code:'pro', name:'Pro'}, {code:'enterprise', name:'Enterprise'}]).map(p => (
+                                                    {(plans.length > 0 ? plans : [{ code: 'free', name: 'Free' }, { code: 'pro', name: 'Pro' }, { code: 'enterprise', name: 'Enterprise' }]).map(p => (
                                                         <option key={p.code} value={p.code}>{p.name}</option>
                                                     ))}
                                                 </select>
@@ -1993,7 +2053,7 @@ export default function AdminPortal() {
                                                                                 fontFamily: 'inherit'
                                                                             }}
                                                                         >
-                                                                            {(plans.length > 0 ? plans : [{code:'free', name:'Free'}, {code:'pro', name:'Pro'}]).map(p => (
+                                                                            {(plans.length > 0 ? plans : [{ code: 'free', name: 'Free' }, { code: 'pro', name: 'Pro' }]).map(p => (
                                                                                 <option key={p.code} value={p.code}>{p.name}</option>
                                                                             ))}
                                                                         </select>
@@ -2156,7 +2216,7 @@ export default function AdminPortal() {
                                         <>
                                             <div className={s.heroCard} style={{ textAlign: 'left', alignItems: 'flex-start', padding: '2.5rem' }}>
                                                 <div style={{ position: 'relative', zIndex: 1 }}>
-                                                    <h2 className={s.heroCardTitle}>Knowledge Base Master Control</h2>
+
                                                     <p className={s.heroCardDesc} style={{ maxWidth: '600px' }}>Streamline user onboarding with detailed documentation. Coordinate with technical writers to update platform guides in real-time.</p>
                                                     <div className={s.statsGrid} style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
                                                         <div className={s.statCard} style={{ background: '#fff', border: '1px solid #86efac', padding: '1rem', borderRadius: '12px', flex: 1 }}>
@@ -2268,8 +2328,8 @@ export default function AdminPortal() {
 
 
 
-                            {/* ── SETTINGS ── */}
-                            {tab === 'settings' && (
+                            {/* ── CORE INFRASTRUCTURE ── */}
+                            {activeTab === 'infrastructure' && (
                                 <motion.div key="st" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
@@ -2298,6 +2358,39 @@ export default function AdminPortal() {
                                                 </div>
                                             </div>
 
+                                            {/* AI ENGINE GLOBAL SWITCH moved here */}
+                                            <div className={s.contentCard} style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '1.5px solid #bbf7d0', boxShadow: '0 8px 16px rgba(0,0,0,0.03)' }}>
+                                                <div className={s.contentCardHead} style={{ border: 'none', marginBottom: '0.5rem' }}>
+                                                    <div className={s.contentCardTitle}>
+                                                        <div style={{ width: 44, height: 44, borderRadius: '16px', background: 'rgba(22, 101, 52, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <Zap size={22} color="#166534" />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontWeight: 800, color: '#064e3b', fontSize: '0.95rem' }}>Active Monitoring Engine</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#065f46', opacity: 0.8, fontWeight: 500 }}>Global logic version control</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.25rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: aiEngine === 'legacy_python' ? '#166534' : '#94a3b8', letterSpacing: '0.1em' }}>V1 CORE</span>
+                                                        <ToggleSwitch
+                                                            checked={aiEngine === 'scientist_js'}
+                                                            onChange={toggleAiEngine}
+                                                            disabled={aiEngineLoading}
+                                                            activeColor="#16a34a"
+                                                        />
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: aiEngine === 'scientist_js' ? '#16a34a' : '#94a3b8', letterSpacing: '0.1em' }}>V2 NEURAL</span>
+                                                    </div>
+                                                    {aiEngineLoading && <Loader2 size={16} className="spinning" color="#16a34a" />}
+                                                </div>
+                                                <div style={{ marginTop: '1rem', padding: '0.85rem', background: 'rgba(255,255,255,0.4)', borderRadius: '12px', border: '1px solid rgba(22, 101, 52, 0.1)', fontSize: '0.78rem', color: '#065f46', fontWeight: 600 }}>
+                                                    {aiEngine === 'scientist_js'
+                                                        ? '⚡ Precision-Mode: Using V2 Neural Core logic'
+                                                        : '📉 Legacy-Mode: Using V1 Standard Core logic'}
+                                                </div>
+                                            </div>
+
                                             {aiConfig && (
                                                 <div className={s.contentCard}>
                                                     <div className={s.contentCardHead}>
@@ -2306,7 +2399,7 @@ export default function AdminPortal() {
                                                                 <FileText size={22} color="#8b5cf6" />
                                                             </div>
                                                             <div>
-                                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>System Integrity & Protocol</div>
+                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.9rem' }}>System Integrity & Protocol</div>
                                                                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Global rules for Arion's clinical behavior</div>
                                                             </div>
                                                         </div>
@@ -2885,11 +2978,11 @@ export default function AdminPortal() {
                             {/* ── PRICING PLANS ── */}
                             {activeTab === 'pricing' && (
                                 <motion.div key="pricing" className={s.section} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-                                    
+
                                     {planModal && (
                                         <div className={s.overlay}>
-                                            <motion.div 
-                                                className={s.modal} 
+                                            <motion.div
+                                                className={s.modal}
                                                 initial={{ y: 20, opacity: 0 }}
                                                 animate={{ y: 0, opacity: 1 }}
                                                 style={{ maxWidth: '650px' }}
@@ -2911,15 +3004,15 @@ export default function AdminPortal() {
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
                                                         <div style={{ gridColumn: 'span 2' }}>
                                                             <label className={s.inputLabel}>Display Name</label>
-                                                            <input className={s.field} value={editingPlan.name} onChange={e => setEditingPlan(p => ({...p, name: e.target.value}))} placeholder="e.g. MaxPro Enterprise" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '1rem' }} />
+                                                            <input className={s.field} value={editingPlan.name} onChange={e => setEditingPlan(p => ({ ...p, name: e.target.value }))} placeholder="e.g. MaxPro Enterprise" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '1rem' }} />
                                                         </div>
                                                         <div>
                                                             <label className={s.inputLabel}><Terminal size={14} /> System Code ID</label>
-                                                            <input className={s.field} value={editingPlan.code} onChange={e => setEditingPlan(p => ({...p, code: e.target.value}))} placeholder="e.g. maxpro-1" disabled={planModal !== 'create'} style={{ background: planModal !== 'create' ? '#f1f5f9' : '#fff', fontFamily: 'monospace' }} />
+                                                            <input className={s.field} value={editingPlan.code} onChange={e => setEditingPlan(p => ({ ...p, code: e.target.value }))} placeholder="e.g. maxpro-1" disabled={planModal !== 'create'} style={{ background: planModal !== 'create' ? '#f1f5f9' : '#fff', fontFamily: 'monospace' }} />
                                                         </div>
                                                         <div>
                                                             <label className={s.inputLabel}>Price Setting (INR)</label>
-                                                            <input type="number" className={s.field} value={editingPlan.price} onChange={e => setEditingPlan(p => ({...p, price: e.target.value === '' ? '' : Number(e.target.value)}))} style={{ fontWeight: 800, color: '#2d5f3f' }} />
+                                                            <input type="number" className={s.field} value={editingPlan.price} onChange={e => setEditingPlan(p => ({ ...p, price: e.target.value === '' ? '' : Number(e.target.value) }))} style={{ fontWeight: 800, color: '#2d5f3f' }} />
                                                         </div>
                                                     </div>
 
@@ -2929,25 +3022,30 @@ export default function AdminPortal() {
                                                         </h3>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                                                             <div>
-                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>MAX ANIMALS</label>
-                                                                <input type="number" className={s.field} value={editingPlan.maxAnimals} onChange={e => setEditingPlan(p => ({...p, maxAnimals: e.target.value === '' ? '' : Number(e.target.value)}))} />
-                                                                <p style={{ margin: '0.3rem 0 0', fontSize: '0.65rem', color: '#94a3b8' }}>-1 for unlimited capacity</p>
+                                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                                    <Shapes size={12} color="#2d5f3f" /> SPECIES CAPACITY (MAX ANIMALS)
+                                                                </label>
+                                                                <div style={{ position: 'relative' }}>
+                                                                    <input type="number" className={s.field} value={editingPlan.maxAnimals} onChange={e => setEditingPlan(p => ({ ...p, maxAnimals: e.target.value === '' ? '' : Number(e.target.value) }))} style={{ paddingLeft: '2.5rem', fontWeight: 800 }} />
+                                                                    <div style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>#</div>
+                                                                </div>
+                                                                <p style={{ margin: '0.4rem 0 0', fontSize: '0.65rem', color: '#64748b', fontWeight: 500, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Use -1 for unlimited animal registration</p>
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>DAILY AI QUOTA</label>
-                                                                <input type="number" className={s.field} value={editingPlan.dailyChatMessages} onChange={e => setEditingPlan(p => ({...p, dailyChatMessages: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                                <input type="number" className={s.field} value={editingPlan.dailyChatMessages} onChange={e => setEditingPlan(p => ({ ...p, dailyChatMessages: e.target.value === '' ? '' : Number(e.target.value) }))} />
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>VISION ENGINE CAP</label>
-                                                                <input type="number" className={s.field} value={editingPlan.dailyImageUploads} onChange={e => setEditingPlan(p => ({...p, dailyImageUploads: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                                <input type="number" className={s.field} value={editingPlan.dailyImageUploads} onChange={e => setEditingPlan(p => ({ ...p, dailyImageUploads: e.target.value === '' ? '' : Number(e.target.value) }))} />
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>VAULT STORAGE (MB)</label>
-                                                                <input type="number" className={s.field} value={editingPlan.medicalVaultStorageMB} onChange={e => setEditingPlan(p => ({...p, medicalVaultStorageMB: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                                <input type="number" className={s.field} value={editingPlan.medicalVaultStorageMB} onChange={e => setEditingPlan(p => ({ ...p, medicalVaultStorageMB: e.target.value === '' ? '' : Number(e.target.value) }))} />
                                                             </div>
                                                             <div style={{ gridColumn: 'span 2' }}>
                                                                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '0.4rem', display: 'block' }}>MAX CARE CLAN MEMBERS</label>
-                                                                <input type="number" className={s.field} value={editingPlan.maxCareCircleMembers} onChange={e => setEditingPlan(p => ({...p, maxCareCircleMembers: e.target.value === '' ? '' : Number(e.target.value)}))} />
+                                                                <input type="number" className={s.field} value={editingPlan.maxCareCircleMembers} onChange={e => setEditingPlan(p => ({ ...p, maxCareCircleMembers: e.target.value === '' ? '' : Number(e.target.value) }))} />
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2965,7 +3063,7 @@ export default function AdminPortal() {
                                                                         <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Allow historical data import via CSV</div>
                                                                     </div>
                                                                 </div>
-                                                                <ToggleSwitch checked={editingPlan.allowBulkImport} onChange={v => setEditingPlan(p => ({...p, allowBulkImport: v}))} />
+                                                                <ToggleSwitch checked={editingPlan.allowBulkImport} onChange={v => setEditingPlan(p => ({ ...p, allowBulkImport: v }))} />
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -2975,7 +3073,7 @@ export default function AdminPortal() {
                                                                         <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Enable full ownership CSV exports</div>
                                                                     </div>
                                                                 </div>
-                                                                <ToggleSwitch checked={editingPlan.allowExport} onChange={v => setEditingPlan(p => ({...p, allowExport: v}))} />
+                                                                <ToggleSwitch checked={editingPlan.allowExport} onChange={v => setEditingPlan(p => ({ ...p, allowExport: v }))} />
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -2985,7 +3083,7 @@ export default function AdminPortal() {
                                                                         <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Access to high-fidelity AI models</div>
                                                                     </div>
                                                                 </div>
-                                                                <ToggleSwitch checked={editingPlan.allowAdvancedAI} onChange={v => setEditingPlan(p => ({...p, allowAdvancedAI: v}))} />
+                                                                <ToggleSwitch checked={editingPlan.allowAdvancedAI} onChange={v => setEditingPlan(p => ({ ...p, allowAdvancedAI: v }))} />
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2997,7 +3095,7 @@ export default function AdminPortal() {
                                                                 <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e3a8a' }}>Recommended Badge</div>
                                                                 <div style={{ fontSize: '0.75rem', color: '#2563eb' }}>Highlight this plan as the best value option</div>
                                                             </div>
-                                                            <ToggleSwitch checked={editingPlan.isRecommended} onChange={v => setEditingPlan(p => ({...p, isRecommended: v}))} activeColor="#3b82f6" />
+                                                            <ToggleSwitch checked={editingPlan.isRecommended} onChange={v => setEditingPlan(p => ({ ...p, isRecommended: v }))} activeColor="#3b82f6" />
                                                         </div>
                                                     </div>
 
@@ -3013,7 +3111,7 @@ export default function AdminPortal() {
                                         <div />
                                         <button className={s.primaryBtn} onClick={() => { setEditingPlan({ name: '', code: '', price: 0, maxAnimals: 3, dailyChatMessages: 5, dailyImageUploads: 0, medicalVaultStorageMB: 10, maxCareCircleMembers: 0, allowExport: false, allowBulkImport: false, allowAdvancedAI: false, isDefault: false, isRecommended: false }); setPlanModal('create'); }}><Plus size={16} /> Create Custom Tier</button>
                                     </div>
-                                    
+
                                     {pricingLoading ? <AdvancedLoader type="admin" compact={true} fullScreen={false} /> : (
                                         <div className={s.pricingGrid}>
                                             {plans.map(pl => (
@@ -3023,7 +3121,7 @@ export default function AdminPortal() {
                                                             <div className={`${s.planDefaultBadge} ${s.planRecommendedBadge}`}>Recommended</div>
                                                         </div>
                                                     )}
-                                                    
+
                                                     <div className={s.planHeader}>
                                                         <div>
                                                             <h3 className={s.planTitle}>{pl.name}</h3>
@@ -3034,11 +3132,11 @@ export default function AdminPortal() {
                                                             {pl.price > 0 && <span>/mo</span>}
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className={s.planFeatureList}>
-                                                        <div className={s.planFeatureItem}>
-                                                            <div className={s.featureLabel}><Shapes size={14} /> Animal Capacity</div>
-                                                            <div className={s.featureValue}>{pl.maxAnimals === -1 ? 'Unlimited ∞' : `${pl.maxAnimals} Species`}</div>
+                                                        <div className={s.planFeatureItem} style={{ borderLeft: '3px solid #bbf7d0', paddingLeft: '1rem', background: '#f0fdf450' }}>
+                                                            <div className={s.featureLabel} style={{ fontWeight: 800, color: '#166534' }}><Shapes size={14} /> Animal Limit</div>
+                                                            <div className={s.featureValue} style={{ fontSize: '1.2rem', color: '#1a2e23' }}>{pl.maxAnimals === -1 ? 'Unlimited ∞' : `${pl.maxAnimals} Species`}</div>
                                                         </div>
                                                         <div className={s.planFeatureItem}>
                                                             <div className={s.featureLabel}><ZapIcon size={14} /> AI Daily Limit</div>
@@ -3069,7 +3167,7 @@ export default function AdminPortal() {
                                                     </div>
 
                                                     <div className={s.planActions}>
-                                                        <button 
+                                                        <button
                                                             className={s.configBtn}
                                                             onClick={() => { setEditingPlan(pl); setPlanModal(pl); }}
                                                         >

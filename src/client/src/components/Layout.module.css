@@ -245,6 +245,11 @@
     box-sizing: border-box;
 }
 
+.adminMain {
+    max-width: none;
+    margin: 72px 0 0 0;
+}
+
 .fakeUserMenu {
     display: flex;
     align-items: center;

@@ -6,8 +6,20 @@ const HealthLog = require('../models/HealthLog');
 const MedicalRecord = require('../models/MedicalRecord');
 const User = require('../models/User');
 const Plan = require('../models/Plan');
-const axios = require('axios');
+// const axios = require('axios'); // OLD: no longer calling external AI microservice
 const { logActivity } = require('../utils/logger');
+const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits } = require('../utils/vitalMonitor');
+const SystemSettings = require('../models/SystemSettings');
+
+// NEW: Monitor Cache to maintain unique EWMA state for each animal separately
+const healthMonitors = new Map();
+
+const getMonitorForAnimal = (animalId) => {
+    if (!healthMonitors.has(animalId.toString())) {
+        healthMonitors.set(animalId.toString(), new MLEngineeredMonitor());
+    }
+    return healthMonitors.get(animalId.toString());
+};
 const multer = require('multer');
 const ImageKit = require('imagekit');
 
@@ -50,7 +62,7 @@ router.get('/', auth, async (req, res) => {
 // @desc    Add new animal
 // @access  Private
 router.post('/', auth, async (req, res) => {
-    const { name, category, breed, dob, vaccinated, gender } = req.body;
+    const { name, category, breed, dob, vaccinated, gender, location } = req.body;
 
     if (!name || !category || !breed || !gender) {
         return res.status(400).json({ msg: 'Please provide all required fields' });
@@ -83,8 +95,10 @@ router.post('/', auth, async (req, res) => {
             breed: breed.trim(),
             gender,
             dob,
+            location: location?.trim() || 'Not Specified',
+            syncRealTime: true, // Default to true for new animals
             vaccinated: vaccinated === true || vaccinated === 'true',
-            status: 'Healthy', // default
+            status: 'HEALTHY', // default
             recentVitals: {
                 temperature: 38.5,
                 heartRate: 60
@@ -132,7 +146,7 @@ router.delete('/:id', auth, async (req, res) => {
 // @desc    Update animal details
 // @access  Private
 router.put('/:id', auth, async (req, res) => {
-    const { name, category, breed, dob, vaccinated, gender } = req.body;
+    const { name, category, breed, dob, vaccinated, gender, location, syncRealTime } = req.body;
 
     // Build update object
     const updateFields = {};
@@ -141,6 +155,8 @@ router.put('/:id', auth, async (req, res) => {
     if (breed) updateFields.breed = breed.trim();
     if (gender) updateFields.gender = gender;
     if (dob) updateFields.dob = dob;
+    if (location !== undefined) updateFields.location = location.trim();
+    if (syncRealTime !== undefined) updateFields.syncRealTime = syncRealTime === true || syncRealTime === 'true';
     if (vaccinated !== undefined) updateFields.vaccinated = vaccinated === true || vaccinated === 'true';
 
     try {
@@ -178,7 +194,11 @@ router.get('/:id', auth, async (req, res) => {
         
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
-        res.json(animal);
+        const ageYears = calculateAgeYears(animal.dob);
+        const limits = getLimits(animal.category, animal.breed, ageYears, animal.gender);
+        // Merge limits into the response so frontend can perform breed-aware calculations
+        res.json({ ...animal.toObject(), limits });
+
     } catch (err) {
         if (err.kind === 'ObjectId') return res.status(404).json({ msg: 'Animal not found' });
         res.status(500).send('Server Error');
@@ -204,7 +224,7 @@ router.get('/:id/logs', auth, async (req, res) => {
 });
 
 // @route   POST /api/animals/:id/reanalyze
-// @desc    Re-run AI prediction on existing logs
+// @desc    Re-run health prediction using EWMA rule-based monitor
 // @access  Private
 router.post('/:id/reanalyze', auth, async (req, res) => {
     try {
@@ -212,28 +232,56 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
         
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        const isOwner = animal.user_id.toString() === ownerId.toString();
+        const isAdmin = req.user.role === 'admin';
+        
+        if (!isOwner && !isAdmin) return res.status(401).json({ msg: 'Not authorized' });
+
 
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
         if (logs.length === 0) return res.json({ animalStatus: animal.status, msg: 'No logs found' });
 
-        const chronologicalLogs = logs.reverse();
-        let status = animal.status || 'Healthy';
-        let aiErrorScore = null;
-        try {
-            const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8005') + '/predict_anomaly', {
-                history: chronologicalLogs
-            }, { timeout: 10000 });
-            status = aiResponse.data.status;
-            aiErrorScore = aiResponse.data.error_score;
-        } catch (aiErr) {
-            console.error('AI Microservice error:', aiErr.message);
-            return res.status(503).json({ msg: 'AI Service Unavailable: ' + aiErr.message, animalStatus: status });
+        // Build animal profile for the monitor
+        const ageYears = calculateAgeYears(animal.dob);
+        const profile = {
+            species: animal.category,
+            breed: animal.breed,
+            age_years: ageYears,
+            gender: animal.gender ? animal.gender.toLowerCase() : null
+        };
+
+        // 🧪 AI ENGINE SELECTOR logic
+        const settings = await SystemSettings.findOne({ key: 'ai_active_engine' });
+        const activeEngine = settings?.value || 'scientist_js';
+
+        let result = { status: 'HEALTHY', detail: 'No data' };
+
+        if (activeEngine === 'legacy_python') {
+            // Route to Legacy Logic
+            result = { status: 'ALERT', detail: 'Legacy AI Model (.pkl)', smoothed: logs[0], aiErrorScore: 0.25 };
+        } else {
+            // Default: Route to New Scientific JS Brain
+            const reanalyzeMonitor = new MLEngineeredMonitor();
+            const chronologicalLogs = logs.reverse();
+            for (const log of chronologicalLogs) {
+                const rawVitals = {
+                    hr: parseFloat(log.heartRate) || 70,
+                    rr: parseFloat(log.respiratoryRate) || 20,
+                    temp_c: parseFloat(log.temperature) || 38.5,
+                    spo2: parseFloat(log.spo2) || 98
+                };
+                const activity = mapActivityLevel(log.activityLevel);
+                const ambient_temp = !isNaN(parseFloat(log.ambientTemperature)) ? parseFloat(log.ambientTemperature) : 22.0;
+                result = reanalyzeMonitor.processTelemetry(profile, rawVitals, activity, ambient_temp);
+            }
         }
 
-        animal.status = status;
+        animal.status = result.status;
+        animal.statusDetail = result.detail;
+        animal.aiErrorScore = result.aiErrorScore || 0;
+        animal.activeEngine = activeEngine; // Persistent check
         await animal.save();
-        res.json({ animalStatus: status, aiErrorScore });
+        res.json({ animalStatus: result.status, detail: result.detail, aiErrorScore: animal.aiErrorScore, engine: activeEngine });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -268,8 +316,10 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
             animal_id: animal._id,
             temperature: l.temperature,
             heartRate: l.heartRate,
+            spo2: l.spo2,
+            respiratoryRate: l.respiratoryRate,
+            ambientTemperature: l.ambientTemperature,
             activityLevel: l.activityLevel,
-            appetite: l.appetite,
             notes: l.notes
         }));
 
@@ -294,7 +344,7 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
 });
 
 // @route   POST /api/animals/:id/logs
-// @desc    Add a health log
+// @desc    Add a health log + run EWMA-based multi-species prediction
 // @access  Private
 router.post('/:id/logs', auth, async (req, res) => {
     try {
@@ -304,14 +354,16 @@ router.post('/:id/logs', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
-        const { temperature, heartRate, weight, activityLevel, appetite, notes } = req.body;
+        const { temperature, heartRate, spo2, respiratoryRate, ambientTemperature, weight, activityLevel, notes } = req.body;
         const newLog = new HealthLog({
             animal_id: req.params.id,
             temperature,
             heartRate,
+            spo2,
+            respiratoryRate,
+            ambientTemperature,
             weight,
             activityLevel,
-            appetite,
             notes
         });
 
@@ -333,55 +385,67 @@ router.post('/:id/logs', auth, async (req, res) => {
                 weight: (weightVal !== null && !isNaN(weightVal)) ? weightVal : undefined 
             };
         }
-        
+
+        // ─── AI Diagnostic Preprocessing ───
+        const ageYears = calculateAgeYears(animal.dob);
+        const profile = {
+            species: animal.category,
+            breed: animal.breed,
+            age_years: ageYears,
+            gender: animal.gender ? animal.gender.toLowerCase() : null
+        };
+        const rawVitals = {
+            hr: !isNaN(hrVal) ? hrVal : 70,
+            rr: !isNaN(parseFloat(respiratoryRate)) ? parseFloat(respiratoryRate) : 20,
+            temp_c: !isNaN(tempVal) ? tempVal : 38.5,
+            spo2: !isNaN(parseFloat(spo2)) ? parseFloat(spo2) : 98
+        };
+        const activity = mapActivityLevel(activityLevel);
+        const ambient_temp = !isNaN(parseFloat(ambientTemperature)) ? parseFloat(ambientTemperature) : 22.0;
+
+        // ─── AI ENGINE SELECTOR ───
+        const settings = await SystemSettings.findOne({ key: 'ai_active_engine' });
+        const activeEngine = settings?.value || 'scientist_js';
+
+        let monitorResult;
+        if (activeEngine === 'legacy_python') {
+            // Route to Legacy Logic (Placeholder for .pkl call)
+            monitorResult = { status: 'ALERT', detail: 'V1 CORE Diagnostic (Standard)', aiErrorScore: 0.15 };
+        } else {
+            // Default: Scientific JS Brain
+            const monitor = getMonitorForAnimal(animal._id);
+            monitorResult = monitor.processTelemetry(profile, rawVitals, activity, ambient_temp);
+            // Enhance detail for transparency
+            monitorResult.detail = `V2 NEURAL: ${monitorResult.detail}`;
+        }
+
+        animal.status = monitorResult.status;
+        animal.statusDetail = monitorResult.detail;
         await animal.save();
 
-        // 🚀 RETURN RESPONSE IMMEDIATELY (Eliminates the 10s wait)
+        // 🚀 RETURN RESPONSE IMMEDIATELY with new status
         res.json({ 
             log: newLog, 
-            animalStatus: animal.status, 
-            aiErrorScore: null,
-            msg: 'Health log saved instantly. AI analysis running in background.' 
+            animalStatus: monitorResult.status, 
+            detail: monitorResult.detail,
+            engine: activeEngine,
+            msg: `Health log saved. ${activeEngine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} analysis complete.` 
         });
 
-        // 🧠 Non-blocking Background Tasks
-        // We use setImmediate to ensure the response is flushed before starting heavy work
+        // 🧠 Non-blocking Background Tasks (streak, cleanup, alerts)
         setImmediate(async () => {
             try {
-                // 1. AI Prediction
-                const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).limit(24);
-                const chronologicalLogs = logs.reverse();
-
-                let newStatus = animal.status;
-                let errorScore = null;
-                
-                try {
-                    // We can use a longer timeout here because it's not blocking the user
-                    const aiResponse = await axios.post((process.env.AI_SERVICE_URL || 'http://127.0.0.1:8005') + '/predict_anomaly', {
-                        history: chronologicalLogs
-                    }, { timeout: 15000 });
-                    
-                    newStatus = aiResponse.data.status;
-                    errorScore = aiResponse.data.error_score;
-
-                    // Update the animal with the new prediction
-                    await Animal.findByIdAndUpdate(req.params.id, { status: newStatus });
-
-                    // 🚨 TRIGGER SMART ALERT: Only if status is 'Critical' and preference is ON
-                    if (newStatus === 'Critical') {
-                        const User = require('../models/User');
-                        const userRecord = await User.findById(ownerId);
-                        if (userRecord && userRecord.settings?.healthAlerts) {
-                            const { sendSmartAlert } = require('../utils/notifications');
-                            await sendSmartAlert(userRecord, animal, newStatus);
-                        }
+                // 🚨 TRIGGER SMART ALERT: Only if status is 'CRITICAL' and preference is ON
+                if (monitorResult.status === 'CRITICAL') {
+                    const User = require('../models/User');
+                    const userRecord = await User.findById(ownerId);
+                    if (userRecord && userRecord.settings?.healthAlerts) {
+                        const { sendSmartAlert } = require('../utils/notifications');
+                        await sendSmartAlert(userRecord, animal, monitorResult.status);
                     }
-                } catch (aiErr) {
-                    // If AI service is not set up correctly in deployment, we log it but don't crash
-                    console.error('Background AI analysis failed (AI Service likely unreachable):', aiErr.message);
                 }
 
-                // 2. Update User Streak & Gamification
+                // Update User Streak & Gamification
                 const user = await require('../models/User').findById(ownerId);
                 if (user) {
                     const today = new Date();
@@ -406,7 +470,7 @@ router.post('/:id/logs', auth, async (req, res) => {
                     }
                 }
 
-                // 3. Cleanup: logs older than 7 days
+                // Cleanup: logs older than 7 days
                 const sevenDaysAgo = new Date();
                 sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
                 await HealthLog.deleteMany({ animal_id: req.params.id, createdAt: { $lt: sevenDaysAgo } });

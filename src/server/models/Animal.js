@@ -21,9 +21,18 @@ const animalSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Healthy', 'Warning', 'Critical'],
-        default: 'Healthy'
+        enum: ['Healthy', 'Warning', 'Critical', 'HEALTHY', 'ALERT', 'CRITICAL'],
+        default: 'HEALTHY'
     },
+    statusDetail: {
+        type: String,
+        default: 'System Stable'
+    },
+    aiErrorScore: {
+        type: Number,
+        default: 0
+    },
+
     gender: {
         type: String,
         enum: ['Male', 'Female'],
@@ -41,6 +50,14 @@ const animalSchema = new mongoose.Schema({
         temperature: { type: Number, default: 38.5 }, // Default to a normal temp
         heartRate: { type: Number, default: 60 }, // Default to a normal heart rate
         weight: { type: Number }
+    },
+    location: {
+        type: String,
+        default: 'Not Specified'
+    },
+    syncRealTime: {
+        type: Boolean,
+        default: true
     },
     lastUpdated: {
         type: Date,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Scale, Venus, Mars, Dna, HelpCircle, Edit, HardDrive } from 'lucide-react';
+import { ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge, Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
@@ -10,26 +10,42 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import EditAnimalDialog from '../components/EditAnimalDialog';
 import { useToast } from '../components/ToastProvider';
 
-const calculateLogStatus = (log) => {
-    let score = 0;
+const calculateLogStatus = (log, index, allLogs = [], animalLimits = null) => {
+    // 🧠 TIER 1: TACTICAL INDIVIDUAL ENGINE (Row-by-Row status)
+    const base = animalLimits || { min_temp_c: 37.5, max_temp_c: 39.2, min_hr: 60, max_hr: 110, min_spo2: 95, max_spo2: 100, min_rr: 10, max_rr: 30 };
+    
+    // Scale for Activity/Ambient in the table
+    let adj = { ...base };
+    const activity = Number(log.activityLevel || 3);
+    const ambient = Number(log.ambientTemperature || 22);
+    if (activity >= 4) { adj.max_hr *= 1.5; adj.max_rr *= 1.5; }
+    if (activity <= 1) { adj.min_hr *= 0.8; }
+    if (ambient > 30.0) { adj.max_rr *= 1.25; adj.max_temp_c += 0.5; }
+
     const t = Number(log.temperature);
-    if (t > 40.0 || t < 37.0) score += 3;
-    else if (t > 39.3 || t < 37.6) score += 1;
-
     const hr = Number(log.heartRate);
-    if (hr > 100 || hr < 40) score += 3;
-    else if (hr > 85 || hr < 50) score += 1;
+    const spo2 = Number(log.spo2);
+    const rr = Number(log.respiratoryRate);
 
-    const act = Number(log.activityLevel || 5);
-    if (act < 2) score += 2;
-    else if (act < 3) score += 1;
+    // Immediate Surgical Critical (Life-threatening)
+    if (t < 33.5 || t > 42.0 || hr > adj.max_hr * 1.8 || (spo2 > 0 && spo2 < 86)) return 'CRITICAL';
 
-    const app = Number(log.appetite || 3.5);
-    if (app < 1.5) score += 2;
-    else if (app < 2.5) score += 1;
+    // Simple Alert (Out of range)
+    if (t > adj.max_temp_c || t < adj.min_temp_c || hr > adj.max_hr || hr < adj.min_hr || (spo2 > 0 && spo2 < 93) || (rr > adj.max_rr)) {
+        return 'ALERT';
+    }
 
-    if (score >= 4) return 'Critical';
-    if (score >= 2) return 'Warning';
+    return 'HEALTHY';
+};
+
+
+
+// Normalize status string to a CSS class name suffix (e.g. 'HEALTHY' -> 'Healthy')
+const normalizeStatus = (status) => {
+    if (!status) return 'Healthy';
+    const s = status.toUpperCase();
+    if (s === 'CRITICAL') return 'Critical';
+    if (s === 'ALERT' || s === 'WARNING') return 'Alert';
     return 'Healthy';
 };
 
@@ -48,8 +64,10 @@ export default function AnimalProfile() {
     const [formData, setFormData] = useState({
         temperature: '',
         heartRate: '',
+        spo2: '',
+        respiratoryRate: '',
+        ambientTemperature: '',
         activityLevel: 5,
-        appetite: 3,
         notes: ''
     });
 
@@ -71,10 +89,13 @@ export default function AnimalProfile() {
     const logsPerPage = 7;
 
     const [timeRange, setTimeRange] = useState('all');
+    const [outsideTemp, setOutsideTemp] = useState(24.5); // Mocked live temp
+    const [fetchingTemp, setFetchingTemp] = useState(false);
+    const [fetchingLoc, setFetchingLoc] = useState(false);
 
     const handleExportCSV = () => {
         if (!healthLogs.length) return showToast("No data to export", "warning");
-        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "Activity", "Appetite", "Health Status"];
+        const headers = ["Date", "Time", "Category", "Breed", "Gender", "Temp (°C)", "Heart Rate", "SpO2 (%)", "Resp Rate", "Ambient Temp (°C)", "Activity", "Health Status"];
         const rows = healthLogs.map(log => {
             const d = new Date(log.createdAt);
             return [
@@ -85,8 +106,10 @@ export default function AnimalProfile() {
                 animal.gender || 'Not Specified',
                 log.temperature,
                 log.heartRate,
+                log.spo2 || '—',
+                log.respiratoryRate || '—',
+                log.ambientTemperature || '—',
                 log.activityLevel,
-                log.appetite,
                 calculateLogStatus(log)
             ].join(",");
         });
@@ -113,11 +136,14 @@ export default function AnimalProfile() {
                     // Split by comma but preserve commas inside quotes (rudimentary CSV parse)
                     const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
                     if (cols.length >= 8) {
+                        const isOld = cols.length < 11;
                         parsedLogs.push({
                             temperature: parseFloat(cols[5]),
                             heartRate: parseFloat(cols[6]),
-                            activityLevel: parseFloat(cols[7]),
-                            appetite: parseFloat(cols[8])
+                            spo2: isOld ? undefined : parseFloat(cols[7]),
+                            respiratoryRate: isOld ? undefined : parseFloat(cols[8]),
+                            ambientTemperature: cols.length >= 12 ? parseFloat(cols[9]) : undefined,
+                            activityLevel: cols.length >= 12 ? parseFloat(cols[10]) : (isOld ? parseFloat(cols[7]) : parseFloat(cols[9]))
                         });
                     }
                 }
@@ -291,8 +317,7 @@ export default function AnimalProfile() {
                         console.log('AI reanalysis skipped');
                     }
                 }
-            } catch (err) {
-                console.error("Failed to fetch animal data", err);
+            } finally {
                 setLoading(false);
             }
         };
@@ -300,14 +325,46 @@ export default function AnimalProfile() {
         fetchAnimal();
     }, [id]);
 
+    useEffect(() => {
+        const fetchRealWeather = async () => {
+            if (animal?.syncRealTime && animal?.location) {
+                setFetchingTemp(true);
+                try {
+                    // Fetch real-time weather from wttr.in (No API Key Required)
+                    const res = await axios.get(`https://wttr.in/${encodeURIComponent(animal.location)}?format=j1`);
+                    const temp = res.data.current_condition[0].temp_C;
+                    if (temp) setOutsideTemp(parseFloat(temp));
+                } catch (err) {
+                    console.error('Weather fetch failed', err);
+                    // Minimal fallback fluctuation
+                    setOutsideTemp(prev => prev + (Math.random() * 0.4 - 0.2));
+                } finally {
+                    setFetchingTemp(false);
+                }
+            }
+        };
+
+        fetchRealWeather();
+        // Refresh every 30 minutes if sync is on
+        const interval = setInterval(fetchRealWeather, 30 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, [animal?.location, animal?.syncRealTime]);
+
+    useEffect(() => {
+        if (animal?.syncRealTime && outsideTemp) {
+            setFormData(prev => ({ ...prev, ambientTemperature: outsideTemp.toFixed(1) }));
+        }
+    }, [outsideTemp, animal?.syncRealTime]);
+
     const handleReanalyze = async () => {
         setRecalculating(true);
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`/api/animals/${id}/reanalyze`, {}, { headers: { Authorization: `Bearer ${token}` } });
-            setAnimal(prev => ({ ...prev, status: res.data.animalStatus }));
+            setAnimal(prev => ({ ...prev, status: res.data.animalStatus, statusDetail: res.data.detail }));
             setAiScore(res.data.aiErrorScore);
             showToast('Reanalysis complete!', 'success');
+
         } catch (err) {
             console.error('Reanalysis failed', err);
             showToast(err.response?.data?.msg || 'Reanalysis failed', 'error');
@@ -316,7 +373,7 @@ export default function AnimalProfile() {
         }
     };
 
-    const handleBack = () => navigate('/');
+
 
     const handleDelete = async () => {
         try {
@@ -337,6 +394,46 @@ export default function AnimalProfile() {
         } catch (err) {
             console.error('Failed to update vaccination status', err);
         }
+    };
+
+    const handleToggleSync = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(`/api/animals/${id}`, { syncRealTime: !animal.syncRealTime }, { headers: { Authorization: `Bearer ${token}` } });
+            setAnimal(res.data);
+            showToast(`Sync turned ${!animal.syncRealTime ? 'ON' : 'OFF'}`, 'success');
+        } catch (err) {
+            showToast('Failed to toggle sync', 'error');
+        }
+    };
+
+    const handleRequestLocation = () => {
+        if (!navigator.geolocation) return showToast('Geolocation not supported', 'error');
+
+        setFetchingLoc(true);
+        showToast('Accessing GPS...', 'info');
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+                const { latitude, longitude } = pos.coords;
+                const token = localStorage.getItem('token');
+
+                // Fetch city name using free OpenStreetMap API
+                let locString = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+                try {
+                    const geoRes = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                    const city = geoRes.data.address.city || geoRes.data.address.town || geoRes.data.address.village || geoRes.data.address.state;
+                    if (city) locString = city;
+                } catch (gErr) { console.error('Geocoding failed', gErr); }
+
+                const res = await axios.put(`/api/animals/${id}`, { location: locString }, { headers: { Authorization: `Bearer ${token}` } });
+                setAnimal(res.data);
+                showToast(`Location: ${locString}`, 'success');
+            } catch (err) { showToast('Update failed', 'error'); }
+            finally { setFetchingLoc(false); }
+        }, (err) => {
+            setFetchingLoc(false);
+            showToast('Permission Denied', 'error');
+        });
     };
 
     const handleChange = (e) => {
@@ -408,7 +505,12 @@ export default function AnimalProfile() {
     };
 
     if (loading) return <AdvancedLoader type="default" />;
-    if (!animal) return <div className={styles.pageContainer}><button className={styles.backBtn} onClick={handleBack}><ArrowLeft size={18} /> Back</button></div>;
+    if (!animal) return (
+        <div className={styles.pageContainer} style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+            <h2 style={{ color: '#0f172a' }}>Aranya Not Found</h2>
+            <p style={{ color: '#64748b' }}>The profile you are looking for does not exist or has been removed.</p>
+        </div>
+    );
 
     return (
         <React.Fragment>
@@ -418,57 +520,104 @@ export default function AnimalProfile() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
             >
-                <button className={styles.backBtn} onClick={handleBack}>
-                    <ArrowLeft size={16} /> Back to My Aranya
-                </button>
 
-                {/* Hero Summary Card */}
-                <div className={styles.heroCard}>
-                    <div className={styles.heroBranding}></div>
-                    <div className={styles.heroMain}>
-                        <div className={styles.avatarWrapper}>
-                            <motion.div className={styles.avatarGlass} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                                {getAvatarEmoji(animal.category)}
-                            </motion.div>
-                        </div>
-                        <div className={styles.heroInfo}>
-                            <div className={styles.heroTopRow}>
+
+                <div className={styles.heroSectionStack}>
+                    {/* Hero Summary Card */}
+                    <div className={styles.heroCard}>
+                        <div className={styles.heroBranding}></div>
+                        <div className={styles.heroMain}>
+                            <div className={styles.avatarWrapper}>
+                                <motion.div className={styles.avatarGlass} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                                    {getAvatarEmoji(animal.category)}
+                                </motion.div>
+                            </div>
+                            <div className={styles.heroInfo}>
                                 <div className={styles.nameGroup}>
                                     <h1 className={styles.animalNamePrimary}>{animal.name}</h1>
-                                    <span className={`${styles.statusBadge} ${animal.status ? styles[`status${animal.status.charAt(0).toUpperCase() + animal.status.slice(1).toLowerCase()}`] : ''}`}>
+                                    <span className={`${styles.statusBadge} ${styles[`status${normalizeStatus(animal.status)}`]}`}>
                                         <div className={styles.statusDot}></div>
                                         {animal.status ? animal.status.toUpperCase() : 'UNKNOWN'}
                                     </span>
-                                </div>
-                                <div className={styles.heroActionsGroup}>
-                                    <button onClick={() => setShowEditDialog(true)} className={styles.glassActionBtn}>
-                                        <Edit size={14} /> Profile
-                                    </button>
-                                    <button onClick={handleReanalyze} disabled={recalculating} className={styles.glassActionBtn}>
-                                        <RefreshCw size={14} className={recalculating ? 'spin' : ''} /> {recalculating ? 'Reanalyzing...' : 'Reanalyze'}
-                                    </button>
-                                    {role !== 'caretaker' && (
-                                        <button onClick={() => setShowConfirm(true)} className={styles.deleteActionBtn}><Trash2 size={14} /></button>
+                                    {animal.activeEngine && (
+                                        <span className={styles.engineBadge} title="Active Monitoring Engine">
+                                            <Cpu size={12} /> {animal.activeEngine === 'scientist_js' ? 'NEURAL V2' : 'CORE V1'}
+                                        </span>
                                     )}
                                 </div>
-                            </div>
-                            <div className={styles.heroMetadataRow}>
-                                <div className={styles.metaPill}><Dna size={14} style={{ color: '#8b5cf6' }} /> <span>{animal.breed}</span></div>
-                                <div className={styles.metaPill}>
-                                    {animal.gender === 'Male' ? (
-                                        <Mars size={14} style={{ color: '#3b82f6' }} />
-                                    ) : animal.gender === 'Female' ? (
-                                        <Venus size={14} style={{ color: '#ec4899' }} />
-                                    ) : (
-                                        <HelpCircle size={14} style={{ color: '#64748b' }} />
-                                    )}
-                                    <span>{animal.gender || 'Not Specified'}</span>
+                                {animal.statusDetail && (
+                                    <div className={styles.neuralDiagnosis}>
+                                        <div className={styles.diagnosisRipple}></div>
+                                        <Zap size={12} /> {animal.statusDetail}
+                                    </div>
+                                )}
+
+
+                                <div className={styles.heroMetadataRow}>
+                                    <div className={styles.metaPill}><Dna size={14} style={{ color: '#8b5cf6' }} /> <span>{animal.breed}</span></div>
+                                    <div className={styles.metaPill}>
+                                        {animal.gender === 'Male' ? (<Mars size={14} style={{ color: '#3b82f6' }} />) : animal.gender === 'Female' ? (<Venus size={14} style={{ color: '#ec4899' }} />) : (<HelpCircle size={14} style={{ color: '#64748b' }} />)}
+                                        <span>{animal.gender || 'Not Specified'}</span>
+                                    </div>
+                                    {animal.dob && <div className={styles.metaPill}><Calendar size={14} style={{ color: '#f59e0b' }} /> <span>{calculateAge(animal.dob)}</span></div>}
+                                    <button onClick={handleToggleVaccination} className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}>
+                                        <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccination Due'}</span>
+                                    </button>
                                 </div>
-                                {animal.dob && <div className={styles.metaPill}><Calendar size={14} style={{ color: '#f59e0b' }} /> <span>{calculateAge(animal.dob)}</span></div>}
-                                <button onClick={handleToggleVaccination} className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}>
-                                    <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccination Due'}</span>
-                                </button>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Dashboard Interaction Row */}
+                    <div className={styles.dashboardActionBar}>
+                        <div className={`${styles.compactSyncBox} ${animal.syncRealTime ? styles.boxActive : ''}`}>
+                            <div className={styles.syncMain}>
+                                <div className={styles.syncLoc} title="Auto Detect Location" onClick={handleRequestLocation}>
+                                    <MapPin size={12} style={{ color: fetchingLoc ? '#3b82f6' : '#ef4444' }} className={fetchingLoc ? 'spin' : ''} />
+                                    <span>{fetchingLoc ? 'Detecting...' : (animal.location || 'Auto Detect')}</span>
+                                </div>
+                                <div className={styles.syncWeather}>
+                                    <CloudSun size={14} style={{ color: '#f59e0b' }} />
+                                    <span className={styles.syncTemp}>
+                                        {fetchingTemp ? '..' : `${outsideTemp.toFixed(1)}°C`}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className={styles.syncToggle} onClick={handleToggleSync}>
+                                <div className={`${styles.toggleSwitch} ${animal.syncRealTime ? styles.switchOn : ''}`}>
+                                    <div className={styles.switchKnob}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Neural Data Bridge - NEW ANIMATION COMPONENT */}
+                        <div className={styles.dataBridge}>
+                            <motion.div 
+                                className={styles.dataPulse}
+                                animate={{ 
+                                    left: ['-10%', '110%'],
+                                    opacity: [0, 1, 1, 0] 
+                                }}
+                                transition={{ 
+                                    duration: 3, 
+                                    repeat: Infinity, 
+                                    ease: "linear" 
+                                }}
+                            />
+                        </div>
+
+                        <div className={styles.heroActionsGroupStandalone}>
+                            <button onClick={() => setShowEditDialog(true)} className={styles.glassActionBtn}>
+                                <Edit size={14} /> Profile
+                            </button>
+                            <button onClick={handleReanalyze} disabled={recalculating} className={`${styles.glassActionBtn} ${recalculating ? styles.btnSpinning : ''}`}>
+                                <RefreshCw size={14} className={recalculating ? 'spin' : ''} /> {recalculating ? 'Reanalyzing...' : 'Reanalyze'}
+                            </button>
+
+
+                            {role !== 'caretaker' && (
+                                <button onClick={() => setShowConfirm(true)} className={styles.deleteActionBtn}><Trash2 size={14} /></button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -484,7 +633,7 @@ export default function AnimalProfile() {
                     </div>
                     <div className={`${styles.vitalCard} ${styles.vitalWeight}`}>
                         <div className={styles.vitalLabel}>
-                            <Scale size={16} /> Weight (kg)
+                            <Gauge size={16} /> Weight (kg)
                             <button
                                 className={styles.editPillBtn}
                                 onClick={() => {
@@ -534,29 +683,50 @@ export default function AnimalProfile() {
                                     <div className={styles.formGroup}>
                                         <label className={styles.label}>Temperature (°C) *</label>
                                         <input type="number" step="0.1" name="temperature" value={formData.temperature} onChange={handleChange} placeholder="e.g., 38.5" className={styles.input} required />
-                                        <span className={styles.helpText}>Normal range: 38.0-39.0°C</span>
+                                        <span className={styles.helpText}>Normal range: {animal.limits ? `${animal.limits.min_temp_c}-${animal.limits.max_temp_c}°C` : '38.0-39.0°C'}</span>
                                     </div>
                                     <div className={styles.formGroup}>
                                         <label className={styles.label}>Heart Rate (bpm) *</label>
                                         <input type="number" name="heartRate" value={formData.heartRate} onChange={handleChange} placeholder="e.g., 70" className={styles.input} required />
-                                        <span className={styles.helpText}>Normal range: 60-80 bpm</span>
+                                        <span className={styles.helpText}>Normal range: {animal.limits ? `${animal.limits.min_hr}-${animal.limits.max_hr} bpm` : '60-80 bpm'}</span>
                                     </div>
                                 </div>
 
-                                <div className={styles.rangeGroup}>
-                                    <div className={styles.rangeHeader}>
-                                        <label className={styles.label}>Activity Level: {formData.activityLevel}/10</label>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>SpO2 (%)</label>
+                                        <input type="number" name="spo2" value={formData.spo2} onChange={handleChange} placeholder="e.g., 98" className={styles.input} />
+                                        <span className={styles.helpText}>Normal range: {animal.limits ? `${animal.limits.min_spo2}-${animal.limits.max_spo2}%` : '95-100%'}</span>
                                     </div>
-                                    <input type="range" name="activityLevel" min="0" max="10" value={formData.activityLevel} onChange={handleChange} className={styles.rangeSlider} />
-                                    <div className={styles.rangeLabels}><span>Low Activity</span><span>High Activity</span></div>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>Resp Rate (breaths/min)</label>
+                                        <input type="number" name="respiratoryRate" value={formData.respiratoryRate} onChange={handleChange} placeholder="e.g., 20" className={styles.input} />
+                                        <span className={styles.helpText}>Normal range: {animal.limits ? `${animal.limits.min_rr}-${animal.limits.max_rr}` : '15-30'}</span>
+                                    </div>
                                 </div>
-
-                                <div className={styles.rangeGroup}>
-                                    <div className={styles.rangeHeader}>
-                                        <label className={styles.label}>Appetite: {formData.appetite}/5</label>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>Ambient Temp (°C)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            name="ambientTemperature"
+                                            value={formData.ambientTemperature}
+                                            onChange={handleChange}
+                                            placeholder="e.g., 22.0"
+                                            className={styles.input}
+                                            disabled={animal.syncRealTime}
+                                            style={{ backgroundColor: animal.syncRealTime ? '#f8fafc' : 'white', cursor: animal.syncRealTime ? 'not-allowed' : 'text' }}
+                                        />
+                                        <span className={styles.helpText}>
+                                            {animal.syncRealTime ? '🔒 Auto-synced with real-time station' : 'Manual input for surrounding temperature'}
+                                        </span>
                                     </div>
-                                    <input type="range" name="appetite" min="1" max="5" value={formData.appetite} onChange={handleChange} className={styles.rangeSlider} />
-                                    <div className={styles.rangeLabels}><span>Poor Appetite</span><span>Excellent Appetite</span></div>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label} style={{ marginBottom: '8px' }}>Activity Level: {formData.activityLevel}/5</label>
+                                        <input type="range" name="activityLevel" min="1" max="5" value={formData.activityLevel} onChange={handleChange} className={styles.rangeSlider} style={{ marginTop: '4px' }} />
+                                        <div className={styles.rangeLabels} style={{ marginTop: '8px' }}><span>Very Low</span><span>Very High</span></div>
+                                    </div>
                                 </div>
 
                                 <button type="submit" className={styles.saveBtn} disabled={submitting}>
@@ -586,33 +756,41 @@ export default function AnimalProfile() {
                                         <table className={styles.healthTable}>
                                             <thead>
                                                 <tr>
-                                                    <th>Date & Time</th>
-                                                    <th>Category</th>
+                                                    <th>Date</th>
+                                                    <th>Type</th>
                                                     <th>Breed</th>
-                                                    <th>Gender</th>
-                                                    <th>Temp (°C)</th>
-                                                    <th>Heart Rate</th>
+                                                    <th>Gen</th>
+                                                    <th>Temp</th>
+                                                    <th>HR</th>
+                                                    <th>SpO2</th>
+                                                    <th>RR</th>
+                                                    <th>Amb Temp</th>
                                                     <th>Activity</th>
-                                                    <th>Appetite</th>
-                                                    <th>Health Status</th>
+                                                    <th>Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {healthLogs.slice((currentPage - 1) * logsPerPage, currentPage * logsPerPage).map(log => (
                                                     <tr key={log._id}>
-                                                        <td>{new Date(log.createdAt).toLocaleString([], { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</td>
+                                                        <td>
+                                                            <div>{new Date(log.createdAt).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
+                                                            <div style={{ fontSize: '0.8em', color: '#94a3b8' }}>{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</div>
+                                                        </td>
                                                         <td>{animal.category}</td>
                                                         <td>{animal.breed}</td>
-                                                        <td>{animal.gender || '—'}</td>
+                                                        <td>{animal.gender ? animal.gender.charAt(0).toUpperCase() : '—'}</td>
                                                         <td>{log.temperature}</td>
                                                         <td>{log.heartRate}</td>
-                                                        <td>{log.activityLevel || 5}/10</td>
-                                                        <td>{log.appetite || 3}/5</td>
+                                                        <td>{log.spo2 || '—'}</td>
+                                                        <td>{log.respiratoryRate || '—'}</td>
+                                                        <td>{log.ambientTemperature ? log.ambientTemperature + '°C' : '—'}</td>
+                                                        <td>{log.activityLevel || 3}/5</td>
                                                         <td>
-                                                            <span className={`${styles.statusBadge} ${styles[`status${calculateLogStatus(log)}`]}`}>
-                                                                <div className={styles.statusDot}></div>
-                                                                {calculateLogStatus(log)}
-                                                            </span>
+                                                                <span className={`${styles.statusBadge} ${styles[`status${normalizeStatus(calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits))}`]}`}>
+                                                                    <div className={styles.statusDot}></div>
+                                                                    {calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits)}
+                                                                </span>
+
                                                         </td>
                                                     </tr>
                                                 ))}

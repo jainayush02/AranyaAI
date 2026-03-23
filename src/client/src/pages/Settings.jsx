@@ -12,9 +12,11 @@ export default function Settings() {
     const { showToast } = useToast();
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
-    const initialTab = queryParams.get('tab') || 'pricing';
+    const initialTab = queryParams.get('tab') || (role === 'admin' ? 'infrastructure' : 'account');
     const [activeTab, setActiveTab] = useState(initialTab);
     const [user, setUser] = useState(loggedInUser);
+    const [aiEngine, setAiEngine] = useState('scientist_js');
+    const [aiEngineLoading, setAiEngineLoading] = useState(false);
     const [settings, setSettings] = useState({
         language: 'en',
         region: 'in',
@@ -79,6 +81,7 @@ export default function Settings() {
             }
         };
         fetchGlobalSettings();
+        if (role === 'admin') fetchAiEngine();
 
         // Fetch circle members if user
         if (role !== 'admin') {
@@ -144,11 +147,37 @@ export default function Settings() {
             showToast('Failed to remove member', 'error');
         }
     };
+    
+    const fetchAiEngine = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await axios.get('/api/admin/config/ai-engine', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (r.data.engine) setAiEngine(r.data.engine);
+        } catch { }
+    };
+
+    const toggleAiEngine = async (newEngine) => {
+        setAiEngineLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post('/api/admin/config/ai-engine', { engine: newEngine }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAiEngine(newEngine);
+            showToast(`Platform synchronized to ${newEngine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} logic`, 'success');
+        } catch {
+            showToast('Failed to switch AI engine', 'error');
+        } finally {
+            setAiEngineLoading(false);
+        }
+    };
 
     useEffect(() => {
         const tab = queryParams.get('tab');
-        if (tab && (tab === 'pricing' || tab === 'settings' || tab === 'advanced')) {
-            setActiveTab(tab === 'advanced' ? 'settings' : tab);
+        if (tab && (tab === 'pricing' || tab === 'infrastructure' || tab === 'advanced')) {
+            setActiveTab(tab === 'advanced' ? 'infrastructure' : tab);
         }
     }, [location.search]);
 
@@ -244,8 +273,7 @@ export default function Settings() {
 
     const navTabs = role === 'admin'
         ? [
-            { id: 'pricing', label: 'Subscription', icon: CreditCard },
-            { id: 'settings', label: 'System Configuration', icon: SettingsIcon }
+            { id: 'infrastructure', label: 'Core Infrastructure', icon: SettingsIcon }
         ]
         : (role === 'user'
             ? [
@@ -262,31 +290,33 @@ export default function Settings() {
         if (tab) {
             setActiveTab(tab);
         } else {
-            setActiveTab(role === 'admin' ? 'pricing' : 'account');
+            setActiveTab(role === 'admin' ? 'infrastructure' : 'account');
         }
     }, [location.search, role]);
     return (
         <div className={`container ${styles.pageContainer} animate-fade-in`}>
-            {/* Top Navigation Bar */}
-            <div className={styles.topActions} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                <div style={{ display: 'flex', background: '#f1f5f9', padding: '5px', borderRadius: '18px', gap: '5px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
-                    {navTabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => { setActiveTab(tab.id); navigate(`/settings?tab=${tab.id}`, { replace: true }); }}
-                            style={{
-                                border: 'none', padding: '10px 24px', borderRadius: '14px', fontSize: '0.95rem', fontWeight: 700,
-                                background: activeTab === tab.id ? '#fff' : 'transparent',
-                                color: activeTab === tab.id ? 'var(--primary)' : '#64748b',
-                                boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
-                                cursor: 'pointer', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px'
-                            }}
-                        >
-                            <tab.icon size={18} /> {tab.label}
-                        </button>
-                    ))}
+            {/* Top Navigation Bar - Only show if there are multiple tabs */}
+            {navTabs.length > 1 && (
+                <div className={styles.topActions} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '5px', borderRadius: '18px', gap: '5px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
+                        {navTabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => { setActiveTab(tab.id); navigate(`/settings?tab=${tab.id}`, { replace: true }); }}
+                                style={{
+                                    border: 'none', padding: '8px 20px', borderRadius: '14px', fontSize: '0.85rem', fontWeight: 800,
+                                    background: activeTab === tab.id ? '#fff' : 'transparent',
+                                    color: activeTab === tab.id ? 'var(--primary)' : '#64748b',
+                                    boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+                                    cursor: 'pointer', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '8px'
+                                }}
+                            >
+                                <tab.icon size={16} /> {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Content Header */}
             <motion.div
@@ -297,12 +327,12 @@ export default function Settings() {
             >
                 <h1 className={styles.pageTitle}>
                     {role === 'admin'
-                        ? (activeTab === 'pricing' ? 'Subscription Configuration' : 'System Configuration')
+                        ? 'Core Infrastructure'
                         : (activeTab === 'care-circle' ? 'Care Circle Management' : 'Account Settings')}
                 </h1>
                 <p className={styles.pageSubtitle}>
                     {role === 'admin'
-                        ? (activeTab === 'pricing' ? 'Manage global subscription tiers and platform pricing models.' : 'Manage platform security, firewall rules, and support contact channels.')
+                        ? 'Manage platform security, firewall rules, and support contact channels.'
                         : (activeTab === 'care-circle' ? 'Invite and manage your care circle. Assign roles to help coordinate daily operations.' : 'Customize your experience, notification preferences, and regional settings.')}
                 </p>
             </motion.div>
@@ -318,121 +348,13 @@ export default function Settings() {
                 >
                     {role === 'admin' ? (
                         <div className={styles.adminContainer} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                            {activeTab === 'pricing' ? (
-                                <>
-                                    {/* Plan Editor Section */}
-                                    <section className={styles.card}>
-                                        <div className={styles.cardHeader} style={{ justifyContent: 'space-between', marginBottom: '2rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                                <div className={styles.cardIcon} style={{ background: '#10b981' }}>
-                                                    <Database size={24} />
-                                                </div>
-                                                <h2 className={styles.cardTitle}>Subscription Tiers</h2>
-                                            </div>
-                                            <button
-                                                className="btn-new"
-                                                onClick={() => setAdminSettings({
-                                                    ...adminSettings,
-                                                    plans: [...adminSettings.plans, { id: Date.now().toString(), name: 'New Tier', price: '0', isRecommended: false, features: 'Feature 1', cta: 'Upgrade' }]
-                                                })}
-                                                style={{
-                                                    background: 'var(--primary)', color: '#fff', border: 'none',
-                                                    padding: '12px 24px', borderRadius: '14px', fontWeight: 800,
-                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                                    boxShadow: '0 10px 15px -3px rgba(45, 95, 63, 0.3)'
-                                                }}
-                                            >
-                                                <Plus size={18} /> Add New Plan
-                                            </button>
-                                        </div>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-                                            {adminSettings.plans.map((plan, idx) => (
-                                                <div key={plan.id} style={{
-                                                    background: '#f8fafc', border: '1.5px solid #e2e8f0',
-                                                    borderRadius: '24px', padding: '2rem', transition: '0.3s',
-                                                    position: 'relative', overflow: 'hidden'
-                                                }}>
-                                                    <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: plan.isRecommended ? 'var(--primary)' : '#e2e8f0' }} />
-                                                    <button
-                                                        onClick={() => setAdminSettings({ ...adminSettings, plans: adminSettings.plans.filter(p => p.id !== plan.id) })}
-                                                        style={{ position: 'absolute', top: '20px', right: '20px', background: '#fee2e2', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '12px', cursor: 'pointer' }}
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                                                        <div className={styles.formItem}>
-                                                            <label className={styles.label}>Tier Name</label>
-                                                            <input
-                                                                className={styles.boxedInput}
-                                                                value={plan.name}
-                                                                onChange={e => {
-                                                                    const up = [...adminSettings.plans];
-                                                                    up[idx].name = e.target.value;
-                                                                    setAdminSettings({ ...adminSettings, plans: up });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <div className={styles.formItem}>
-                                                            <label className={styles.label}>Price</label>
-                                                            <div className={styles.selectWrapper} style={{ background: '#fff' }}>
-                                                                <IndianRupee size={16} />
-                                                                <input
-                                                                    className={styles.plainInput}
-                                                                    value={plan.price}
-                                                                    onChange={e => {
-                                                                        const up = [...adminSettings.plans];
-                                                                        up[idx].price = e.target.value;
-                                                                        setAdminSettings({ ...adminSettings, plans: up });
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <div className={styles.formItem} style={{ alignSelf: 'center', marginTop: '20px' }}>
-                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 700 }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={plan.isRecommended}
-                                                                    onChange={e => {
-                                                                        const up = [...adminSettings.plans];
-                                                                        if (e.target.checked) up.forEach(u => u.isRecommended = false);
-                                                                        up[idx].isRecommended = e.target.checked;
-                                                                        setAdminSettings({ ...adminSettings, plans: up });
-                                                                    }}
-                                                                    style={{ width: '20px', height: '20px', accentColor: 'var(--primary)' }}
-                                                                />
-                                                                Popular Tag
-                                                            </label>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className={styles.formItem}>
-                                                        <label className={styles.label}>Value Features (one per line)</label>
-                                                        <textarea
-                                                            className={styles.boxedInput}
-                                                            value={plan.features}
-                                                            onChange={e => {
-                                                                const up = [...adminSettings.plans];
-                                                                up[idx].features = e.target.value;
-                                                                setAdminSettings({ ...adminSettings, plans: up });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-                                </>
-                            ) : (
-                                <>
-                                    <section className={styles.card}>
-                                        <div className={styles.cardHeader}>
-                                            <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
-                                                <SettingsIcon size={24} />
-                                            </div>
-                                            <h2 className={styles.cardTitle}>Platform System Rules</h2>
-                                        </div>
+                            <section className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <div className={styles.cardIcon} style={{ background: '#3b82f6' }}>
+                                        <SettingsIcon size={24} />
+                                    </div>
+                                    <h2 className={styles.cardTitle}>Platform System Rules</h2>
+                                </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                             {[
                                                 { key: 'idsProtection', label: 'Intrusion Detection System (IDS)', desc: 'Real-time packet inspection and threat anomaly scoring for API nodes.', icon: ShieldAlert },
@@ -502,6 +424,52 @@ export default function Settings() {
 
                                     <section className={styles.card}>
                                         <div className={styles.cardHeader}>
+                                            <div className={styles.cardIcon} style={{ background: '#2d5f3f' }}>
+                                                <Zap size={24} />
+                                            </div>
+                                            <h2 className={styles.cardTitle}>Aranya Core Intelligence</h2>
+                                        </div>
+                                        <div className={styles.toggleRow} style={{ border: 'none', background: '#f0fdf4', padding: '1.5rem', borderRadius: '22px' }}>
+                                            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+                                                <div style={{ padding: '10px', background: '#fff', borderRadius: '12px', color: '#2d5f3f', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                                    <Activity size={20} />
+                                                </div>
+                                                <div className={styles.toggleInfo}>
+                                                    <span className={styles.toggleLabel}>Active Monitoring Engine</span>
+                                                    <span className={styles.toggleDesc}>
+                                                        {aiEngine === 'legacy_python' 
+                                                            ? 'Currently using V1 Core (Deterministic Logic for high consistency)' 
+                                                            : 'Currently using V2 Neural (Probabilistic Reasoning for complex diagnostics)'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', background: '#fff', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                <button 
+                                                    onClick={() => toggleAiEngine('legacy_python')}
+                                                    disabled={aiEngineLoading}
+                                                    style={{ 
+                                                        border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
+                                                        background: aiEngine === 'legacy_python' ? '#2d5f3f' : 'transparent',
+                                                        color: aiEngine === 'legacy_python' ? '#fff' : '#64748b',
+                                                        cursor: 'pointer', transition: '0.2s'
+                                                    }}
+                                                >V1 Core</button>
+                                                <button 
+                                                    onClick={() => toggleAiEngine('scientist_js')}
+                                                    disabled={aiEngineLoading}
+                                                    style={{ 
+                                                        border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
+                                                        background: aiEngine === 'scientist_js' ? '#2d5f3f' : 'transparent',
+                                                        color: aiEngine === 'scientist_js' ? '#fff' : '#64748b',
+                                                        cursor: 'pointer', transition: '0.2s'
+                                                    }}
+                                                >V2 Neural</button>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section className={styles.card}>
+                                        <div className={styles.cardHeader}>
                                             <div className={styles.cardIcon} style={{ background: '#6366f1' }}>
                                                 <Lock size={24} />
                                             </div>
@@ -515,8 +483,6 @@ export default function Settings() {
                                             Low-level firewall rules and Redis persistence layers are provisioned via Terraform. Business-level overrides below are currently synced with the central VPC configuration.
                                         </div>
                                     </section>
-                                </>
-                            )}
 
                             {/* Sticky Save Bar */}
                             <div style={{
@@ -528,10 +494,10 @@ export default function Settings() {
                                     onClick={handleSaveAdminSettings}
                                     disabled={isSaving}
                                     style={{
-                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                        padding: '1.2rem 3rem', background: 'var(--primary)', color: '#fff',
-                                        border: 'none', borderRadius: '22px', fontSize: '1.1rem', fontWeight: 800,
-                                        cursor: 'pointer', boxShadow: '0 15px 30px -5px rgba(45, 95, 63, 0.4)',
+                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                        padding: '0.8rem 1.75rem', background: 'var(--primary)', color: '#fff',
+                                        border: 'none', borderRadius: '14px', fontSize: '0.9rem', fontWeight: 800,
+                                        cursor: 'pointer', boxShadow: '0 8px 16px -4px rgba(45, 95, 63, 0.3)',
                                         transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}

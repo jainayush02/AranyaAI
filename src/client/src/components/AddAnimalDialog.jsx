@@ -5,10 +5,10 @@ import { X, ChevronDown, Dna, HelpCircle } from 'lucide-react';
 import styles from './AddAnimalDialog.module.css';
 
 const categoryBreeds = {
-    Cow: ["Holstein", "Jersey", "Gir", "Sahiwal", "Redsindhi"],
-    Dog: ["Labrador", "German Shepherd", "Golden Retriever", "Beagle", "Bulldog"],
+    Cow: ["Holstein", "Jersey", "Angus", "Hereford", "Brahman"],
+    Dog: ["Labrador Retriever", "German Shepherd", "Golden Retriever", "Beagle", "Great Dane"],
     Cat: ["Persian", "Maine Coon", "Siamese", "Ragdoll", "Bengal"],
-    Horse: ["Arabian", "Thoroughbred", "Quarter Horse", "Appaloosa", "Paint Horse"]
+    Horse: ["Thoroughbred", "Arabian", "Quarter Horse", "Clydesdale", "Shetland Pony"]
 };
 
 export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
@@ -16,6 +16,7 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
     const [category, setCategory] = useState('');
     const [breed, setBreed] = useState('');
     const [gender, setGender] = useState(''); // New state
+    const [location, setLocation] = useState('');
     const [birthYear, setBirthYear] = useState('');
     const [birthMonth, setBirthMonth] = useState('');
     const [vaccinated, setVaccinated] = useState('');
@@ -40,12 +41,13 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
         if (birthYear) d.setFullYear(parseInt(birthYear));
         if (birthMonth) d.setMonth(parseInt(birthMonth) - 1);
 
-        onAdd({ name, category, breed, dob: d.toISOString(), vaccinated: vaccinated === 'true', gender });
+        onAdd({ name, category, breed, dob: d.toISOString(), vaccinated: vaccinated === 'true', gender, location });
         // Reset form
         setName('');
         setCategory('');
         setBreed('');
         setGender('');
+        setLocation('');
         setBirthYear('');
         setBirthMonth('');
         setVaccinated('');
@@ -268,6 +270,16 @@ export default function AddAnimalDialog({ isOpen, onClose, onAdd }) {
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Location / Farm Zone</label>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    placeholder="e.g., North Barn or Jaipur Farm"
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                />
                             </div>
                         </div>
 

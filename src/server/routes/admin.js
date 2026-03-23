@@ -44,27 +44,40 @@ router.get('/stats', authenticate, adminOnly, async (req, res) => {
 
         const [
             totalUsers, newToday, newThisWeek, newThisMonth,
-            blockedUsers, proUsers, totalAnimals, criticalAnimals, activeToday
+            blockedUsers, totalAnimals, criticalAnimals, activeToday,
+            allPlans
         ] = await Promise.all([
             User.countDocuments({ role: 'user' }),
             User.countDocuments({ role: 'user', createdAt: { $gte: todayStart } }),
             User.countDocuments({ role: 'user', createdAt: { $gte: weekAgo } }),
             User.countDocuments({ role: 'user', createdAt: { $gte: monthAgo } }),
             User.countDocuments({ blocked: true }),
-            User.countDocuments({ plan: 'pro' }),
             Animal.countDocuments(),
             Animal.countDocuments({ status: 'critical' }),
             User.countDocuments({ lastLoginAt: { $gte: todayStart } }),
+            require('../models/Plan').find({})
         ]);
 
-        // Simulated website-level metrics (replace with real analytics later)
+        // Dynamically count users for each plan
+        const planStats = await Promise.all(allPlans.map(async (plan) => {
+            const count = await User.countDocuments({ role: 'user', plan: plan.code });
+            return {
+                name: plan.name,
+                code: plan.code,
+                count,
+                color: plan.price > 500 ? '#ec4899' : (plan.price > 0 ? '#8b5cf6' : '#64748b')
+            };
+        }));
+
+        // Simulated website-level metrics
         const pageViews = Math.floor(totalUsers * 4.7 + Math.random() * 50);
         const avgSessionMin = (3 + Math.random() * 4).toFixed(1);
 
         res.json({
             totalUsers, newToday, newThisWeek, newThisMonth,
-            blockedUsers, proUsers, totalAnimals, criticalAnimals,
-            activeToday, pageViews, avgSessionMin
+            blockedUsers, totalAnimals, criticalAnimals,
+            activeToday, pageViews, avgSessionMin,
+            planStats // New dynamic plan data
         });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -843,6 +856,34 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
 
         await log('admin', req.user, `Updated AI Model Configuration`);
         res.json(settings.value);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+
+// ── AI Engine Selector ─────────────────────────────
+router.get('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne({ key: 'ai_active_engine' });
+        if (!settings) {
+            settings = await SystemSettings.create({ key: 'ai_active_engine', value: 'scientist_js' });
+        }
+        res.json({ engine: settings.value });
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { engine } = req.body;
+        if (!['scientist_js', 'legacy_python'].includes(engine)) {
+            return res.status(400).json({ message: 'Invalid engine selection' });
+        }
+        await SystemSettings.findOneAndUpdate(
+            { key: 'ai_active_engine' },
+            { value: engine },
+            { upsert: true }
+        );
+        await log('admin', req.user, `Switched AI Health Engine to: ${engine}`);
+        res.json({ message: 'AI Engine updated successfully', engine });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
