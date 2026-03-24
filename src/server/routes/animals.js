@@ -323,8 +323,8 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
         await animal.save();
         res.json({ animalStatus: result.status, detail: result.detail, aiErrorScore: animal.aiErrorScore, engine: activeEngine });
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error("Reanalyze Error:", err);
+        res.status(500).json({ msg: 'Reanalyze failed', error: err.message });
     }
 });
 
@@ -539,7 +539,8 @@ router.put('/:id/vaccination', auth, async (req, res) => {
         await logActivity('animal_registry', req.user, `Updated vaccination status for: ${animal.name}`);
         res.json(animal);
     } catch (err) {
-        res.status(500).send('Server Error');
+        console.error("Vaccination Update Error:", err);
+        res.status(500).json({ msg: 'Vaccination update failed', error: err.message });
     }
 });
 
@@ -716,28 +717,46 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         For each vaccine include:
         - name: Specific vaccine name.
         - type: 'Core' or 'Optional'.
-        - frequencyMonths: Interval between doses.
-        - ageRange: String representing when this is needed (e.g. "Birth - 16 weeks" or "Lifelong").
-        - clinicalCycle: String representing the recurring cycle (e.g. "Every 3 years" or "Annual").
-        - recommendationAgeWeeks: When it typically starts.
+        - frequencyMonths: Interval between doses (integer).
+        - ageRange: String representing when this is needed.
+        - clinicalCycle: String representing the recurring cycle.
+        - recommendationAgeWeeks: When it typically starts (integer).
         - description: 1-sentence medical detail.
         
-        CRITICAL: Ensure 'Core' vaccines appear before 'Optional' in both lists.
-        Provide a 'conclusion' (2-3 lines) summarizing the health status for a ${ageYears} year old ${animal.breed}.
+        CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
         
-        Return ONLY a JSON object: {"alreadyCompleted": [...], "futureNeeded": [...], "conclusion": "..."}`;
+        Format:
+        {
+          "alreadyCompleted": [],
+          "futureNeeded": [],
+          "conclusion": "A 2-3 line summary."
+        }`;
 
         const response = await openai.chat.completions.create({
             model: primaryModel.modelId,
             messages: [{ role: "user", content: prompt }],
-            max_tokens: 1200
+            max_tokens: 1500,
+            temperature: 0.1
         });
 
         let result = { alreadyCompleted: [], futureNeeded: [], conclusion: '' };
         try {
-            const content = response.choices[0].message.content.trim();
-            const jsonMatch = content.match(/\{.*\}/s);
-            result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+            let content = response.choices[0].message.content.trim();
+            // Sanitize potential markdown wrap
+            if (content.startsWith('```')) {
+                const lines = content.split('\n');
+                if (lines[0].includes('```')) lines.shift();
+                if (lines[lines.length - 1].includes('```')) lines.pop();
+                content = lines.join('\n').trim();
+            }
+            
+            const startIdx = content.indexOf('{');
+            const endIdx = content.lastIndexOf('}');
+            if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+                content = content.substring(startIdx, endIdx + 1);
+            }
+            
+            result = JSON.parse(content);
         } catch (parseErr) {
             console.error('Failed to parse AI recommendations:', parseErr);
             result = {
@@ -749,8 +768,8 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
 
         res.json(result);
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error("Recommendation Fetch Error:", err);
+        res.status(500).json({ msg: 'AI recommendations failed', error: err.message });
     }
 });
 
@@ -773,8 +792,8 @@ router.put('/:id/vaccination-schedule', auth, async (req, res) => {
         await animal.save();
         res.json(animal);
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error("Vax Schedule Save Error:", err);
+        res.status(500).json({ msg: 'Saving schedule failed', error: err.message });
     }
 });
 
