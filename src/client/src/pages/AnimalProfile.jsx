@@ -779,6 +779,9 @@ export default function AnimalProfile() {
                             <div className={styles.heroInfo}>
                                 <div className={styles.nameGroup}>
                                     <h1 className={styles.animalNamePrimary}>{animal.name}</h1>
+                                    <span className={`${styles.statusBadge} ${styles[animal.status?.toLowerCase()] || ''}`}>
+                                        <Activity size={12} /> {animal.status || 'UNKNOWN'}
+                                    </span>
                                 </div>
                                 {animal.statusDetail && (
                                     <div className={styles.neuralDiagnosis}>
