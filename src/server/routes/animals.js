@@ -128,35 +128,11 @@ router.post('/', auth, async (req, res) => {
         }
         // --- END PLAN LIMIT ENFORCEMENT ---
 
-        // --- BREED NORMALIZATION (Ensure vitals work by mapping to supported breeds) ---
-        let normalizedBreed = breed.trim();
-        const catLower = category.toLowerCase().trim();
-        const breedLower = normalizedBreed.toLowerCase();
-
-        if (catLower.includes('cow') || catLower.includes('cattle')) {
-            if (breedLower.includes('gir')) normalizedBreed = 'brahman';
-            else if (!['holstein', 'angus', 'jersey', 'hereford', 'brahman'].some(b => breedLower.includes(b))) {
-                normalizedBreed = 'holstein'; // default cow
-            }
-        } else if (catLower.includes('dog')) {
-            if (!['labrador', 'golden', 'great dane', 'german shepherd', 'beagle'].some(b => breedLower.includes(b))) {
-                normalizedBreed = 'labrador retriever'; // default dog
-            }
-        } else if (catLower.includes('cat')) {
-            if (!['siamese', 'maine coon', 'persian', 'ragdoll', 'bengal'].some(b => breedLower.includes(b))) {
-                normalizedBreed = 'maine coon'; // default cat
-            }
-        } else if (catLower.includes('horse')) {
-            if (!['thoroughbred', 'arabian', 'quarter horse', 'clydesdale', 'shetland pony'].some(b => breedLower.includes(b))) {
-                normalizedBreed = 'thoroughbred'; // default horse
-            }
-        }
-
         const newAnimal = new Animal({
             user_id: ownerId,
-            name: name.trim().substring(0, 100),
+            name: name.trim().substring(0, 100), // Enforce name limit & trim
             category: category.trim(),
-            breed: normalizedBreed,
+            breed: breed.trim(),
             gender,
             dob,
             location: location?.trim() || 'Not Specified',
