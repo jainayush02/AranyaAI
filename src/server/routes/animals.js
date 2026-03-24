@@ -691,7 +691,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 provider: 'Hugging Face',
                 baseURL: 'https://router.huggingface.co/v1',
                 apiKey: process.env.HF_TOKEN || '',
-                models: [{ type: 'text', modelId: 'Qwen/Qwen2.5-7B-Instruct' }],
+                models: [],
                 enabled: true
             }
         };
@@ -701,12 +701,63 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             aiConfig = { ...aiConfig, ...dbConfig.value };
         }
 
-        const primaryModel = aiConfig.primary.models.find(m => m.type === 'text');
-        const openai = new OpenAI({
-            apiKey: primaryModel.apiKey || aiConfig.primary.apiKey,
-            baseURL: primaryModel.baseURL || aiConfig.primary.baseURL
-        });
+        // ── 1. Determine model mapping (Sync with chat.js engine) ──
+        const primaryTextModel = aiConfig.primary.models.find(m => m.type === 'text' || m.type === 'text+vision');
+        const fallbackTextModel = aiConfig.fallback.models.find(m => m.type === 'text' || m.type === 'text+vision');
+        
+        const primaryModelObj = primaryTextModel || aiConfig.primary.models[0];
+        const fallbackModelObj = fallbackTextModel || aiConfig.fallback.models[0];
 
+        let response;
+        let usedModel = "N/A";
+
+        // --- Attempt Primary Engine ---
+        if (aiConfig.primary.enabled && aiConfig.primary.apiKey) {
+            try {
+                const pBaseURL = primaryModelObj?.baseURL || aiConfig.primary.baseURL;
+                const pApiKey = primaryModelObj?.apiKey || aiConfig.primary.apiKey;
+                const pModelId = primaryModelObj?.modelId;
+
+                if (!pModelId) throw new Error("No primary model ID configured in Admin Portal.");
+
+                const primaryOpenai = new OpenAI({ apiKey: pApiKey, baseURL: pBaseURL });
+                response = await primaryOpenai.chat.completions.create({
+                    model: pModelId,
+                    messages: [{ role: "user", content: prompt }],
+                    max_tokens: 1500,
+                    temperature: 0.1
+                });
+                usedModel = pModelId;
+            } catch (primaryErr) {
+                console.warn("Primary AI Engine Error, falling back:", primaryErr.message);
+            }
+        }
+
+        // --- Attempt Fallback Engine ---
+        if (!response && aiConfig.fallback.enabled && aiConfig.fallback.apiKey) {
+            try {
+                const fBaseURL = fallbackModelObj?.baseURL || aiConfig.fallback.baseURL;
+                const fApiKey = fallbackModelObj?.apiKey || aiConfig.fallback.apiKey;
+                const fModelId = fallbackModelObj?.modelId;
+
+                if (!fModelId) throw new Error("No fallback model ID configured in Admin Portal.");
+
+                const fallbackOpenai = new OpenAI({ apiKey: fApiKey, baseURL: fBaseURL });
+                response = await fallbackOpenai.chat.completions.create({
+                    model: fModelId,
+                    messages: [{ role: "user", content: prompt }],
+                    max_tokens: 1500,
+                    temperature: 0.1
+                });
+                usedModel = fModelId;
+            } catch (fallbackErr) {
+                console.error("Critical AI Failure (Primary & Fallback failed):", fallbackErr.message);
+            }
+        }
+
+        if (!response) {
+            throw new Error("All AI engines returned failures. Please check your AI API keys in Admin Portal.");
+        }
         const prompt = `You are a career veterinary consultant for Arion CareCycle. 
         Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageYears} years.
         
@@ -807,6 +858,25 @@ router.put('/:id/vaccination-schedule', auth, async (req, res) => {
     } catch (err) {
         console.error("Vax Schedule Save Error:", err);
         res.status(500).json({ msg: 'Saving schedule failed', error: err.message });
+    }
+});
+
+// @route   GET /api/animals/weather/:location
+// @desc    Proxy weather request to avoid CORS
+// @access  Public
+router.get('/weather/:location', async (req, res) => {
+    try {
+        const axios = require('axios');
+        const { location } = req.params;
+        const targetHost = 'wttr.in';
+        const sanitizedLoc = encodeURIComponent(location);
+        
+        // Call wttr.in bypassing browser CORS
+        const response = await axios.get(`https://${targetHost}/${sanitizedLoc}?format=j1`, { timeout: 8000 });
+        res.json(response.data);
+    } catch (err) {
+        console.error("Weather Proxy Error:", err.message);
+        res.status(502).json({ error: "Weather station temporarily unreachable" });
     }
 });
 

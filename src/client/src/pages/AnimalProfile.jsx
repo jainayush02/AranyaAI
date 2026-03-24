@@ -417,14 +417,17 @@ export default function AnimalProfile() {
         const fetchRealWeather = async () => {
             if (animal?.syncRealTime && animal?.location) {
                 setFetchingTemp(true);
+                if (animal.location === 'Not Specified') {
+                    setFetchingTemp(false);
+                    return;
+                }
                 try {
-                    // Fetch real-time weather from wttr.in (No API Key Required)
-                    const res = await axios.get(`https://wttr.in/${encodeURIComponent(animal.location)}?format=j1`);
-                    const temp = res.data.current_condition[0].temp_C;
+                    // Fetch real-time weather from local proxy to avoid CORS
+                    const res = await axios.get(`/api/animals/weather/${encodeURIComponent(animal.location)}`);
+                    const temp = res.data.current_condition?.[0]?.temp_C;
                     if (temp) setOutsideTemp(parseFloat(temp));
                 } catch (err) {
-                    console.error('Weather fetch failed', err);
-                    // Minimal fallback fluctuation
+                    console.error('Weather proxy fetch failed', err);
                     setOutsideTemp(prev => prev + (Math.random() * 0.4 - 0.2));
                 } finally {
                     setFetchingTemp(false);

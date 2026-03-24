@@ -190,10 +190,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 customProvider: '',
                 baseURL: 'https://router.huggingface.co/v1',
                 apiKey: process.env.HF_TOKEN || '',
-                models: [
-                    { id: 'p1', name: 'Primary Text Model', type: 'text', modelId: 'Qwen/Qwen2.5-7B-Instruct' },
-                    { id: 'p2', name: 'Vision/Image Model', type: 'vision', modelId: 'Qwen/Qwen2.5-VL-7B-Instruct' }
-                ],
+                models: [],
                 enabled: true
             },
             fallback: {
@@ -201,9 +198,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 customProvider: '',
                 baseURL: 'https://openrouter.ai/api/v1',
                 apiKey: process.env.OPENROUTER_API_KEY || '',
-                models: [
-                    { id: 'f1', name: 'Fallback Text Model', type: 'text', modelId: 'google/gemma-3-12b-it:free' }
-                ],
+                models: [],
                 enabled: true
             },
             systemPrompt: `You are Arion, a multimodal animal health assistant.
