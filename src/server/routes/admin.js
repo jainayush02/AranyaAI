@@ -411,8 +411,10 @@ const inferModelVendor = (modelId = '') => {
             });
         };
 
-        if (config.primary)  await fetchStats('Primary',  config.primary);
-        if (config.fallback) await fetchStats('Fallback', config.fallback);
+        if (config.primary)  await fetchStats('Primary Chat',  config.primary);
+        if (config.fallback) await fetchStats('Fallback Chat', config.fallback);
+        if (config.vaccinePrimary)  await fetchStats('Vaccine Primary',  config.vaccinePrimary);
+        if (config.vaccineFallback) await fetchStats('Vaccine Fallback', config.vaccineFallback);
 
         // Record metrics to history asynchronously
         res.json(results);
@@ -430,8 +432,8 @@ router.get('/ping-model/:modelId', authenticate, adminOnly, async (req, res) => 
         if (!settings || !settings.value) return res.status(404).json({ success: false });
 
         const config = settings.value;
-        const allProviders = [config.primary, config.fallback].filter(p => p && p.enabled);
-        const targetModel = allProviders.flatMap(p => p.models).find(m => m.modelId === modelId);
+        const allProviders = [config.primary, config.fallback, config.vaccinePrimary, config.vaccineFallback].filter(p => p && p.enabled);
+        const targetModel = allProviders.flatMap(p => p.models || []).find(m => m.modelId === modelId);
         if (!targetModel) return res.status(404).json({ success: false });
 
         const provider = allProviders.find(p => p.models.includes(targetModel));
@@ -739,6 +741,26 @@ router.get('/config/ai', authenticate, adminOnly, async (req, res) => {
                     ],
                     enabled: true
                 },
+                vaccinePrimary: {
+                    provider: 'Hugging Face',
+                    customProvider: '',
+                    baseURL: 'https://router.huggingface.co/v1',
+                    apiKey: process.env.HF_TOKEN || '',
+                    models: [
+                        { id: 'vp1', name: 'Primary Vaccine Model', type: 'text', modelId: 'Qwen/Qwen2.5-7B-Instruct' }
+                    ],
+                    enabled: true
+                },
+                vaccineFallback: {
+                    provider: 'OpenRouter',
+                    customProvider: '',
+                    baseURL: 'https://openrouter.ai/api/v1',
+                    apiKey: process.env.OPENROUTER_API_KEY || '',
+                    models: [
+                        { id: 'vf1', name: 'Vaccine Fallback Model', type: 'text', modelId: 'google/gemma-3-12b-it:free' }
+                    ],
+                    enabled: true
+                },
                 systemPrompt: `You are Arion, a multimodal animal health assistant.
 
 You only help with:
@@ -904,8 +926,8 @@ Format:
 
 router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
     try {
-        const { primary, fallback, systemPrompt, vaccinePrompt } = req.body;
-        const newValue = { primary, fallback, systemPrompt, vaccinePrompt };
+        const { primary, fallback, systemPrompt, vaccinePrompt, vaccinePrimary, vaccineFallback } = req.body;
+        const newValue = { primary, fallback, systemPrompt, vaccinePrompt, vaccinePrimary, vaccineFallback };
 
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },

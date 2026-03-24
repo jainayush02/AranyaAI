@@ -178,6 +178,172 @@ function ToggleSwitch({ checked, onChange, disabled, activeColor = '#2d5f3f' }) 
     );
 }
 
+// New internal component for AI Gateway configuration
+function AiGatewayConfig({ 
+    title, 
+    icon: Icon, 
+    config, 
+    isEditing, 
+    setAiConfig, 
+    addModel, 
+    updateModel, 
+    removeModel, 
+    toggleEngine, 
+    engineKey, 
+    activeColor = "#2d5f3f",
+    aiConfigSaving,
+    showKey,
+    setShowKey,
+    s
+}) {
+    if (!config) return null;
+    
+    return (
+        <div style={{ background: '#ffffff', padding: '2rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', position: 'relative', opacity: isEditing ? 1 : 0.85 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Icon size={20} color={activeColor} />
+                    {title && (
+                        <h4 style={{ margin: 0, color: '#0f172a', fontSize: '1.1rem', fontWeight: 800 }}>
+                            {title}
+                        </h4>
+                    )}
+                </div>
+                <div className={s.inputTogglePremium}>
+                    <ToggleSwitch
+                        checked={config.enabled}
+                        onChange={val => isEditing ? setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], enabled: val } })) : toggleEngine(engineKey, val)}
+                        activeColor={activeColor}
+                        disabled={aiConfigSaving}
+                    />
+                </div>
+            </div>
+
+            <div className={s.aiConfigRow} style={{ marginBottom: '1rem' }}>
+                <div className={s.aiConfigGroup}>
+                    <label className={s.inputLabel}>Provider Name</label>
+                    <select className={s.configInput} value={config.provider} disabled={!isEditing} onChange={e => {
+                        const val = e.target.value;
+                        setAiConfig(p => {
+                            let nuConfig = { ...p, [engineKey]: { ...p[engineKey], provider: val } };
+                            if (val === 'Hugging Face') nuConfig[engineKey].baseURL = 'https://router.huggingface.co/v1';
+                            if (val === 'Groq') nuConfig[engineKey].baseURL = 'https://api.groq.com/openai/v1';
+                            if (val === 'OpenRouter') nuConfig[engineKey].baseURL = 'https://openrouter.ai/api/v1';
+                            if (val === 'Together AI') nuConfig[engineKey].baseURL = 'https://api.together.xyz/v1';
+                            return nuConfig;
+                        });
+                    }}>
+                        <option value="Hugging Face">Hugging Face</option>
+                        <option value="Groq">Groq</option>
+                        <option value="OpenRouter">OpenRouter</option>
+                        <option value="Together AI">Together AI</option>
+                        <option value="Custom">Custom / Other</option>
+                    </select>
+                </div>
+
+                {config.provider === 'Custom' && (
+                    <div className={s.aiConfigGroup}>
+                        <label className={s.inputLabel}>Custom Name</label>
+                        <input
+                            type="text"
+                            className={s.configInput}
+                            value={config.customProvider}
+                            onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], customProvider: e.target.value } }))}
+                            placeholder="My Own AI"
+                            disabled={!isEditing}
+                        />
+                    </div>
+                )}
+
+                <div className={s.aiConfigGroup} style={{ gridColumn: 'span 2' }}>
+                    <label className={s.inputLabel}>Base URL</label>
+                    <input
+                        type="text"
+                        className={s.configInput}
+                        value={config.baseURL}
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], baseURL: e.target.value } }))}
+                        placeholder="https://api.provider.com/v1"
+                        disabled={!isEditing || config.provider !== 'Custom'}
+                        style={{ background: (!isEditing || config.provider !== 'Custom') ? '#edf2f7' : '#fff' }}
+                    />
+                </div>
+            </div>
+
+            <div className={s.aiConfigGroup} style={{ marginBottom: '1rem' }}>
+                <label className={s.inputLabel}><Key size={14} /> API Key</label>
+                <div className={s.inputWrapper} style={{ position: 'relative' }}>
+                    <input
+                        type={showKey ? "text" : "password"}
+                        className={s.configInput}
+                        value={config.apiKey}
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], apiKey: e.target.value } }))}
+                        placeholder="sk-..."
+                        disabled={!isEditing}
+                        style={{ paddingRight: '2.5rem', background: '#fff' }}
+                    />
+                    <button
+                        onClick={() => setShowKey(!showKey)}
+                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                    >
+                        {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                </div>
+            </div>
+
+            <div className={s.aiConfigGroup} style={{ marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Network size={18} color={activeColor} />
+                        <label className={s.inputLabel} style={{ margin: 0 }}>Model Routing List</label>
+                    </div>
+                    {isEditing && (
+                        <button onClick={() => addModel(engineKey)} style={{ background: activeColor, color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: '0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
+                            <Plus size={14} /> Add Model
+                        </button>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {(config.models || []).map(m => (
+                        <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#fff', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isEditing ? 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto auto' : 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto', gap: '0.4rem', alignItems: 'center' }}>
+                                <select className={s.configInput} disabled={!isEditing} value={m.type} onChange={e => updateModel(engineKey, m.id, 'type', e.target.value)} style={{ padding: '0.35rem 0.2rem', minWidth: 0, fontSize: '0.75rem' }}>
+                                    <option value="text">Text Only</option>
+                                    <option value="vision">Vision Only</option>
+                                    <option value="text+vision">Text + Vision</option>
+                                    <option value="audio">Audio</option>
+                                </select>
+                                <input type="text" className={s.configInput} disabled={!isEditing} placeholder="Name (e.g. Text)" value={m.name} onChange={e => updateModel(engineKey, m.id, 'name', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem' }} />
+                                <input type="text" className={s.configInput} disabled={!isEditing} placeholder="Model ID" value={m.modelId} onChange={e => updateModel(engineKey, m.id, 'modelId', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem', textOverflow: 'ellipsis' }} />
+                                <button onClick={() => updateModel(engineKey, m.id, 'showOverrides', !m.showOverrides)} disabled={!isEditing} style={{ background: m.showOverrides ? '#e0f2fe' : 'none', border: 'none', color: m.showOverrides ? '#0284c7' : '#94a3b8', cursor: isEditing ? 'pointer' : 'default', padding: '0.25rem', borderRadius: '4px' }}>
+                                    <SettingsIcon size={16} />
+                                </button>
+                                {isEditing && (
+                                    <button onClick={() => removeModel(engineKey, m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}>
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+                            </div>
+                            {m.showOverrides && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '6px', border: '1px dashed #cbd5e1', marginTop: '0.25rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>Base URL:</label>
+                                        <input type="text" className={s.configInput} disabled={!isEditing} placeholder="Override URL (Optional)" value={m.baseURL || ''} onChange={e => updateModel(engineKey, m.id, 'baseURL', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>API Key:</label>
+                                        <input type="text" className={s.configInput} disabled={!isEditing} placeholder="Override Key (Optional)" value={m.apiKey || ''} onChange={e => updateModel(engineKey, m.id, 'apiKey', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Main ─────────────────────────────────────────
 
 export default function AdminPortal() {
@@ -292,10 +458,14 @@ export default function AdminPortal() {
     const [promptTab, setPromptTab] = useState('assistant');
     const [showPriKey, setShowPriKey] = useState(false);
     const [showFbKey, setShowFbKey] = useState(false);
+    const [showVPriKey, setShowVPriKey] = useState(false);
+    const [showVFbKey, setShowVFbKey] = useState(false);
+    const [chatRoutingTab, setChatRoutingTab] = useState('primary');
+    const [vaxRoutingTab, setVaxRoutingTab] = useState('primary');
     const addModel = (engine) => {
         setAiConfig(p => {
             const existingModels = p[engine]?.models || [];
-            const newModel = { id: Date.now().toString(), name: 'New Model', type: 'text', modelId: '' };
+            const newModel = { id: Date.now().toString(), name: 'New Model', type: 'text', modelId: '', showOverrides: false };
             return {
                 ...p,
                 [engine]: { ...p[engine], models: [...existingModels, newModel] }
@@ -461,7 +631,30 @@ export default function AdminPortal() {
         setAiConfigLoading(true);
         try {
             const r = await axios.get(`${API}/admin/config/ai`, authH());
-            setAiConfig(r.data);
+            const data = r.data;
+            
+            // Initialize new vaccine fields if they don't exist
+            const defaultGateway = {
+                enabled: false,
+                provider: 'OpenRouter',
+                customProvider: '',
+                baseURL: 'https://openrouter.ai/api/v1',
+                apiKey: '',
+                models: []
+            };
+
+            if (!data.vaccinePrimary) {
+                data.vaccinePrimary = { 
+                    ...defaultGateway, 
+                    provider: 'Hugging Face', 
+                    baseURL: 'https://router.huggingface.co/v1' 
+                };
+            }
+            if (!data.vaccineFallback) {
+                data.vaccineFallback = { ...defaultGateway };
+            }
+
+            setAiConfig(data);
         } catch { push('Failed to load AI config', 'err'); }
         finally { setAiConfigLoading(false); }
     }, [push]);
@@ -2397,7 +2590,7 @@ export default function AdminPortal() {
                                                             </div>
                                                             <div>
                                                                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1.1rem' }}>AI Model Routing Architecture</div>
-                                                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Configure primary and alternate providers</div>
+                                                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Configure independent routing for Chat and Vaccines</div>
                                                             </div>
                                                         </div>
                                                         {!isEditingAi ? (
@@ -2431,287 +2624,130 @@ export default function AdminPortal() {
                                                         )}
                                                     </div>
 
-                                                    <div className={s.aiConfigGrid}>
-                                                        {/* Primary Engine */}
-                                                        <div style={{ background: '#ffffff', padding: '2rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', position: 'relative', opacity: isEditingAi ? 1 : 0.85 }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                                                                <h4 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem', fontWeight: 800 }}>
-                                                                    <Crown size={20} color="#2d5f3f" /> Primary Gateway
-                                                                </h4>
-                                                                <div className={s.inputTogglePremium}>
-                                                                    <ToggleSwitch
-                                                                        checked={aiConfig.primary.enabled}
-                                                                        onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, primary: { ...p.primary, enabled: val } })) : toggleEngine('primary', val)}
-                                                                        label={aiConfig.primary.enabled ? 'Active' : 'Disabled'}
-                                                                        disabled={aiConfigSaving}
-                                                                    />
-
+                                                    <div className={s.dualColumnGrid}>
+                                                        {/* ── CHATBOT ROUTING ── */}
+                                                        <div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', marginBottom: '1.25rem', padding: '0 0.5rem' }}>
+                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    <MessageSquare size={18} color="#2d5f3f" /> Chatbot AI Routing
                                                                 </div>
-
-                                                            </div>
-
-                                                            <div className={s.aiConfigRow} style={{ marginBottom: '1rem' }}>
-                                                                <div className={s.aiConfigGroup}>
-                                                                    <label className={s.inputLabel}>Provider Name</label>
-                                                                    <select className={s.configInput} value={aiConfig.primary.provider} disabled={!isEditingAi} onChange={e => {
-                                                                        const val = e.target.value;
-                                                                        setAiConfig(p => {
-                                                                            let nuConfig = { ...p, primary: { ...p.primary, provider: val } };
-                                                                            if (val === 'Hugging Face') nuConfig.primary.baseURL = 'https://router.huggingface.co/v1';
-                                                                            if (val === 'Groq') nuConfig.primary.baseURL = 'https://api.groq.com/openai/v1';
-                                                                            if (val === 'OpenRouter') nuConfig.primary.baseURL = 'https://openrouter.ai/api/v1';
-                                                                            if (val === 'Together AI') nuConfig.primary.baseURL = 'https://api.together.xyz/v1';
-                                                                            return nuConfig;
-                                                                        });
-                                                                    }}>
-                                                                        <option value="Hugging Face">Hugging Face</option>
-                                                                        <option value="Groq">Groq</option>
-                                                                        <option value="OpenRouter">OpenRouter</option>
-                                                                        <option value="Together AI">Together AI</option>
-                                                                        <option value="Custom">Custom / Other</option>
-                                                                    </select>
-                                                                </div>
-
-                                                                {aiConfig.primary.provider === 'Custom' && (
-                                                                    <div className={s.aiConfigGroup}>
-                                                                        <label className={s.inputLabel}>Custom Name</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            className={s.configInput}
-                                                                            value={aiConfig.primary.customProvider}
-                                                                            onChange={e => setAiConfig(p => ({ ...p, primary: { ...p.primary, customProvider: e.target.value } }))}
-                                                                            placeholder="My Own AI"
-                                                                            disabled={!isEditingAi}
-                                                                        />
-                                                                    </div>
-                                                                )}
-
-                                                                <div className={s.aiConfigGroup} style={{ gridColumn: 'span 2' }}>
-                                                                    <label className={s.inputLabel}>Base URL</label>
-                                                                    <input
-                                                                        type="text"
-                                                                        className={s.configInput}
-                                                                        value={aiConfig.primary.baseURL}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, primary: { ...p.primary, baseURL: e.target.value } }))}
-                                                                        placeholder="https://api.provider.com/v1"
-                                                                        disabled={!isEditingAi || aiConfig.primary.provider !== 'Custom'}
-                                                                        style={{ background: aiConfig.primary.provider !== 'Custom' ? '#e2e8f0' : '#fff' }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            <div className={s.aiConfigGroup} style={{ marginBottom: '1rem' }}>
-                                                                <label className={s.inputLabel}><Key size={14} /> API Key</label>
-                                                                <div className={s.inputWrapper} style={{ position: 'relative' }}>
-                                                                    <input
-                                                                        type={showPriKey ? "text" : "password"}
-                                                                        className={s.configInput}
-                                                                        value={aiConfig.primary.apiKey}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, primary: { ...p.primary, apiKey: e.target.value } }))}
-                                                                        placeholder="sk-..."
-                                                                        disabled={!isEditingAi}
-                                                                        style={{ paddingRight: '2.5rem', background: '#fff' }}
-                                                                    />
-                                                                    <button
-                                                                        onClick={() => setShowPriKey(!showPriKey)}
-                                                                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                                <div className={s.pillTabs}>
+                                                                    <button 
+                                                                        className={`${s.pillTab} ${chatRoutingTab === 'primary' ? s.pillTabActive : ''}`}
+                                                                        onClick={() => setChatRoutingTab('primary')}
                                                                     >
-                                                                        {showPriKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                                        <Crown size={14} /> Primary
+                                                                    </button>
+                                                                    <button 
+                                                                        className={`${s.pillTab} ${chatRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
+                                                                        onClick={() => setChatRoutingTab('fallback')}
+                                                                    >
+                                                                        <ShieldCheck size={14} /> Recovery
                                                                     </button>
                                                                 </div>
                                                             </div>
-
-                                                            <div className={s.aiConfigGroup} style={{ marginTop: '1.5rem' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                        <Network size={18} color="#2d5f3f" />
-                                                                        <label className={s.inputLabel} style={{ margin: 0 }}>Model Routing List</label>
-                                                                    </div>
-                                                                    {isEditingAi && (
-                                                                        <button onClick={() => addModel('primary')} style={{ background: '#2d5f3f', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: '0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
-                                                                            <Plus size={14} /> Add Model
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                                    {(aiConfig.primary.models || []).map(m => (
-                                                                        <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#fff', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                            <div style={{ display: 'grid', gridTemplateColumns: isEditingAi ? 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto auto' : 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto', gap: '0.4rem', alignItems: 'center' }}>
-                                                                                <select className={s.configInput} disabled={!isEditingAi} value={m.type} onChange={e => updateModel('primary', m.id, 'type', e.target.value)} style={{ padding: '0.35rem 0.2rem', minWidth: 0, fontSize: '0.75rem' }}>
-                                                                                    <option value="text">Text Only</option>
-                                                                                    <option value="vision">Vision Only</option>
-                                                                                    <option value="text+vision">Text + Vision</option>
-                                                                                    <option value="audio">Audio</option>
-                                                                                </select>
-                                                                                <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Name (e.g. Text)" value={m.name} onChange={e => updateModel('primary', m.id, 'name', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem' }} />
-                                                                                <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Model ID" value={m.modelId} onChange={e => updateModel('primary', m.id, 'modelId', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem', textOverflow: 'ellipsis' }} />
-                                                                                <button onClick={() => updateModel('primary', m.id, 'showOverrides', !m.showOverrides)} disabled={!isEditingAi} style={{ background: m.showOverrides ? '#e0f2fe' : 'none', border: 'none', color: m.showOverrides ? '#0284c7' : '#94a3b8', cursor: isEditingAi ? 'pointer' : 'default', padding: '0.25rem', borderRadius: '4px' }}>
-                                                                                    <SettingsIcon size={16} />
-                                                                                </button>
-                                                                                {isEditingAi && (
-                                                                                    <button onClick={() => removeModel('primary', m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}>
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                            {m.showOverrides && (
-                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '6px', border: '1px dashed #cbd5e1', marginTop: '0.25rem' }}>
-                                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>Base URL:</label>
-                                                                                        <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Override URL (Optional)" value={m.baseURL || ''} onChange={e => updateModel('primary', m.id, 'baseURL', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
-                                                                                    </div>
-                                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>API Key:</label>
-                                                                                        <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Override Key (Optional)" value={m.apiKey || ''} onChange={e => updateModel('primary', m.id, 'apiKey', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
+                                                            
+                                                            <div className={s.aiConfigSingle}>
+                                                                {chatRoutingTab === 'primary' ? (
+                                                                    <AiGatewayConfig 
+                                                                        title="" 
+                                                                        icon={Crown} 
+                                                                        config={aiConfig.primary} 
+                                                                        isEditing={isEditingAi}
+                                                                        setAiConfig={setAiConfig}
+                                                                        addModel={addModel}
+                                                                        updateModel={updateModel}
+                                                                        removeModel={removeModel}
+                                                                        toggleEngine={toggleEngine}
+                                                                        engineKey="primary"
+                                                                        activeColor="#2d5f3f"
+                                                                        aiConfigSaving={aiConfigSaving}
+                                                                        showKey={showPriKey}
+                                                                        setShowKey={setShowPriKey}
+                                                                        s={s}
+                                                                    />
+                                                                ) : (
+                                                                    <AiGatewayConfig 
+                                                                        title="" 
+                                                                        icon={ShieldCheck} 
+                                                                        config={aiConfig.fallback} 
+                                                                        isEditing={isEditingAi}
+                                                                        setAiConfig={setAiConfig}
+                                                                        addModel={addModel}
+                                                                        updateModel={updateModel}
+                                                                        removeModel={removeModel}
+                                                                        toggleEngine={toggleEngine}
+                                                                        engineKey="fallback"
+                                                                        activeColor="#6366f1"
+                                                                        aiConfigSaving={aiConfigSaving}
+                                                                        showKey={showFbKey}
+                                                                        setShowKey={setShowFbKey}
+                                                                        s={s}
+                                                                    />
+                                                                )}
                                                             </div>
                                                         </div>
 
-                                                        {/* Fallback Engine */}
-                                                        <div style={{ background: '#ffffff', padding: '2rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', position: 'relative', opacity: isEditingAi ? 1 : 0.85 }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                                                                <h4 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem', fontWeight: 800 }}>
-                                                                    <ShieldCheck size={20} color="#6366f1" /> Secondary Recovery
-                                                                </h4>
-                                                                <div className={s.inputTogglePremium}>
-                                                                    <ToggleSwitch
-                                                                        checked={aiConfig.fallback.enabled}
-                                                                        onChange={val => isEditingAi ? setAiConfig(p => ({ ...p, fallback: { ...p.fallback, enabled: val } })) : toggleEngine('fallback', val)}
-                                                                        label={aiConfig.fallback.enabled ? 'Enabled' : 'Disabled'}
-                                                                        activeColor="#6366f1"
-                                                                        disabled={aiConfigSaving}
-                                                                    />
-
+                                                        {/* ── VACCINATION ROUTING ── */}
+                                                        <div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', marginBottom: '1.25rem', padding: '0 0.5rem' }}>
+                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    <Activity size={18} color="#8b5cf6" /> Vaccination AI Routing
                                                                 </div>
-
-                                                            </div>
-
-                                                            <div className={s.aiConfigRow} style={{ marginBottom: '1rem' }}>
-                                                                <div className={s.aiConfigGroup}>
-                                                                    <label className={s.inputLabel}>Provider Hub</label>
-                                                                    <select className={s.configInput} value={aiConfig.fallback.provider} disabled={!isEditingAi} onChange={e => {
-                                                                        const val = e.target.value;
-                                                                        setAiConfig(p => {
-                                                                            let nuConfig = { ...p, fallback: { ...p.fallback, provider: val } };
-                                                                            if (val === 'Hugging Face') nuConfig.fallback.baseURL = 'https://router.huggingface.co/v1';
-                                                                            if (val === 'Groq') nuConfig.fallback.baseURL = 'https://api.groq.com/openai/v1';
-                                                                            if (val === 'OpenRouter') nuConfig.fallback.baseURL = 'https://openrouter.ai/api/v1';
-                                                                            if (val === 'Together AI') nuConfig.fallback.baseURL = 'https://api.together.xyz/v1';
-                                                                            return nuConfig;
-                                                                        });
-                                                                    }}>
-                                                                        <option value="Hugging Face">Hugging Face</option>
-                                                                        <option value="Groq">Groq</option>
-                                                                        <option value="OpenRouter">OpenRouter</option>
-                                                                        <option value="Together AI">Together AI</option>
-                                                                        <option value="Custom">Custom / Other</option>
-                                                                    </select>
-                                                                </div>
-
-                                                                {aiConfig.fallback.provider === 'Custom' && (
-                                                                    <div className={s.aiConfigGroup}>
-                                                                        <label className={s.inputLabel}>Custom Name</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            className={s.configInput}
-                                                                            value={aiConfig.fallback.customProvider}
-                                                                            onChange={e => setAiConfig(p => ({ ...p, fallback: { ...p.fallback, customProvider: e.target.value } }))}
-                                                                            placeholder="My Own AI"
-                                                                            disabled={!isEditingAi}
-                                                                        />
-                                                                    </div>
-                                                                )}
-
-                                                                <div className={s.aiConfigGroup} style={{ gridColumn: 'span 2' }}>
-                                                                    <label className={s.inputLabel}>Base URL</label>
-                                                                    <input
-                                                                        type="text"
-                                                                        className={s.configInput}
-                                                                        value={aiConfig.fallback.baseURL}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, fallback: { ...p.fallback, baseURL: e.target.value } }))}
-                                                                        placeholder="https://api.provider.com/v1"
-                                                                        disabled={!isEditingAi || aiConfig.fallback.provider !== 'Custom'}
-                                                                        style={{ background: aiConfig.fallback.provider !== 'Custom' ? '#f1f5f9' : '#fff' }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            <div className={s.aiConfigGroup} style={{ marginBottom: '1rem' }}>
-                                                                <label className={s.inputLabel}><Key size={14} /> API Key</label>
-                                                                <div className={s.inputWrapper} style={{ position: 'relative' }}>
-                                                                    <input
-                                                                        type={showFbKey ? "text" : "password"}
-                                                                        className={s.configInput}
-                                                                        value={aiConfig.fallback.apiKey}
-                                                                        onChange={e => setAiConfig(p => ({ ...p, fallback: { ...p.fallback, apiKey: e.target.value } }))}
-                                                                        placeholder="sk-..."
-                                                                        disabled={!isEditingAi}
-                                                                        style={{ paddingRight: '2.5rem' }}
-                                                                    />
-                                                                    <button
-                                                                        onClick={() => setShowFbKey(!showFbKey)}
-                                                                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                                <div className={s.pillTabs}>
+                                                                    <button 
+                                                                        className={`${s.pillTab} ${vaxRoutingTab === 'primary' ? s.pillTabActive : ''}`}
+                                                                        onClick={() => setVaxRoutingTab('primary')}
                                                                     >
-                                                                        {showFbKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                                        <Zap size={14} /> Primary
+                                                                    </button>
+                                                                    <button 
+                                                                        className={`${s.pillTab} ${vaxRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
+                                                                        onClick={() => setVaxRoutingTab('fallback')}
+                                                                    >
+                                                                        <ShieldAlert size={14} /> Recovery
                                                                     </button>
                                                                 </div>
                                                             </div>
 
-                                                            <div className={s.aiConfigGroup} style={{ marginTop: '1.5rem' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                        <Network size={18} color="#6366f1" />
-                                                                        <label className={s.inputLabel} style={{ margin: 0 }}>Recovery Model Routing</label>
-                                                                    </div>
-                                                                    {isEditingAi && (
-                                                                        <button onClick={() => addModel('fallback')} style={{ background: '#6366f1', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: '0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
-                                                                            <Plus size={14} /> Add Model
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                                    {(aiConfig.fallback.models || []).map(m => (
-                                                                        <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#f8fafc', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                            <div style={{ display: 'grid', gridTemplateColumns: isEditingAi ? 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto auto' : 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto', gap: '0.4rem', alignItems: 'center' }}>
-                                                                                <select className={s.configInput} disabled={!isEditingAi} value={m.type} onChange={e => updateModel('fallback', m.id, 'type', e.target.value)} style={{ padding: '0.35rem 0.2rem', minWidth: 0, fontSize: '0.75rem' }}>
-                                                                                    <option value="text">Text Only</option>
-                                                                                    <option value="vision">Vision Only</option>
-                                                                                    <option value="text+vision">Text + Vision</option>
-                                                                                    <option value="audio">Audio</option>
-                                                                                </select>
-                                                                                <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Name (e.g. Text)" value={m.name} onChange={e => updateModel('fallback', m.id, 'name', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem' }} />
-                                                                                <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Model ID" value={m.modelId} onChange={e => updateModel('fallback', m.id, 'modelId', e.target.value)} style={{ padding: '0.35rem 0.4rem', minWidth: 0, fontSize: '0.75rem', textOverflow: 'ellipsis' }} />
-                                                                                <button onClick={() => updateModel('fallback', m.id, 'showOverrides', !m.showOverrides)} disabled={!isEditingAi} style={{ background: m.showOverrides ? '#e0f2fe' : 'none', border: 'none', color: m.showOverrides ? '#0284c7' : '#94a3b8', cursor: isEditingAi ? 'pointer' : 'default', padding: '0.25rem', borderRadius: '4px' }}>
-                                                                                    <SettingsIcon size={16} />
-                                                                                </button>
-                                                                                {isEditingAi && (
-                                                                                    <button onClick={() => removeModel('fallback', m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.25rem' }}>
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                            {m.showOverrides && (
-                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px dashed #cbd5e1', marginTop: '0.25rem' }}>
-                                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>Base URL:</label>
-                                                                                        <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Override URL (Optional)" value={m.baseURL || ''} onChange={e => updateModel('fallback', m.id, 'baseURL', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
-                                                                                    </div>
-                                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, width: '70px', color: '#64748b' }}>API Key:</label>
-                                                                                        <input type="text" className={s.configInput} disabled={!isEditingAi} placeholder="Override Key (Optional)" value={m.apiKey || ''} onChange={e => updateModel('fallback', m.id, 'apiKey', e.target.value)} style={{ padding: '0.4rem', flex: 1, fontSize: '0.8rem' }} />
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
+                                                            <div className={s.aiConfigSingle}>
+                                                                {vaxRoutingTab === 'primary' ? (
+                                                                    <AiGatewayConfig 
+                                                                        title="" 
+                                                                        icon={Zap} 
+                                                                        config={aiConfig.vaccinePrimary} 
+                                                                        isEditing={isEditingAi}
+                                                                        setAiConfig={setAiConfig}
+                                                                        addModel={addModel}
+                                                                        updateModel={updateModel}
+                                                                        removeModel={removeModel}
+                                                                        toggleEngine={toggleEngine}
+                                                                        engineKey="vaccinePrimary"
+                                                                        activeColor="#8b5cf6"
+                                                                        aiConfigSaving={aiConfigSaving}
+                                                                        showKey={showVPriKey}
+                                                                        setShowKey={setShowVPriKey}
+                                                                        s={s}
+                                                                    />
+                                                                ) : (
+                                                                    <AiGatewayConfig 
+                                                                        title="" 
+                                                                        icon={ShieldAlert} 
+                                                                        config={aiConfig.vaccineFallback} 
+                                                                        isEditing={isEditingAi}
+                                                                        setAiConfig={setAiConfig}
+                                                                        addModel={addModel}
+                                                                        updateModel={updateModel}
+                                                                        removeModel={removeModel}
+                                                                        toggleEngine={toggleEngine}
+                                                                        engineKey="vaccineFallback"
+                                                                        activeColor="#ef4444"
+                                                                        aiConfigSaving={aiConfigSaving}
+                                                                        showKey={showVFbKey}
+                                                                        setShowKey={setShowVFbKey}
+                                                                        s={s}
+                                                                    />
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>

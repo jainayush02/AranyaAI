@@ -2685,3 +2685,57 @@
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
 }
+/* -- PILL TABS -- */
+.pillTabs {
+    display: inline-flex;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 999px;
+    gap: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+.pillTab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pillTab:hover {
+    color: #334155;
+}
+
+.pillTabActive {
+    background: #ffffff;
+    color: #0f172a !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.aiConfigSingle {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dualColumnGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    align-items: start;
+}
+
+@media (max-width: 1400px) {
+    .dualColumnGrid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}

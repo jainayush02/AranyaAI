@@ -168,7 +168,8 @@ router.delete('/:id', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         // Make sure user owns animal
-        if (animal.user_id.toString() !== req.user.id) {
+        const ownerId = req.user.id; // delete route only reachable by owner
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) {
             return res.status(401).json({ msg: 'Not authorized' });
         }
 
@@ -205,7 +206,7 @@ router.put('/:id', auth, async (req, res) => {
 
         // Authorization check
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) {
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) {
             return res.status(401).json({ msg: 'Not authorized' });
         }
 
@@ -233,7 +234,7 @@ router.get('/:id', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
         const ageYears = calculateAgeYears(animal.dob);
         const limits = getLimits(animal.category, animal.breed, ageYears, animal.gender);
         // Merge limits into the response so frontend can perform breed-aware calculations
@@ -254,7 +255,7 @@ router.get('/:id/logs', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 });
         res.json(logs);
@@ -272,7 +273,7 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        const isOwner = animal.user_id.toString() === ownerId.toString();
+        const isOwner = ownerId && animal.user_id && (animal.user_id.toString() === ownerId.toString());
         const isAdmin = req.user.role === 'admin';
 
         if (!isOwner && !isAdmin) return res.status(401).json({ msg: 'Not authorized' });
@@ -334,7 +335,7 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
         });
     } catch (err) {
         console.error("Reanalyze Error:", err);
-        res.status(500).json({ msg: 'Reanalyze failed', error: err.message });
+        res.status(500).json({ msg: 'Reanalyze failed', error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined });
     }
 });
 
@@ -347,7 +348,7 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         // --- PLAN LIMIT ENFORCEMENT: Bulk Import ---
         const user = await User.findById(ownerId);
@@ -402,7 +403,7 @@ router.post('/:id/logs', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const { temperature, heartRate, spo2, respiratoryRate, ambientTemperature, weight, activityLevel, notes } = req.body;
         const newLog = new HealthLog({
@@ -542,7 +543,7 @@ router.put('/:id/vaccination', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         animal.vaccinated = req.body.vaccinated;
         await animal.save();
@@ -560,7 +561,7 @@ router.put('/:id/vitals', auth, async (req, res) => {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const { temperature, heartRate, weight } = req.body;
         if (!animal.recentVitals) animal.recentVitals = {};
@@ -585,7 +586,7 @@ router.get('/:id/records', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) {
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) {
             return res.status(404).json({ msg: 'Animal not found' }); // Standardizing to 404 for security
         }
 
@@ -603,7 +604,7 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) {
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) {
             return res.status(404).json({ msg: 'Animal not found' });
         }
 
@@ -666,7 +667,7 @@ router.delete('/:id/records/:recordId', auth, async (req, res) => {
         if (!record) return res.status(404).json({ msg: 'Record not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (record.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !record.user_id || record.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         await MedicalRecord.findByIdAndDelete(req.params.recordId);
 
@@ -691,28 +692,16 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const ageYears = calculateAgeYears(animal.dob);
 
         // Fetch AI config — exclusively from Admin Portal (ai_config_v2 in DB)
         let aiConfig = {
-            primary: {
-                provider: 'Hugging Face',
-                customProvider: '',
-                baseURL: 'https://router.huggingface.co/v1',
-                apiKey: '',
-                models: [],
-                enabled: true
-            },
-            fallback: {
-                provider: 'OpenRouter',
-                customProvider: '',
-                baseURL: 'https://openrouter.ai/api/v1',
-                apiKey: '',
-                models: [],
-                enabled: true
-            }
+            primary: { provider: 'Hugging Face', customProvider: '', baseURL: 'https://router.huggingface.co/v1', apiKey: '', models: [], enabled: true },
+            fallback: { provider: 'OpenRouter', customProvider: '', baseURL: 'https://openrouter.ai/api/v1', apiKey: '', models: [], enabled: true },
+            vaccinePrimary: { provider: 'Hugging Face', customProvider: '', baseURL: 'https://router.huggingface.co/v1', apiKey: '', models: [], enabled: false },
+            vaccineFallback: { provider: 'OpenRouter', customProvider: '', baseURL: 'https://openrouter.ai/api/v1', apiKey: '', models: [], enabled: false }
         };
 
         try {
@@ -724,15 +713,13 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             console.error("[CareCycle] Error fetching AI config from DB:", confErr.message);
         }
 
-        // Ensure sub-objects exist even after merge
-        if (!aiConfig.primary) aiConfig.primary = { models: [], enabled: false };
-        if (!aiConfig.fallback) aiConfig.fallback = { models: [], enabled: false };
-        if (!aiConfig.primary.models) aiConfig.primary.models = [];
-        if (!aiConfig.fallback.models) aiConfig.fallback.models = [];
+        // Decide which configuration to use for Vaccines (Specialized vs Global)
+        const vPri = (aiConfig.vaccinePrimary && aiConfig.vaccinePrimary.enabled) ? aiConfig.vaccinePrimary : aiConfig.primary;
+        const vFb = (aiConfig.vaccineFallback && aiConfig.vaccineFallback.enabled) ? aiConfig.vaccineFallback : aiConfig.fallback;
 
         // ── 1. Determine model mapping ──
-        const primaryTextModel = (aiConfig.primary.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
-        const fallbackTextModel = (aiConfig.fallback.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
+        const primaryTextModel = (vPri.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
+        const fallbackTextModel = (vFb.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
         
         // ── 0. Lazy AI Logic: Only run LLM if forced or schedule empty ──
         const forceRefresh = req.query.force === 'true';
@@ -775,20 +762,20 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             .replace(/\${animal\.breed}/g, animal.breed)
             .replace(/\${ageYears}/g, ageYears);
 
-        const primaryModelObj = primaryTextModel || (aiConfig.primary.models || [])[0];
-        const fallbackModelObj = fallbackTextModel || (aiConfig.fallback.models || [])[0];
+        const primaryModelObj = primaryTextModel || (vPri.models || [])[0];
+        const fallbackModelObj = fallbackTextModel || (vFb.models || [])[0];
 
         let response;
         let usedModel = "N/A";
 
         // --- Attempt Primary Engine ---
-        if (aiConfig.primary.enabled && aiConfig.primary.apiKey) {
+        if (vPri.enabled && vPri.apiKey) {
             try {
-                const pBaseURL = primaryModelObj?.baseURL || aiConfig.primary.baseURL;
-                const pApiKey = primaryModelObj?.apiKey || aiConfig.primary.apiKey;
+                const pBaseURL = primaryModelObj?.baseURL || vPri.baseURL;
+                const pApiKey = primaryModelObj?.apiKey || vPri.apiKey;
                 const pModelId = primaryModelObj?.modelId;
 
-                if (!pModelId) throw new Error("No primary model ID configured in Admin Portal.");
+                if (!pModelId) throw new Error("No primary model ID configured for Vaccination AI.");
 
                 const primaryOpenai = new OpenAI({ apiKey: pApiKey, baseURL: pBaseURL });
                 response = await primaryOpenai.chat.completions.create({
@@ -799,18 +786,18 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 });
                 usedModel = pModelId;
             } catch (primaryErr) {
-                console.warn("Primary AI Engine Error, falling back:", primaryErr.message);
+                console.warn("[CareCycle] Primary Vaccine AI Error, falling back:", primaryErr.message);
             }
         }
 
         // --- Attempt Fallback Engine ---
-        if (!response && aiConfig.fallback.enabled && aiConfig.fallback.apiKey) {
+        if (!response && vFb.enabled && vFb.apiKey) {
             try {
-                const fBaseURL = fallbackModelObj?.baseURL || aiConfig.fallback.baseURL;
-                const fApiKey = fallbackModelObj?.apiKey || aiConfig.fallback.apiKey;
-                const fModelId = fallbackModelObj?.modelId;
+                const fBaseURL = fallbackModelObj?.baseURL || vFb.models?.[0]?.baseURL || vFb.baseURL;
+                const fApiKey = fallbackModelObj?.apiKey || vFb.models?.[0]?.apiKey || vFb.apiKey;
+                const fModelId = fallbackModelObj?.modelId || vFb.models?.[0]?.modelId;
 
-                if (!fModelId) throw new Error("No fallback model ID configured in Admin Portal.");
+                if (!fModelId) throw new Error("No fallback model ID configured for Vaccination AI.");
 
                 const fallbackOpenai = new OpenAI({ apiKey: fApiKey, baseURL: fBaseURL });
                 response = await fallbackOpenai.chat.completions.create({
@@ -821,7 +808,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 });
                 usedModel = fModelId;
             } catch (fallbackErr) {
-                console.error("Critical AI Failure (Primary & Fallback failed):", fallbackErr.message);
+                console.error("[CareCycle] Critical Vaccine AI Failure (Primary & Fallback failed):", fallbackErr.message);
             }
         }
 
@@ -934,7 +921,11 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error("Recommendation Fetch Error:", err);
-        res.status(500).json({ msg: 'AI recommendations failed', error: err.message });
+        res.status(500).json({ 
+            msg: 'AI recommendations failed', 
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+        });
     }
 });
 
@@ -947,7 +938,7 @@ router.put('/:id/vaccination-schedule', auth, async (req, res) => {
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         animal.vaccinationSchedule = req.body.schedule;
         if (req.body.conclusion) {
