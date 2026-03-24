@@ -653,6 +653,14 @@ router.get('/users/:id/activity', authenticate, adminOnly, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// ALIAS: Admin Portal expects /api/admin/logs/:id
+router.get('/logs/:id', authenticate, adminOnly, async (req, res) => {
+    try {
+        const logs = await ActivityLog.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(50);
+        res.json(logs);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // ═══════════════════════════════════════════════════════
 // FAQ CRUD (Help Center management)
 // ═══════════════════════════════════════════════════════
@@ -706,7 +714,7 @@ router.delete('/faqs/:id', authenticate, adminOnly, async (req, res) => {
 // ── AI Model Configuration ────────────────────────────
 router.get('/config/ai', authenticate, adminOnly, async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        let settings = await SystemSettings.findOne({ key: 'ai_config_v2' }).lean();
         if (!settings) {
             // Return defaults if not set in DB
             return res.json({
@@ -836,8 +844,59 @@ Medicine safety:
 - If medicine safety is uncertain, advise veterinary consultation.
 
 If the question is outside animal-related topics, reply only with:
-"I only help with animal health, care, and veterinary topics."`
+"I only help with animal health, care, and veterinary topics."`,
+                vaccinePrompt: `You are a career veterinary consultant for Arion CareCycle. 
+Analyze a \${animal.category} of breed \${animal.breed} and current age \${ageYears} years.
+
+Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (\${ageYears} years):
+1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
+2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
+
+For each vaccine include:
+- name: Specific vaccine name.
+- type: 'Core' or 'Optional'.
+- frequencyMonths: Interval between doses (integer).
+- ageRange: String representing when this is needed.
+- clinicalCycle: String representing the recurring cycle.
+- recommendationAgeWeeks: When it typically starts (integer).
+- description: 1-sentence medical detail.
+
+CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
+
+Format:
+{
+  "alreadyCompleted": [],
+  "futureNeeded": [],
+  "conclusion": "A 2-3 line summary."
+}`
             });
+        }
+
+        if (!settings.value.vaccinePrompt) {
+            settings.value.vaccinePrompt = `You are a career veterinary consultant for Arion CareCycle. 
+Analyze a \${animal.category} of breed \${animal.breed} and current age \${ageYears} years.
+
+Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (\${ageYears} years):
+1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
+2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
+
+For each vaccine include:
+- name: Specific vaccine name.
+- type: 'Core' or 'Optional'.
+- frequencyMonths: Interval between doses (integer).
+- ageRange: String representing when this is needed.
+- clinicalCycle: String representing the recurring cycle.
+- recommendationAgeWeeks: When it typically starts (integer).
+- description: 1-sentence medical detail.
+
+CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
+
+Format:
+{
+  "alreadyCompleted": [],
+  "futureNeeded": [],
+  "conclusion": "A 2-3 line summary."
+}`;
         }
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
@@ -845,8 +904,8 @@ If the question is outside animal-related topics, reply only with:
 
 router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
     try {
-        const { primary, fallback, systemPrompt } = req.body;
-        const newValue = { primary, fallback, systemPrompt };
+        const { primary, fallback, systemPrompt, vaccinePrompt } = req.body;
+        const newValue = { primary, fallback, systemPrompt, vaccinePrompt };
 
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },
@@ -854,7 +913,7 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
             { upsert: true, new: true }
         );
 
-        await log('admin', req.user, `Updated AI Model Configuration`);
+        await log('admin', req.user, `Updated AI Model Configuration & Prompts`);
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -877,11 +936,12 @@ router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
         if (!['scientist_js', 'legacy_python'].includes(engine)) {
             return res.status(400).json({ message: 'Invalid engine selection' });
         }
-        await SystemSettings.findOneAndUpdate(
+        const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_active_engine' },
             { value: engine },
-            { upsert: true }
+            { upsert: true, new: true }
         );
+        console.log(`[AI_ENGINE] Successfully switched to: ${engine}`);
         await log('admin', req.user, `Switched AI Health Engine to: ${engine}`);
         res.json({ message: 'AI Engine updated successfully', engine });
     } catch (err) { res.status(500).json({ message: err.message }); }

@@ -159,16 +159,21 @@ export default function Settings() {
     };
 
     const toggleAiEngine = async (newEngine) => {
+        if (aiEngine === newEngine) return;
         setAiEngineLoading(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.post('/api/admin/config/ai-engine', { engine: newEngine }, {
+            const res = await axios.post('/api/admin/config/ai-engine', { engine: newEngine }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setAiEngine(newEngine);
-            showToast(`Platform synchronized to ${newEngine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} logic`, 'success');
-        } catch {
-            showToast('Failed to switch AI engine', 'error');
+            
+            if (res.data.engine) {
+                setAiEngine(res.data.engine);
+                showToast(`Platform synchronized to ${res.data.engine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} logic`, 'success');
+            }
+        } catch (err) {
+            console.error("AI Engine Switch Error:", err);
+            showToast(err.response?.data?.message || 'Failed to switch AI engine', 'error');
         } finally {
             setAiEngineLoading(false);
         }
@@ -176,10 +181,13 @@ export default function Settings() {
 
     useEffect(() => {
         const tab = queryParams.get('tab');
-        if (tab && (tab === 'pricing' || tab === 'infrastructure' || tab === 'advanced')) {
+        if (tab) {
+            // Support 'advanced' alias for infrastructure section
             setActiveTab(tab === 'advanced' ? 'infrastructure' : tab);
+        } else {
+            setActiveTab(role === 'admin' ? 'infrastructure' : 'account');
         }
-    }, [location.search]);
+    }, [location.search, role]);
 
     const handleSaveAdminSettings = async () => {
         setIsSaving(true);
@@ -285,14 +293,7 @@ export default function Settings() {
             ]
         );
 
-    useEffect(() => {
-        const tab = queryParams.get('tab');
-        if (tab) {
-            setActiveTab(tab);
-        } else {
-            setActiveTab(role === 'admin' ? 'infrastructure' : 'account');
-        }
-    }, [location.search, role]);
+    // (Removed duplicate tab effect to prevent state jitter)
     return (
         <div className={`container ${styles.pageContainer} animate-fade-in`}>
             {/* Top Navigation Bar - Only show if there are multiple tabs */}

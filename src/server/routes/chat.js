@@ -183,13 +183,13 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
 
         let aiContent = "";
 
-        // Fetch dynamic AI configuration
+        // Fetch dynamic AI configuration — exclusively from Admin Portal
         let aiConfig = {
             primary: {
                 provider: 'Hugging Face',
                 customProvider: '',
                 baseURL: 'https://router.huggingface.co/v1',
-                apiKey: process.env.HF_TOKEN || '',
+                apiKey: '',
                 models: [],
                 enabled: true
             },
@@ -197,7 +197,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 provider: 'OpenRouter',
                 customProvider: '',
                 baseURL: 'https://openrouter.ai/api/v1',
-                apiKey: process.env.OPENROUTER_API_KEY || '',
+                apiKey: '',
                 models: [],
                 enabled: true
             },

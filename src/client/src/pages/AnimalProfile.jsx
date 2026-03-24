@@ -6,7 +6,7 @@ import {
     ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle,
     Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge,
     Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun, Sparkles, X, Check,
-    ShieldCheck, Syringe, CheckCircle, Circle
+    ShieldCheck, Syringe, CheckCircle, Circle, Cpu
 } from 'lucide-react';
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -399,10 +399,10 @@ export default function AnimalProfile() {
                 if (logsRes.data.length > 0) {
                     try {
                         const recalcRes = await axios.post(`/api/animals/${id}/reanalyze`, {}, config);
-                        setAnimal(prev => ({ ...prev, status: recalcRes.data.animalStatus }));
+                        setAnimal(prev => ({ ...prev, status: recalcRes.data.animalStatus, statusDetail: recalcRes.data.detail }));
                         setAiScore(recalcRes.data.aiErrorScore);
                     } catch (recalcErr) {
-                        console.log('AI reanalysis skipped');
+                        console.log('AI reanalysis skipped or failed:', recalcErr.message);
                     }
                 }
             } finally {
@@ -491,13 +491,18 @@ export default function AnimalProfile() {
     };
 
     const fetchVaccineRecommendations = async (force = false) => {
-        if (vaccineSchedule.length > 0 && !force) return setShowVaccineModal(true);
+        // ── 0. Prefer existing local state or animal data if not forcing
+        if (!force && animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
+            setVaccineSchedule(animal.vaccinationSchedule);
+            setAiConclusion(animal.aiConclusion || "");
+            return setShowVaccineModal(true);
+        }
 
         setShowVaccineModal(true);
         setIsFetchingVaccines(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`/api/animals/${id}/vaccine-recommendations`, {
+            const res = await axios.get(`/api/animals/${id}/vaccine-recommendations?force=${force}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -546,7 +551,8 @@ export default function AnimalProfile() {
                 return item;
             });
             const res = await axios.put(`/api/animals/${id}/vaccination-schedule`, {
-                schedule: sanitizedSchedule
+                schedule: sanitizedSchedule,
+                conclusion: aiConclusion
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });

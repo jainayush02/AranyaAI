@@ -32,6 +32,14 @@ const animalSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    activeEngine: {
+        type: String,
+        default: 'scientist_js'
+    },
+    aiConclusion: {
+        type: String,
+        default: ''
+    },
 
     gender: {
         type: String,

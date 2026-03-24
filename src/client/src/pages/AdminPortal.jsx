@@ -289,6 +289,7 @@ export default function AdminPortal() {
     const [aiConfigSaving, setAiConfigSaving] = useState(false);
     const [isEditingAi, setIsEditingAi] = useState(false);
     const [showPromptModal, setShowPromptModal] = useState(false);
+    const [promptTab, setPromptTab] = useState('assistant');
     const [showPriKey, setShowPriKey] = useState(false);
     const [showFbKey, setShowFbKey] = useState(false);
     const addModel = (engine) => {
@@ -888,7 +889,7 @@ export default function AdminPortal() {
         { id: 'docs', label: 'Knowledge Base', icon: BookOpen },
         { id: 'pricing', label: 'Subscription', icon: Zap },
         { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
-        { id: 'infrastructure', label: 'Core Infrastructure', icon: SettingsIcon },
+        { id: 'infrastructure', label: 'Arion Configuration', icon: SettingsIcon },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
     ];
 
@@ -905,7 +906,7 @@ export default function AdminPortal() {
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
         pricing: { title: 'SUBSCRIPTION', subtitle: 'CENTER', desc: 'Manage tiers and subscription framework', icon: Zap },
         taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
-        infrastructure: { title: 'CORE', subtitle: 'INFRASTRUCTURE', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
+        infrastructure: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
     const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
@@ -2328,7 +2329,7 @@ export default function AdminPortal() {
 
 
 
-                            {/* ── CORE INFRASTRUCTURE ── */}
+                            {/* ── ARION CONFIGURATION ── */}
                             {activeTab === 'infrastructure' && (
                                 <motion.div key="st" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
@@ -2355,39 +2356,6 @@ export default function AdminPortal() {
                                                         <span style={{ fontWeight: 700 }}>2FA Protocol</span>
                                                         <span style={{ marginLeft: 'auto', color: '#166534', fontWeight: 800 }}>Strict</span>
                                                     </div>
-                                                </div>
-                                            </div>
-
-                                            {/* AI ENGINE GLOBAL SWITCH moved here */}
-                                            <div className={s.contentCard} style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '1.5px solid #bbf7d0', boxShadow: '0 8px 16px rgba(0,0,0,0.03)' }}>
-                                                <div className={s.contentCardHead} style={{ border: 'none', marginBottom: '0.5rem' }}>
-                                                    <div className={s.contentCardTitle}>
-                                                        <div style={{ width: 44, height: 44, borderRadius: '16px', background: 'rgba(22, 101, 52, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                            <Zap size={22} color="#166534" />
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontWeight: 800, color: '#064e3b', fontSize: '0.95rem' }}>Active Monitoring Engine</div>
-                                                            <div style={{ fontSize: '0.75rem', color: '#065f46', opacity: 0.8, fontWeight: 500 }}>Global logic version control</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.25rem' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: aiEngine === 'legacy_python' ? '#166534' : '#94a3b8', letterSpacing: '0.1em' }}>V1 CORE</span>
-                                                        <ToggleSwitch
-                                                            checked={aiEngine === 'scientist_js'}
-                                                            onChange={toggleAiEngine}
-                                                            disabled={aiEngineLoading}
-                                                            activeColor="#16a34a"
-                                                        />
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: aiEngine === 'scientist_js' ? '#16a34a' : '#94a3b8', letterSpacing: '0.1em' }}>V2 NEURAL</span>
-                                                    </div>
-                                                    {aiEngineLoading && <Loader2 size={16} className="spinning" color="#16a34a" />}
-                                                </div>
-                                                <div style={{ marginTop: '1rem', padding: '0.85rem', background: 'rgba(255,255,255,0.4)', borderRadius: '12px', border: '1px solid rgba(22, 101, 52, 0.1)', fontSize: '0.78rem', color: '#065f46', fontWeight: 600 }}>
-                                                    {aiEngine === 'scientist_js'
-                                                        ? '⚡ Precision-Mode: Using V2 Neural Core logic'
-                                                        : '📉 Legacy-Mode: Using V1 Standard Core logic'}
                                                 </div>
                                             </div>
 
@@ -2770,24 +2738,59 @@ export default function AdminPortal() {
                                                             </div>
                                                             <div>
                                                                 <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.1rem' }}>Edit System Instructions</div>
-                                                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Global AI personality and guardrails</div>
+                                                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Global AI personality and feature logic</div>
                                                             </div>
                                                         </div>
                                                         <button onClick={() => setShowPromptModal(false)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', transition: '0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#e2e8f0'} onMouseOut={e => e.currentTarget.style.background = '#f1f5f9'}><X size={18} /></button>
                                                     </div>
 
+                                                    <div style={{ padding: '0.75rem 2rem', borderBottom: '1px solid #f1f5f9', background: '#fff', display: 'flex', gap: '1.5rem' }}>
+                                                        <button 
+                                                            onClick={() => setPromptTab('assistant')}
+                                                            style={{ 
+                                                                padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer',
+                                                                color: promptTab === 'assistant' ? '#8b5cf6' : '#94a3b8',
+                                                                borderBottom: promptTab === 'assistant' ? '2px solid #8b5cf6' : '2px solid transparent',
+                                                                transition: '0.2s'
+                                                            }}
+                                                        >
+                                                            Assistant Persona
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setPromptTab('vaccine')}
+                                                            style={{ 
+                                                                padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer',
+                                                                color: promptTab === 'vaccine' ? '#8b5cf6' : '#94a3b8',
+                                                                borderBottom: promptTab === 'vaccine' ? '2px solid #8b5cf6' : '2px solid transparent',
+                                                                transition: '0.2s'
+                                                            }}
+                                                        >
+                                                            Vaccination Roadmap
+                                                        </button>
+                                                    </div>
+
                                                     <div style={{ flex: 1, padding: '2rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                            <label className={s.inputLabel} style={{ fontSize: '0.85rem' }}>Full Instruction Prompt</label>
+                                                            <label className={s.inputLabel} style={{ fontSize: '0.85rem' }}>
+                                                                {promptTab === 'assistant' ? 'Global Chatbot Guardrails' : 'Medical Logic & JSON Structure'}
+                                                            </label>
                                                             <div className={`${s.badge} ${s.badgeSuccess}`} style={{ fontSize: '0.65rem' }}>Active Configuration</div>
                                                         </div>
                                                         <textarea
                                                             className={s.premiumTextarea}
-                                                            value={aiConfig.systemPrompt}
-                                                            onChange={e => setAiConfig(p => ({ ...p, systemPrompt: e.target.value }))}
-                                                            placeholder="Define rules, tone, and clinical protocols..."
-                                                            style={{ flex: 1 }}
+                                                            value={promptTab === 'assistant' ? aiConfig.systemPrompt : (aiConfig.vaccinePrompt || '')}
+                                                            onChange={e => setAiConfig(p => ({ 
+                                                                ...p, 
+                                                                [promptTab === 'assistant' ? 'systemPrompt' : 'vaccinePrompt']: e.target.value 
+                                                            }))}
+                                                            placeholder={promptTab === 'assistant' ? "Define rules, tone, and clinical protocols..." : "Specify how vaccines should be categorized and formatted..."}
+                                                            style={{ flex: 1, fontFamily: promptTab === 'vaccine' ? 'monospace' : 'inherit' }}
                                                         />
+                                                        {promptTab === 'vaccine' && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+                                                                <strong>Pro Tip:</strong> Use <code>{"${animal.category}"}</code>, <code>{"${animal.breed}"}</code>, and <code>{"${ageYears}"}</code> as dynamic placeholders.
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

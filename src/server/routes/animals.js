@@ -298,11 +298,12 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
 
         if (activeEngine === 'legacy_python') {
             // Route to Legacy Logic
-            result = { status: 'ALERT', detail: 'Legacy AI Model (.pkl)', smoothed: logs[0], aiErrorScore: 0.25 };
+            result = { status: 'HEALTHY', detail: 'Legacy Monitoring Mode', smoothed: logs[0], aiErrorScore: 0.25 };
         } else {
             // Default: Route to New Scientific JS Brain
             const reanalyzeMonitor = new MLEngineeredMonitor();
-            const chronologicalLogs = logs.reverse();
+            // Process logs in chronological order to build up EWMA state
+            const chronologicalLogs = [...logs].reverse(); 
             for (const log of chronologicalLogs) {
                 const rawVitals = {
                     hr: parseFloat(log.heartRate) || 70,
@@ -316,12 +317,21 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
             }
         }
 
-        animal.status = result.status;
-        animal.statusDetail = result.detail;
-        animal.aiErrorScore = result.aiErrorScore || 0;
-        animal.activeEngine = activeEngine; // Persistent check
-        await animal.save();
-        res.json({ animalStatus: result.status, detail: result.detail, aiErrorScore: animal.aiErrorScore, engine: activeEngine });
+        // --- Persistent State Update ---
+        if (result && result.status) {
+            animal.status = result.status;
+            animal.statusDetail = result.detail || 'Analysis complete';
+            animal.aiErrorScore = result.aiErrorScore || 0;
+            animal.activeEngine = activeEngine;
+            await animal.save();
+        }
+
+        res.json({ 
+            animalStatus: animal.status, 
+            detail: animal.statusDetail, 
+            aiErrorScore: animal.aiErrorScore, 
+            engine: activeEngine 
+        });
     } catch (err) {
         console.error("Reanalyze Error:", err);
         res.status(500).json({ msg: 'Reanalyze failed', error: err.message });
@@ -685,28 +695,88 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
 
         const ageYears = calculateAgeYears(animal.dob);
 
-        // Fetch AI config
+        // Fetch AI config — exclusively from Admin Portal (ai_config_v2 in DB)
         let aiConfig = {
             primary: {
                 provider: 'Hugging Face',
+                customProvider: '',
                 baseURL: 'https://router.huggingface.co/v1',
-                apiKey: process.env.HF_TOKEN || '',
+                apiKey: '',
+                models: [],
+                enabled: true
+            },
+            fallback: {
+                provider: 'OpenRouter',
+                customProvider: '',
+                baseURL: 'https://openrouter.ai/api/v1',
+                apiKey: '',
                 models: [],
                 enabled: true
             }
         };
 
-        const dbConfig = await SystemSettings.findOne({ key: 'ai_config_v2' }).lean();
-        if (dbConfig && dbConfig.value) {
-            aiConfig = { ...aiConfig, ...dbConfig.value };
+        try {
+            const dbConfig = await SystemSettings.findOne({ key: 'ai_config_v2' }).lean();
+            if (dbConfig && dbConfig.value) {
+                aiConfig = { ...aiConfig, ...dbConfig.value };
+            }
+        } catch (confErr) {
+            console.error("[CareCycle] Error fetching AI config from DB:", confErr.message);
         }
 
-        // ── 1. Determine model mapping (Sync with chat.js engine) ──
-        const primaryTextModel = aiConfig.primary.models.find(m => m.type === 'text' || m.type === 'text+vision');
-        const fallbackTextModel = aiConfig.fallback.models.find(m => m.type === 'text' || m.type === 'text+vision');
+        // Ensure sub-objects exist even after merge
+        if (!aiConfig.primary) aiConfig.primary = { models: [], enabled: false };
+        if (!aiConfig.fallback) aiConfig.fallback = { models: [], enabled: false };
+        if (!aiConfig.primary.models) aiConfig.primary.models = [];
+        if (!aiConfig.fallback.models) aiConfig.fallback.models = [];
+
+        // ── 1. Determine model mapping ──
+        const primaryTextModel = (aiConfig.primary.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
+        const fallbackTextModel = (aiConfig.fallback.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
         
-        const primaryModelObj = primaryTextModel || aiConfig.primary.models[0];
-        const fallbackModelObj = fallbackTextModel || aiConfig.fallback.models[0];
+        // ── 0. Lazy AI Logic: Only run LLM if forced or schedule empty ──
+        const forceRefresh = req.query.force === 'true';
+        if (!forceRefresh && animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
+            return res.json({
+                alreadyCompleted: animal.vaccinationSchedule.filter(v => v.status === 'Completed'),
+                futureNeeded: animal.vaccinationSchedule.filter(v => v.status === 'Pending'),
+                conclusion: animal.aiConclusion || "Using previously generated roadmap."
+            });
+        }
+
+        const rawPrompt = aiConfig.vaccinePrompt || `You are a career veterinary consultant for Arion CareCycle. 
+        Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageYears} years.
+        
+        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageYears} years):
+        1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
+        2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
+        
+        For each vaccine include:
+        - name: Specific vaccine name.
+        - type: 'Core' or 'Optional'.
+        - frequencyMonths: Interval between doses (integer).
+        - ageRange: String representing when this is needed.
+        - clinicalCycle: String representing the recurring cycle.
+        - recommendationAgeWeeks: When it typically starts (integer).
+        - description: 1-sentence medical detail.
+        
+        CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
+        
+        Format:
+        {
+          "alreadyCompleted": [],
+          "futureNeeded": [],
+          "conclusion": "A 2-3 line summary."
+        }`;
+
+        // Perform dynamic variable substitution
+        const prompt = rawPrompt
+            .replace(/\${animal\.category}/g, animal.category)
+            .replace(/\${animal\.breed}/g, animal.breed)
+            .replace(/\${ageYears}/g, ageYears);
+
+        const primaryModelObj = primaryTextModel || (aiConfig.primary.models || [])[0];
+        const fallbackModelObj = fallbackTextModel || (aiConfig.fallback.models || [])[0];
 
         let response;
         let usedModel = "N/A";
@@ -756,39 +826,70 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         }
 
         if (!response) {
-            throw new Error("All AI engines returned failures. Please check your AI API keys in Admin Portal.");
-        }
-        const prompt = `You are a career veterinary consultant for Arion CareCycle. 
-        Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageYears} years.
-        
-        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageYears} years):
-        1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
-        2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
-        
-        For each vaccine include:
-        - name: Specific vaccine name.
-        - type: 'Core' or 'Optional'.
-        - frequencyMonths: Interval between doses (integer).
-        - ageRange: String representing when this is needed.
-        - clinicalCycle: String representing the recurring cycle.
-        - recommendationAgeWeeks: When it typically starts (integer).
-        - description: 1-sentence medical detail.
-        
-        CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
-        
-        Format:
-        {
-          "alreadyCompleted": [],
-          "futureNeeded": [],
-          "conclusion": "A 2-3 line summary."
-        }`;
+            console.warn("[CareCycle] All AI engines failed or unavailable. Returning static fallback roadmap.");
+            const isCow = animal.category.toLowerCase().includes('cow') || animal.category.toLowerCase().includes('cattle');
+            const isDog = animal.category.toLowerCase().includes('dog');
+            const isCat = animal.category.toLowerCase().includes('cat');
 
-        const response = await openai.chat.completions.create({
-            model: primaryModel.modelId,
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 1500,
-            temperature: 0.1
-        });
+            let fallbackResult;
+            if (isCow) {
+                fallbackResult = {
+                    alreadyCompleted: [
+                        { name: 'FMD (Dose 1)', type: 'Core', frequencyMonths: 6, recommendationAgeWeeks: 16, description: 'Foot and Mouth Disease primary protection.' },
+                        { name: 'HS + BQ Vaccine', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 24, description: 'Combined Hemorrhagic Septicemia and Black Quarter protection.' },
+                        { name: 'Brucellosis (Heifer)', type: 'Core', frequencyMonths: 0, recommendationAgeWeeks: 32, description: 'One-time vaccination for disease control in females.' }
+                    ],
+                    futureNeeded: [
+                        { name: 'FMD Booster', type: 'Core', frequencyMonths: 6, recommendationAgeWeeks: 40, description: 'Biannual booster for herd immunity.' },
+                        { name: 'Theileriosis Vaccine', type: 'Optional', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Tick-borne disease prevention in endemic areas.' },
+                        { name: 'IBR Vaccine', type: 'Optional', frequencyMonths: 12, recommendationAgeWeeks: 26, description: 'Infectious Bovine Rhinotracheitis prevention.' }
+                    ],
+                    conclusion: `AI engines unavailable. Showing a standard vaccination roadmap for a ${animal.breed} (${animal.category}). Please consult your veterinarian for a personalized schedule.`
+                };
+            } else if (isDog) {
+                fallbackResult = {
+                    alreadyCompleted: [
+                        { name: 'Canine Distemper', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 8, description: 'Core puppy vaccination against distemper virus.' },
+                        { name: 'Parvovirus', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 8, description: 'Essential protection against canine parvovirus.' },
+                        { name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Mandatory zoonotic disease protection.' }
+                    ],
+                    futureNeeded: [
+                        { name: 'DHPP Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster for distemper, hepatitis, parainfluenza, parvovirus.' },
+                        { name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 64, description: 'Annual booster to maintain rabies immunity.' },
+                        { name: 'Leptospirosis', type: 'Optional', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Recommended for dogs exposed to wildlife or standing water.' },
+                        { name: 'Bordetella (Kennel Cough)', type: 'Optional', frequencyMonths: 6, recommendationAgeWeeks: 16, description: 'Recommended for dogs in social environments.' },
+                        { name: 'Canine Influenza', type: 'Optional', frequencyMonths: 12, recommendationAgeWeeks: 16, description: 'Protection against H3N2 and H3N8 strains.' }
+                    ],
+                    conclusion: `AI engines unavailable. Showing a standard vaccination roadmap for a ${animal.breed} (${animal.category}). Please consult your veterinarian for a personalized schedule.`
+                };
+            } else if (isCat) {
+                fallbackResult = {
+                    alreadyCompleted: [
+                        { name: 'FVRCP (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 8, description: 'Core kitten vaccine for rhinotracheitis, calicivirus, panleukopenia.' },
+                        { name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Mandatory zoonotic disease protection.' }
+                    ],
+                    futureNeeded: [
+                        { name: 'FVRCP Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster for continued feline viral protection.' },
+                        { name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 64, description: 'Annual booster to maintain immunity.' },
+                        { name: 'FeLV (Feline Leukemia)', type: 'Optional', frequencyMonths: 12, recommendationAgeWeeks: 8, description: 'Recommended for outdoor or multi-cat households.' }
+                    ],
+                    conclusion: `AI engines unavailable. Showing a standard vaccination roadmap for a ${animal.breed} (${animal.category}). Please consult your veterinarian for a personalized schedule.`
+                };
+            } else {
+                fallbackResult = {
+                    alreadyCompleted: [
+                        { name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Initial core vaccine for zoonotic protection.' }
+                    ],
+                    futureNeeded: [
+                        { name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster to maintain immunity.' }
+                    ],
+                    conclusion: `AI engines unavailable. Showing a general vaccination roadmap for a ${animal.breed} (${animal.category}). Please consult your veterinarian for a species-specific schedule.`
+                };
+            }
+            return res.json(fallbackResult);
+        }
+        // AI Response is already fetched via the Gateway/Recovery logic above.
+        // We now process the results.
 
         let result = { alreadyCompleted: [], futureNeeded: [], conclusion: '' };
         try {
@@ -838,7 +939,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
 });
 
 // @route   PUT /api/animals/:id/vaccination-schedule
-// @desc    Update animal's specific CareCycle checklist
+// @desc    Update animal's specific CareCycle checklist + Store AI Conclusion
 // @access  Private
 router.put('/:id/vaccination-schedule', auth, async (req, res) => {
     try {
@@ -849,9 +950,9 @@ router.put('/:id/vaccination-schedule', auth, async (req, res) => {
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         animal.vaccinationSchedule = req.body.schedule;
-
-        // If all core vaccines are completed, maybe auto-set vaccinated status?
-        // But let's keep it simple for now as requested.
+        if (req.body.conclusion) {
+            animal.aiConclusion = req.body.conclusion;
+        }
 
         await animal.save();
         res.json(animal);
