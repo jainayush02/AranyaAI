@@ -472,6 +472,7 @@ router.post('/:id/logs', auth, async (req, res) => {
 
         animal.status = monitorResult.status;
         animal.statusDetail = monitorResult.detail;
+        animal.activeEngine = activeEngine;
         await animal.save();
 
         // 🚀 RETURN RESPONSE IMMEDIATELY with new status

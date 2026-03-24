@@ -169,7 +169,7 @@ export default function Settings() {
             
             if (res.data.engine) {
                 setAiEngine(res.data.engine);
-                showToast(`Platform synchronized to ${res.data.engine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} logic`, 'success');
+                showToast(`Platform synchronized to ${res.data.engine === 'scientist_js' ? 'Version 2' : 'Version 1'} logic`, 'success');
             }
         } catch (err) {
             console.error("AI Engine Switch Error:", err);
@@ -439,8 +439,8 @@ export default function Settings() {
                                                     <span className={styles.toggleLabel}>Active Monitoring Engine</span>
                                                     <span className={styles.toggleDesc}>
                                                         {aiEngine === 'legacy_python' 
-                                                            ? 'Currently using V1 Core (Deterministic Logic for high consistency)' 
-                                                            : 'Currently using V2 Neural (Probabilistic Reasoning for complex diagnostics)'}
+                                                            ? 'Currently using Version 1 (Deterministic Logic for high consistency)' 
+                                                            : 'Currently using Version 2 (Probabilistic Reasoning for complex diagnostics)'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -452,9 +452,12 @@ export default function Settings() {
                                                         border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
                                                         background: aiEngine === 'legacy_python' ? '#2d5f3f' : 'transparent',
                                                         color: aiEngine === 'legacy_python' ? '#fff' : '#64748b',
-                                                        cursor: 'pointer', transition: '0.2s'
+                                                        cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '6px'
                                                     }}
-                                                >V1 Core</button>
+                                                >
+                                                    {aiEngineLoading && aiEngine !== 'legacy_python' && <Activity className="animate-spin" size={12} />}
+                                                    Version 1
+                                                </button>
                                                 <button 
                                                     onClick={() => toggleAiEngine('scientist_js')}
                                                     disabled={aiEngineLoading}
@@ -462,9 +465,12 @@ export default function Settings() {
                                                         border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800,
                                                         background: aiEngine === 'scientist_js' ? '#2d5f3f' : 'transparent',
                                                         color: aiEngine === 'scientist_js' ? '#fff' : '#64748b',
-                                                        cursor: 'pointer', transition: '0.2s'
+                                                        cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '6px'
                                                     }}
-                                                >V2 Neural</button>
+                                                >
+                                                    {aiEngineLoading && aiEngine !== 'scientist_js' && <Activity className="animate-spin" size={12} />}
+                                                    Version 2
+                                                </button>
                                             </div>
                                         </div>
                                     </section>

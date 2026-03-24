@@ -779,15 +779,6 @@ export default function AnimalProfile() {
                             <div className={styles.heroInfo}>
                                 <div className={styles.nameGroup}>
                                     <h1 className={styles.animalNamePrimary}>{animal.name}</h1>
-                                    <span className={`${styles.statusBadge} ${styles[`status${normalizeStatus(animal.status)}`]}`}>
-                                        <div className={styles.statusDot}></div>
-                                        {animal.status ? animal.status.toUpperCase() : 'UNKNOWN'}
-                                    </span>
-                                    {animal.activeEngine && (
-                                        <span className={styles.engineBadge} title="Active Monitoring Engine">
-                                            <Cpu size={12} /> {animal.activeEngine === 'scientist_js' ? 'NEURAL V2' : 'CORE V1'}
-                                        </span>
-                                    )}
                                 </div>
                                 {animal.statusDetail && (
                                     <div className={styles.neuralDiagnosis}>
