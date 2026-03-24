@@ -278,8 +278,7 @@ export default function Dashboard() {
                 <div className={styles.greetRight}>
                     <div style={{ position: 'relative' }}>
                         <button className={styles.vaxTimelineBtn} onClick={() => setIsVaxTimelineOpen(!isVaxTimelineOpen)}>
-                            <Calendar size={16} /> CareCycle
-                            {upcomingVaccines.length > 0 && <span className={styles.vaxBadge}>{upcomingVaccines.length}</span>}
+                            <Calendar size={16} /> Arion CareCycle
                         </button>
                         
                         <AnimatePresence>

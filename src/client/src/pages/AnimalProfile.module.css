@@ -1515,6 +1515,27 @@
     transform: translateY(0) scale(0.98);
 }
 
+.vxBadgeCount {
+    background: #10b981; /* Premium Emerald Green */
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 900;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px; /* Slightly squared for a modern look */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    animation: badgePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    flex-shrink: 0;
+}
+
+@keyframes badgePop {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 /* ── Vaccine Modal ── */
 .modalOverlay {
     position: fixed;
@@ -1901,6 +1922,13 @@
 .saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
+.modalActions {
+    display: flex;
+    gap: 0.75rem;
+    margin-left: auto;
+    margin-right: 1.5rem;
+}
+
 .regenerateBtn {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -1916,9 +1944,31 @@
     align-items: center;
     gap: 6px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    margin-left: auto;
-    margin-right: 1.5rem;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.resetBtn {
+    background: #ffffff;
+    border: 1px solid #fee2e2;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(239, 68, 68, 0.05);
+}
+
+.resetBtn:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    transform: translateY(-1px);
 }
 
 .regenerateBtn:hover {

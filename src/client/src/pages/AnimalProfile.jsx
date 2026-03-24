@@ -6,7 +6,7 @@ import {
     ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle,
     Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge,
     Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun, Sparkles, X, Check,
-    ShieldCheck, Syringe, CheckCircle, Circle, Cpu
+    ShieldCheck, Syringe, CheckCircle, Circle, Cpu, RotateCcw
 } from 'lucide-react';
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -152,7 +152,7 @@ export default function AnimalProfile() {
     const [submitting, setSubmitting] = useState(false);
     const [aiScore, setAiScore] = useState(null);
     const [recalculating, setRecalculating] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, confirmText: 'Confirm', type: 'primary' });
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [activeTab, setActiveTab] = useState('health'); // Options: 'health', 'vault'
     const [userProfile, setUserProfile] = useState(null);
@@ -466,15 +466,25 @@ export default function AnimalProfile() {
 
 
 
-    const handleDelete = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`/api/animals/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-            navigate('/');
-        } catch (err) {
-            console.error('Failed to delete animal', err);
-            showToast('Failed to delete animal.', 'error');
-        }
+    const handleDelete = () => {
+        setConfirmConfig({
+            isOpen: true,
+            title: "Delete Animal",
+            message: `Are you sure you want to delete ${animal?.name}? This action cannot be undone and all health records will be permanently removed.`,
+            confirmText: "Delete Now",
+            type: "danger",
+            onConfirm: async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    await axios.delete(`/api/animals/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+                    showToast('Animal deleted successfully!');
+                    navigate('/');
+                } catch (err) {
+                    console.error('Delete failed', err);
+                    showToast('Failed to delete animal.', 'error');
+                }
+            }
+        });
     };
 
     const calculateDueDate = (lastDate, frequencyMonths, dob, recommendationAgeWeeks) => {
@@ -491,13 +501,16 @@ export default function AnimalProfile() {
     };
 
     const fetchVaccineRecommendations = async (force = false) => {
-        // ── 0. Prefer existing local state or animal data if not forcing
+        // --- 0. LAZY LOADING ---
+        // If not forced AND we have data, just open the modal.
         if (!force && animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
             setVaccineSchedule(animal.vaccinationSchedule);
             setAiConclusion(animal.aiConclusion || "");
-            return setShowVaccineModal(true);
+            setShowVaccineModal(true);
+            return;
         }
 
+        // If we reach here, we need to fetch from AI
         setShowVaccineModal(true);
         setIsFetchingVaccines(true);
         try {
@@ -511,9 +524,9 @@ export default function AnimalProfile() {
             // Map both lists into one but preserve group info or just handle in UI
             const completed = alreadyCompleted.map(v => ({
                 ...v,
-                status: 'Completed',
-                lastDate: new Date().toISOString().split('T')[0],
-                dueDate: calculateDueDate(new Date().toISOString().split('T')[0], v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
+                status: 'Pending',
+                lastDate: '',
+                dueDate: calculateDueDate('', v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
                 isHistorical: true
             }));
 
@@ -565,6 +578,32 @@ export default function AnimalProfile() {
         } finally {
             setIsSavingVaccines(false);
         }
+    };
+
+    const handleResetCareCycle = async () => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Reset CareCycle',
+            message: 'Are you sure you want to completely reset the vaccination roadmap? This will clear all pending and completed vaccines for this animal.',
+            confirmText: 'Reset Now',
+            type: 'danger',
+            onConfirm: async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    const config = { headers: { Authorization: `Bearer ${token}` } };
+                    await axios.put(`/api/animals/${id}/vaccination-schedule`, {
+                        schedule: [],
+                        conclusion: ''
+                    }, config);
+                    setVaccineSchedule([]);
+                    setAiConclusion('');
+                    setAnimal(prev => ({ ...prev, vaccinationSchedule: [] }));
+                    showToast('CareCycle roadmap reset.');
+                } catch (err) {
+                    showToast('Failed to reset.', 'error');
+                }
+            }
+        });
     };
 
     const toggleVaccineStatus = (index) => {
@@ -826,7 +865,7 @@ export default function AnimalProfile() {
 
 
                             {role !== 'caretaker' && (
-                                <button onClick={() => setShowConfirm(true)} className={styles.deleteActionBtn}><Trash2 size={14} /></button>
+                                <button onClick={handleDelete} className={styles.deleteActionBtn}><Trash2 size={14} /></button>
                             )}
                         </div>
                     </div>
@@ -1154,13 +1193,8 @@ export default function AnimalProfile() {
             />
 
             <ConfirmDialog
-                isOpen={showConfirm}
-                onClose={() => setShowConfirm(false)}
-                onConfirm={handleDelete}
-                title="Delete Animal"
-                message={`Are you sure you want to delete ${animal?.name}?`}
-                confirmText="Delete permanently"
-                type="danger"
+                {...confirmConfig}
+                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
             />
 
             <AnimatePresence>
@@ -1177,9 +1211,14 @@ export default function AnimalProfile() {
                                     <h2>Arion CareCycle</h2>
                                     <p className={styles.modalSubtitle}>{animal.breed} • {vaccineSchedule.length} vaccines</p>
                                 </div>
-                                <button className={styles.regenerateBtn} onClick={handleRegenerateCareCycle} disabled={isFetchingVaccines}>
-                                    <RefreshCw size={12} /> Regenerate
-                                </button>
+                                <div className={styles.modalActions}>
+                                    <button className={styles.resetBtn} onClick={handleResetCareCycle} disabled={isFetchingVaccines || isSavingVaccines}>
+                                        <RotateCcw size={12} /> Reset
+                                    </button>
+                                    <button className={styles.regenerateBtn} onClick={handleRegenerateCareCycle} disabled={isFetchingVaccines || isSavingVaccines}>
+                                        <RefreshCw size={12} /> Regenerate
+                                    </button>
+                                </div>
                                 <button className={styles.closeModalBtn} onClick={() => setShowVaccineModal(false)}>
                                     <X size={18} />
                                 </button>

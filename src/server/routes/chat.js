@@ -6,7 +6,7 @@ const ChatMessage = require('../models/ChatMessage');
 const SystemSettings = require('../models/SystemSettings');
 const User = require('../models/User');
 const Plan = require('../models/Plan');
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 
@@ -434,6 +434,10 @@ If the question is outside animal-related topics, reply only with:
                         messages: finalMessages,
                         max_tokens: 1000
                     });
+
+                    if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
+                        throw new Error("Invalid response from primary AI");
+                    }
                 } catch (primaryErr) {
                     console.error("Primary GenAI Engine Error, falling back:", primaryErr.message);
                     useFallback = true;

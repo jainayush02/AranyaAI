@@ -10,7 +10,7 @@ const Plan = require('../models/Plan');
 const { logActivity } = require('../utils/logger');
 const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits } = require('../utils/vitalMonitor');
 const SystemSettings = require('../models/SystemSettings');
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 
 
 // NEW: Monitor Cache to maintain unique EWMA state for each animal separately
@@ -695,6 +695,9 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
         const ageYears = calculateAgeYears(animal.dob);
+        const yearsInt = Math.floor(ageYears);
+        const monthsInt = Math.round((ageYears - yearsInt) * 12);
+        const ageString = yearsInt > 0 ? `${yearsInt}y ${monthsInt}m` : `${monthsInt}m`;
 
         // Fetch AI config — exclusively from Admin Portal (ai_config_v2 in DB)
         let aiConfig = {
@@ -732,20 +735,22 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         }
 
         const rawPrompt = aiConfig.vaccinePrompt || `You are a career veterinary consultant for Arion CareCycle. 
-        Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageYears} years.
+        Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageString}.
         
-        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageYears} years):
+        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageString}):
         1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
         2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
         
-        For each vaccine include:
-        - name: Specific vaccine name.
-        - type: 'Core' or 'Optional'.
-        - frequencyMonths: Interval between doses (integer).
-        - ageRange: String representing when this is needed.
-        - clinicalCycle: String representing the recurring cycle.
-        - recommendationAgeWeeks: When it typically starts (integer).
-        - description: 1-sentence medical detail.
+        For each vaccine in both arrays, use this EXACT schema:
+        {
+          "name": "string",
+          "type": "'Core' or 'Optional'",
+          "frequencyMonths": integer,
+          "ageRange": "string",
+          "clinicalCycle": "string",
+          "recommendationAgeWeeks": integer,
+          "description": "string"
+        }
         
         CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
         
@@ -753,14 +758,15 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         {
           "alreadyCompleted": [],
           "futureNeeded": [],
-          "conclusion": "A 2-3 line summary."
+          "conclusion": "A 2-3 line medical summary."
         }`;
 
         // Perform dynamic variable substitution
         const prompt = rawPrompt
             .replace(/\${animal\.category}/g, animal.category)
             .replace(/\${animal\.breed}/g, animal.breed)
-            .replace(/\${ageYears}/g, ageYears);
+            .replace(/\${ageYears}/g, ageYears.toFixed(2))
+            .replace(/\${ageString}/g, ageString);
 
         const primaryModelObj = primaryTextModel || (vPri.models || [])[0];
         const fallbackModelObj = fallbackTextModel || (vFb.models || [])[0];
@@ -781,8 +787,9 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 response = await primaryOpenai.chat.completions.create({
                     model: pModelId,
                     messages: [{ role: "user", content: prompt }],
-                    max_tokens: 1500,
-                    temperature: 0.1
+                    max_tokens: 3000,
+                    temperature: 0.1,
+                    response_format: { type: "json_object" }
                 });
                 usedModel = pModelId;
             } catch (primaryErr) {
@@ -803,7 +810,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 response = await fallbackOpenai.chat.completions.create({
                     model: fModelId,
                     messages: [{ role: "user", content: prompt }],
-                    max_tokens: 1500,
+                    max_tokens: 2500,
                     temperature: 0.1
                 });
                 usedModel = fModelId;
@@ -814,9 +821,10 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
 
         if (!response) {
             console.warn("[CareCycle] All AI engines failed or unavailable. Returning static fallback roadmap.");
-            const isCow = animal.category.toLowerCase().includes('cow') || animal.category.toLowerCase().includes('cattle');
-            const isDog = animal.category.toLowerCase().includes('dog');
-            const isCat = animal.category.toLowerCase().includes('cat');
+            const cat = (animal.category || '').toLowerCase();
+            const isCow = cat.includes('cow') || cat.includes('cattle');
+            const isDog = cat.includes('dog');
+            const isCat = cat.includes('cat');
 
             let fallbackResult;
             if (isCow) {
@@ -879,8 +887,12 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         // We now process the results.
 
         let result = { alreadyCompleted: [], futureNeeded: [], conclusion: '' };
+        let content = '';
         try {
-            let content = response.choices[0].message.content.trim();
+            if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
+                throw new Error("Invalid AI response structure");
+            }
+            content = response.choices[0].message.content.trim();
             // Sanitize potential markdown wrap
             if (content.startsWith('```')) {
                 const lines = content.split('\n');
@@ -895,7 +907,22 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 content = content.substring(startIdx, endIdx + 1);
             }
             
+            // Standardize potential errors
+            content = content.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+            
             result = JSON.parse(content);
+
+            // POST-PARSE SANITIZATION (The "Mongoose Protection Layer")
+            const vSanitizer = (arr) => (arr || []).map(v => {
+                let t = (v.type || 'Core').toString().trim();
+                if (t === 'Required') t = 'Core';
+                if (t === 'Suggested' || t === 'Recommended') t = 'Optional';
+                return { ...v, type: t };
+            });
+
+            result.alreadyCompleted = vSanitizer(result.alreadyCompleted);
+            result.futureNeeded = vSanitizer(result.futureNeeded);
+
         } catch (parseErr) {
             console.error('Failed to parse AI recommendations. Raw content:', content);
             console.error('Parse Error:', parseErr);
@@ -940,7 +967,15 @@ router.put('/:id/vaccination-schedule', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
-        animal.vaccinationSchedule = req.body.schedule;
+        // Sanitize: map 'Required' -> 'Core' and 'Suggested' -> 'Optional' if AI went off-script
+        const sanitizedSchedule = (req.body.schedule || []).map(v => {
+            let finalizedType = v.type;
+            if (v.type === 'Required') finalizedType = 'Core';
+            if (v.type === 'Suggested' || v.type === 'Recommended') finalizedType = 'Optional';
+            return { ...v, type: finalizedType };
+        });
+
+        animal.vaccinationSchedule = sanitizedSchedule;
         if (req.body.conclusion) {
             animal.aiConclusion = req.body.conclusion;
         }

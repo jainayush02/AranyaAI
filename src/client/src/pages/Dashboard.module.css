@@ -1001,21 +1001,19 @@
 }
 
 .vaxBadge {
-    background: #ef4444;
+    background: #10b981; /* Premium Emerald Green */
     color: white;
     font-size: 0.65rem;
-    font-weight: 900;
+    font-weight: 800;
     min-width: 18px;
     height: 18px;
-    border-radius: 50%;
+    padding: 0 4px;
+    border-radius: 6px; /* Modern squared-round look */
     display: flex;
     align-items: center;
     justify-content: center;
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+    box-shadow: 0 2px 5px rgba(16, 185, 129, 0.2);
+    flex-shrink: 0;
 }
 
 .vaxDropdown {
