@@ -95,8 +95,8 @@ mongoose.connection.on('disconnected', () => {
 
 const connectDB = async () => {
     if (!process.env.MONGO_URI) {
-        console.warn("MONGO_URI not found. Starting server without database connection.");
-        return;
+        console.error("❌ CRITICAL: MONGO_URI not found in environment variables.");
+        return null;
     }
 
     // Return existing connection if healthy
@@ -104,53 +104,50 @@ const connectDB = async () => {
         return cached.conn;
     }
 
-    // If currently connecting, wait for the existing promise
+    // If currently connecting, wait for the existing promise to avoid multiple simultaneous attempts
     if (cached.promise) {
+        console.log('⏳ MongoDB: Waiting for existing connection promise...');
         try {
             cached.conn = await cached.promise;
             return cached.conn;
         } catch (err) {
             console.error('🔄 MongoDB: Existing connection promise failed, resetting...');
-            cached.promise = null; // Reset on failure
+            cached.promise = null; 
         }
     }
 
-    // Initialize new connection
-    console.log('🔄 MongoDB: Initializing connection...');
+    // Initialize new connection with serverless-optimized options
+    console.log('🔄 MongoDB: Initializing new connection...');
     const options = {
-        serverSelectionTimeoutMS: 20000, // Increased for stability on slow networks
+        serverSelectionTimeoutMS: 15000, // Timeout after 15s if no server found
         socketTimeoutMS: 45000,
-        maxPoolSize: 15,                 // Slightly higher for local concurrent requests
-        minPoolSize: 5,                  // Keep more warm connections
-        heartbeatFrequencyMS: 5000,      // Faster heartbeat to detect local drops
-        maxIdleTimeMS: 30000,            // Close idle connections to prevent stale ones
-        waitQueueTimeoutMS: 10000,
-        connectTimeoutMS: 15000
+        maxPoolSize: 10,                 // Sufficient for serverless concurrency
+        minPoolSize: 0,                  // Crucial for serverless: don't keep idle connections
+        heartbeatFrequencyMS: 10000,
+        connectTimeoutMS: 15000,
+        dbName: 'aranya_db'              // Explicitly specify DB name
     };
 
     cached.promise = mongoose.connect(process.env.MONGO_URI, options).then((m) => {
+        console.log('✅ MongoDB: Successfully established connection.');
         return m;
     }).catch((err) => {
-        console.error(`❌ MongoDB: Critical error during initial connect: ${err.message}`);
+        console.error(`❌ MongoDB: Connection Error: ${err.message}`);
+        // Log common reasons for failure on Vercel
+        if (err.message.includes('selection timeout')) {
+            console.error('👉 Tip: Check if your IP is whitelisted in MongoDB Atlas (allow 0.0.0.0/0 for Vercel).');
+        } else if (err.message.includes('authentication failed')) {
+            console.error('👉 Tip: Double check your MONGO_URI password and username.');
+        }
         cached.promise = null;
         throw err;
     });
 
     try {
         cached.conn = await cached.promise;
-
-        // Background ping for long-running processes (Localhost stability)
-        if (process.env.NODE_ENV !== 'production' && !global._pingInterval) {
-            global._pingInterval = setInterval(() => {
-                if (mongoose.connection.readyState === 1) {
-                    mongoose.connection.db.admin().ping()
-                        .catch(e => console.warn('📡 MongoDB Keep-alive ping failed'));
-                }
-            }, 30000);
-        }
-
     } catch (err) {
         cached.conn = null;
+        console.error('❌ MongoDB: Failed to await connection promise.');
     }
     return cached.conn;
 };
