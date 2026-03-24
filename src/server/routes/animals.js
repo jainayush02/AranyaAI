@@ -10,6 +10,8 @@ const Plan = require('../models/Plan');
 const { logActivity } = require('../utils/logger');
 const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits } = require('../utils/vitalMonitor');
 const SystemSettings = require('../models/SystemSettings');
+const OpenAI = require('openai');
+
 
 // NEW: Monitor Cache to maintain unique EWMA state for each animal separately
 const healthMonitors = new Map();
@@ -31,7 +33,7 @@ const imagekit = new ImageKit({
 });
 
 // Use memory storage for Buffer - Hardened for secure uploads
-const upload = multer({ 
+const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: (req, file, cb) => {
@@ -52,6 +54,44 @@ router.get('/', auth, async (req, res) => {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         const animals = await Animal.find({ user_id: ownerId }).sort({ createdAt: -1 });
         res.json(animals);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   GET /api/animals/vaccinations/upcoming
+// @desc    Get upcoming vaccines for all animals owned by user
+// @access  Private
+router.get('/vaccinations/upcoming', auth, async (req, res) => {
+    try {
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        const animals = await Animal.find({ user_id: ownerId });
+
+        let upcoming = [];
+
+        animals.forEach(animal => {
+            if (animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
+                animal.vaccinationSchedule.forEach(v => {
+                    if (v.status !== 'Completed' && v.dueDate) {
+                        upcoming.push({
+                            animalId: animal._id,
+                            animalName: animal.name,
+                            breed: animal.breed,
+                            category: animal.category,
+                            dob: animal.dob,
+                            vaccineName: v.name,
+                            dueDate: v.dueDate,
+                            type: v.type,
+                            description: v.description
+                        });
+                    }
+                });
+            }
+        });
+
+        upcoming.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        res.json(upcoming);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
@@ -81,8 +121,8 @@ router.post('/', auth, async (req, res) => {
         if (maxAnimals !== -1) { // -1 means unlimited
             const currentAnimalCount = await Animal.countDocuments({ user_id: ownerId });
             if (currentAnimalCount >= maxAnimals) {
-                return res.status(403).json({ 
-                    msg: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxAnimals} animal(s). Please upgrade your plan to add more.` 
+                return res.status(403).json({
+                    msg: `Your "${userPlan?.name || 'Free'}" plan allows only ${maxAnimals} animal(s). Please upgrade your plan to add more.`
                 });
             }
         }
@@ -191,7 +231,7 @@ router.get('/:id', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
         const ageYears = calculateAgeYears(animal.dob);
@@ -212,7 +252,7 @@ router.get('/:id/logs', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
@@ -230,11 +270,11 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         const isOwner = animal.user_id.toString() === ownerId.toString();
         const isAdmin = req.user.role === 'admin';
-        
+
         if (!isOwner && !isAdmin) return res.status(401).json({ msg: 'Not authorized' });
 
 
@@ -295,7 +335,7 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
@@ -303,8 +343,8 @@ router.post('/:id/bulk-logs', auth, async (req, res) => {
         const user = await User.findById(ownerId);
         const userPlan = await Plan.findOne({ code: user.plan, active: true });
         if (userPlan && !userPlan.allowBulkImport) {
-            return res.status(403).json({ 
-                msg: `Bulk Logistics is not included in your "${userPlan.name}" plan. Please upgrade to import logs via CSV.` 
+            return res.status(403).json({
+                msg: `Bulk Logistics is not included in your "${userPlan.name}" plan. Please upgrade to import logs via CSV.`
             });
         }
         // --- END PLAN LIMIT ENFORCEMENT ---
@@ -350,7 +390,7 @@ router.post('/:id/logs', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
@@ -379,10 +419,10 @@ router.post('/:id/logs', auth, async (req, res) => {
             if (!isNaN(hrVal)) animal.recentVitals.heartRate = hrVal;
             if (weightVal !== null && !isNaN(weightVal)) animal.recentVitals.weight = weightVal;
         } else {
-            animal.recentVitals = { 
-                temperature: !isNaN(tempVal) ? tempVal : 38.5, 
-                heartRate: !isNaN(hrVal) ? hrVal : 60, 
-                weight: (weightVal !== null && !isNaN(weightVal)) ? weightVal : undefined 
+            animal.recentVitals = {
+                temperature: !isNaN(tempVal) ? tempVal : 38.5,
+                heartRate: !isNaN(hrVal) ? hrVal : 60,
+                weight: (weightVal !== null && !isNaN(weightVal)) ? weightVal : undefined
             };
         }
 
@@ -424,12 +464,12 @@ router.post('/:id/logs', auth, async (req, res) => {
         await animal.save();
 
         // 🚀 RETURN RESPONSE IMMEDIATELY with new status
-        res.json({ 
-            log: newLog, 
-            animalStatus: monitorResult.status, 
+        res.json({
+            log: newLog,
+            animalStatus: monitorResult.status,
             detail: monitorResult.detail,
             engine: activeEngine,
-            msg: `Health log saved. ${activeEngine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} analysis complete.` 
+            msg: `Health log saved. ${activeEngine === 'scientist_js' ? 'V2 Neural' : 'V1 Core'} analysis complete.`
         });
 
         // 🧠 Non-blocking Background Tasks (streak, cleanup, alerts)
@@ -452,7 +492,7 @@ router.post('/:id/logs', auth, async (req, res) => {
                     const yesterday = new Date();
                     yesterday.setDate(today.getDate() - 1);
                     const lastLog = user.lastLogDate ? new Date(user.lastLogDate) : null;
-                    
+
                     if (!lastLog || lastLog.toDateString() !== today.toDateString()) {
                         if (!lastLog) {
                             user.streakCount = 1;
@@ -490,7 +530,7 @@ router.put('/:id/vaccination', auth, async (req, res) => {
     try {
         const animal = await Animal.findById(req.params.id);
         if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-        
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
 
@@ -570,8 +610,8 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
             const nextTotalBytes = currentTotalBytes + req.file.size;
 
             if (nextTotalBytes > maxStorageMB * 1024 * 1024) {
-                return res.status(403).json({ 
-                    msg: `Storage limit reached! Your "${userPlan?.name || 'Free'}" plan offers ${maxStorageMB} MB of storage. Please upgrade for more space.` 
+                return res.status(403).json({
+                    msg: `Storage limit reached! Your "${userPlan?.name || 'Free'}" plan offers ${maxStorageMB} MB of storage. Please upgrade for more space.`
                 });
             }
         }
@@ -594,10 +634,10 @@ router.post('/:id/records', [auth, upload.single('recordFile')], async (req, res
         });
 
         await newRecord.save();
-        
+
         // --- PRODUCTION SYNC: Atomic total storage update ---
-        await User.findByIdAndUpdate(ownerId, { 
-            $inc: { "usage.storageBytes": req.file.size } 
+        await User.findByIdAndUpdate(ownerId, {
+            $inc: { "usage.storageBytes": req.file.size }
         });
 
         await logActivity('medical_vault', req.user, `Uploaded record for animal: ${animal.name}`);
@@ -620,8 +660,8 @@ router.delete('/:id/records/:recordId', auth, async (req, res) => {
         await MedicalRecord.findByIdAndDelete(req.params.recordId);
 
         // --- PRODUCTION SYNC: Atomic total storage decrement ---
-        await User.findByIdAndUpdate(ownerId, { 
-            $inc: { "usage.storageBytes": -(record.fileSize || 0) } 
+        await User.findByIdAndUpdate(ownerId, {
+            $inc: { "usage.storageBytes": -(record.fileSize || 0) }
         });
 
         await logActivity('medical_vault', req.user, `Deleted record: ${record.title}`);
@@ -631,4 +671,112 @@ router.delete('/:id/records/:recordId', auth, async (req, res) => {
     }
 });
 
+// @route   GET /api/animals/:id/vaccine-recommendations
+// @desc    Get vaccine recommendations from AI based on breed/age/species for Arion CareCycle
+// @access  Private
+router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
+    try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        const ageYears = calculateAgeYears(animal.dob);
+
+        // Fetch AI config
+        let aiConfig = {
+            primary: {
+                provider: 'Hugging Face',
+                baseURL: 'https://router.huggingface.co/v1',
+                apiKey: process.env.HF_TOKEN || '',
+                models: [{ type: 'text', modelId: 'Qwen/Qwen2.5-7B-Instruct' }],
+                enabled: true
+            }
+        };
+
+        const dbConfig = await SystemSettings.findOne({ key: 'ai_config_v2' }).lean();
+        if (dbConfig && dbConfig.value) {
+            aiConfig = { ...aiConfig, ...dbConfig.value };
+        }
+
+        const primaryModel = aiConfig.primary.models.find(m => m.type === 'text');
+        const openai = new OpenAI({
+            apiKey: primaryModel.apiKey || aiConfig.primary.apiKey,
+            baseURL: primaryModel.baseURL || aiConfig.primary.baseURL
+        });
+
+        const prompt = `You are a career veterinary consultant for Arion CareCycle. 
+        Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageYears} years.
+        
+        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageYears} years):
+        1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
+        2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
+        
+        For each vaccine include:
+        - name: Specific vaccine name.
+        - type: 'Core' or 'Optional'.
+        - frequencyMonths: Interval between doses.
+        - ageRange: String representing when this is needed (e.g. "Birth - 16 weeks" or "Lifelong").
+        - clinicalCycle: String representing the recurring cycle (e.g. "Every 3 years" or "Annual").
+        - recommendationAgeWeeks: When it typically starts.
+        - description: 1-sentence medical detail.
+        
+        CRITICAL: Ensure 'Core' vaccines appear before 'Optional' in both lists.
+        Provide a 'conclusion' (2-3 lines) summarizing the health status for a ${ageYears} year old ${animal.breed}.
+        
+        Return ONLY a JSON object: {"alreadyCompleted": [...], "futureNeeded": [...], "conclusion": "..."}`;
+
+        const response = await openai.chat.completions.create({
+            model: primaryModel.modelId,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1200
+        });
+
+        let result = { alreadyCompleted: [], futureNeeded: [], conclusion: '' };
+        try {
+            const content = response.choices[0].message.content.trim();
+            const jsonMatch = content.match(/\{.*\}/s);
+            result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+        } catch (parseErr) {
+            console.error('Failed to parse AI recommendations:', parseErr);
+            result = {
+                alreadyCompleted: [{ name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Initial core vaccine for zoonotic protection.' }],
+                futureNeeded: [{ name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster to maintain immunity.' }],
+                conclusion: "AI sync failed. Showing general roadmap. Please consult your vet."
+            };
+        }
+
+        res.json(result);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   PUT /api/animals/:id/vaccination-schedule
+// @desc    Update animal's specific CareCycle checklist
+// @access  Private
+router.put('/:id/vaccination-schedule', auth, async (req, res) => {
+    try {
+        const animal = await Animal.findById(req.params.id);
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+
+        animal.vaccinationSchedule = req.body.schedule;
+
+        // If all core vaccines are completed, maybe auto-set vaccinated status?
+        // But let's keep it simple for now as requested.
+
+        await animal.save();
+        res.json(animal);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;
+

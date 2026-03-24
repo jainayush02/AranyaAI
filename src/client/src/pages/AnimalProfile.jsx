@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle, Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge, Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import {
+    ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle,
+    Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge,
+    Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun, Sparkles, X, Check,
+    ShieldCheck, Syringe, CheckCircle, Circle
+} from 'lucide-react';
+
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 import styles from './AnimalProfile.module.css';
@@ -13,7 +20,7 @@ import { useToast } from '../components/ToastProvider';
 const calculateLogStatus = (log, index, allLogs = [], animalLimits = null) => {
     // 🧠 TIER 1: TACTICAL INDIVIDUAL ENGINE (Row-by-Row status)
     const base = animalLimits || { min_temp_c: 37.5, max_temp_c: 39.2, min_hr: 60, max_hr: 110, min_spo2: 95, max_spo2: 100, min_rr: 10, max_rr: 30 };
-    
+
     // Scale for Activity/Ambient in the table
     let adj = { ...base };
     const activity = Number(log.activityLevel || 3);
@@ -38,7 +45,78 @@ const calculateLogStatus = (log, index, allLogs = [], animalLimits = null) => {
     return 'HEALTHY';
 };
 
+const VaccineItem = ({ v, idx, toggleVaccineStatus, handleVaccineDateChange }) => {
+    const done = v.status === 'Completed';
 
+    return (
+        <div className={styles.timelineItem}>
+            <div className={styles.timelineConnector}>
+                <div
+                    className={`${styles.timelineNode} ${done ? styles.nodeGolden : ''}`}
+                    onClick={() => toggleVaccineStatus(idx)}
+                >
+                    {done ? <ShieldCheck size={14} className={styles.goldenIcon} strokeWidth={2.5} /> : <Circle size={10} strokeWidth={3} className={styles.emptyNodeIcon} />}
+                </div>
+                <div className={styles.timelineLine}></div>
+            </div>
+
+            <div className={`${styles.careCard} ${done ? styles.careCardDone : ''}`}>
+                <div className={styles.ccHeader}>
+                    <div className={styles.ccTitleGroup}>
+                        <h4 className={styles.ccTitle}>{v.name}</h4>
+                        <span className={`${styles.ccBadge} ${v.type === 'Core' ? styles.ccBadgeCore : styles.ccBadgeOpt}`}>
+                            {v.type}
+                        </span>
+                    </div>
+                    <button
+                        className={`${styles.ccToggleBtn} ${done ? styles.ccToggleDone : ''}`}
+                        onClick={() => toggleVaccineStatus(idx)}
+                    >
+                        {done ? 'Protected' : 'Mark Protected'}
+                    </button>
+                </div>
+
+                <p className={styles.ccDesc}>{v.description}</p>
+
+                <div className={styles.ccDates}>
+                    <div className={styles.ccDateBlock}>
+                        <div className={styles.ccDateIconWrap}>
+                            <Calendar size={14} className={styles.ccDateIcon} />
+                        </div>
+                        <div className={styles.ccDateInputWrapper}>
+                            <label>Last Given</label>
+                            <input
+                                type="date"
+                                className={styles.cleanDateInput}
+                                value={v.lastDate ? new Date(v.lastDate).toISOString().split('T')[0] : ''}
+                                onChange={(e) => handleVaccineDateChange(idx, 'lastDate', e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className={styles.ccDateDivider}>
+                        <div className={styles.dashLine}></div>
+                    </div>
+
+                    <div className={styles.ccDateBlock}>
+                        <div className={styles.ccDateIconWrap}>
+                            <Calendar size={14} className={styles.ccDateIcon} />
+                        </div>
+                        <div className={styles.ccDateInputWrapper}>
+                            <label>Next Due</label>
+                            <input
+                                type="date"
+                                className={styles.cleanDateInput}
+                                value={v.dueDate ? new Date(v.dueDate).toISOString().split('T')[0] : ''}
+                                onChange={(e) => handleVaccineDateChange(idx, 'dueDate', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Normalize status string to a CSS class name suffix (e.g. 'HEALTHY' -> 'Healthy')
 const normalizeStatus = (status) => {
@@ -92,6 +170,14 @@ export default function AnimalProfile() {
     const [outsideTemp, setOutsideTemp] = useState(24.5); // Mocked live temp
     const [fetchingTemp, setFetchingTemp] = useState(false);
     const [fetchingLoc, setFetchingLoc] = useState(false);
+
+    // Arion Care Cycle States
+    const [showVaccineModal, setShowVaccineModal] = useState(false);
+    const [isFetchingVaccines, setIsFetchingVaccines] = useState(false);
+    const [vaccineSchedule, setVaccineSchedule] = useState([]);
+    const [aiConclusion, setAiConclusion] = useState('');
+    const [isSavingVaccines, setIsSavingVaccines] = useState(false);
+
 
     const handleExportCSV = () => {
         if (!healthLogs.length) return showToast("No data to export", "warning");
@@ -300,7 +386,9 @@ export default function AnimalProfile() {
                 setAnimal(animalRes.data);
                 setHealthLogs(logsRes.data);
                 setMedicalRecords(recordsRes.data);
+                setVaccineSchedule(animalRes.data.vaccinationSchedule || []);
                 setLoading(false);
+
 
                 // Fetch full limits/usage
                 try {
@@ -386,7 +474,115 @@ export default function AnimalProfile() {
         }
     };
 
+    const calculateDueDate = (lastDate, frequencyMonths, dob, recommendationAgeWeeks) => {
+        if (lastDate) {
+            const d = new Date(lastDate);
+            d.setMonth(d.getMonth() + (frequencyMonths || 12));
+            return d.toISOString().split('T')[0];
+        } else if (dob && recommendationAgeWeeks) {
+            const d = new Date(dob);
+            d.setDate(d.getDate() + (recommendationAgeWeeks * 7));
+            return d.toISOString().split('T')[0];
+        }
+        return '';
+    };
+
+    const fetchVaccineRecommendations = async (force = false) => {
+        if (vaccineSchedule.length > 0 && !force) return setShowVaccineModal(true);
+
+        setShowVaccineModal(true);
+        setIsFetchingVaccines(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`/api/animals/${id}/vaccine-recommendations`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            const { alreadyCompleted = [], futureNeeded = [], conclusion = "" } = res.data;
+
+            // Map both lists into one but preserve group info or just handle in UI
+            const completed = alreadyCompleted.map(v => ({
+                ...v,
+                status: 'Completed',
+                lastDate: new Date().toISOString().split('T')[0],
+                dueDate: calculateDueDate(new Date().toISOString().split('T')[0], v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
+                isHistorical: true
+            }));
+
+            const future = futureNeeded.map(v => ({
+                ...v,
+                status: 'Pending',
+                lastDate: '',
+                dueDate: calculateDueDate('', v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
+                isHistorical: false
+            }));
+
+            setVaccineSchedule([...completed, ...future]);
+            setAiConclusion(conclusion);
+        } catch (err) {
+            console.error('Failed to fetch recommendations', err);
+            showToast('AI could not generate recommendations right now.', 'error');
+        } finally {
+            setIsFetchingVaccines(false);
+        }
+    };
+
+    const handleRegenerateCareCycle = () => {
+        fetchVaccineRecommendations(true);
+    };
+
+    const handleSaveVaccinations = async () => {
+        setIsSavingVaccines(true);
+        try {
+            const token = localStorage.getItem('token');
+            // Sanitize: remove empty date strings to prevent Mongoose CastError
+            const sanitizedSchedule = vaccineSchedule.map(v => {
+                const item = { ...v };
+                if (!item.lastDate) delete item.lastDate;
+                if (!item.dueDate) delete item.dueDate;
+                return item;
+            });
+            const res = await axios.put(`/api/animals/${id}/vaccination-schedule`, {
+                schedule: sanitizedSchedule
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnimal(prev => ({ ...prev, vaccinationSchedule: res.data.vaccinationSchedule }));
+            showToast('Arion CareCycle updated!', 'success');
+            setShowVaccineModal(false);
+        } catch (err) {
+            console.error('Failed to save vaccination schedule', err);
+            showToast('Failed to save schedule.', 'error');
+        } finally {
+            setIsSavingVaccines(false);
+        }
+    };
+
+    const toggleVaccineStatus = (index) => {
+        const updated = [...vaccineSchedule];
+        const item = updated[index];
+        item.status = item.status === 'Completed' ? 'Pending' : 'Completed';
+        if (item.status === 'Completed' && !item.lastDate) {
+            item.lastDate = new Date().toISOString().split('T')[0];
+            item.dueDate = calculateDueDate(item.lastDate, item.frequencyMonths, animal.dob, item.recommendationAgeWeeks);
+        }
+        setVaccineSchedule(updated);
+    };
+
+    const handleVaccineDateChange = (index, field, value) => {
+        const updated = [...vaccineSchedule];
+        const item = updated[index];
+        item[field] = value;
+        if (field === 'lastDate') {
+            item.dueDate = calculateDueDate(value, item.frequencyMonths, animal.dob, item.recommendationAgeWeeks);
+            if (value) item.status = 'Completed';
+        }
+        setVaccineSchedule(updated);
+    };
+
     const handleToggleVaccination = async () => {
+
+
         try {
             const token = localStorage.getItem('token');
             const res = await axios.put(`/api/animals/${id}/vaccination`, { vaccinated: !animal.vaccinated }, { headers: { Authorization: `Bearer ${token}` } });
@@ -563,6 +759,11 @@ export default function AnimalProfile() {
                                     <button onClick={handleToggleVaccination} className={`${styles.metaPill} ${animal.vaccinated ? styles.metaPillSuccess : styles.metaPillWarning}`}>
                                         <ShieldAlert size={14} /> <span>{animal.vaccinated ? 'Fully Protected' : 'Vaccination Due'}</span>
                                     </button>
+                                    <button onClick={() => fetchVaccineRecommendations(false)} className={styles.careCyclePill}>
+                                        <Syringe size={16} /> <span>Arion CareCycle</span>
+                                    </button>
+
+
                                 </div>
                             </div>
                         </div>
@@ -592,16 +793,16 @@ export default function AnimalProfile() {
 
                         {/* Neural Data Bridge - NEW ANIMATION COMPONENT */}
                         <div className={styles.dataBridge}>
-                            <motion.div 
+                            <motion.div
                                 className={styles.dataPulse}
-                                animate={{ 
+                                animate={{
                                     left: ['-10%', '110%'],
-                                    opacity: [0, 1, 1, 0] 
+                                    opacity: [0, 1, 1, 0]
                                 }}
-                                transition={{ 
-                                    duration: 3, 
-                                    repeat: Infinity, 
-                                    ease: "linear" 
+                                transition={{
+                                    duration: 3,
+                                    repeat: Infinity,
+                                    ease: "linear"
                                 }}
                             />
                         </div>
@@ -786,10 +987,10 @@ export default function AnimalProfile() {
                                                         <td>{log.ambientTemperature ? log.ambientTemperature + '°C' : '—'}</td>
                                                         <td>{log.activityLevel || 3}/5</td>
                                                         <td>
-                                                                <span className={`${styles.statusBadge} ${styles[`status${normalizeStatus(calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits))}`]}`}>
-                                                                    <div className={styles.statusDot}></div>
-                                                                    {calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits)}
-                                                                </span>
+                                                            <span className={`${styles.statusBadge} ${styles[`status${normalizeStatus(calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits))}`]}`}>
+                                                                <div className={styles.statusDot}></div>
+                                                                {calculateLogStatus(log, healthLogs.indexOf(log), healthLogs, animal.limits)}
+                                                            </span>
 
                                                         </td>
                                                     </tr>
@@ -952,6 +1153,71 @@ export default function AnimalProfile() {
                 confirmText="Delete permanently"
                 type="danger"
             />
+
+            <AnimatePresence>
+                {showVaccineModal && (
+                    <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && setShowVaccineModal(false)}>
+                        <motion.div
+                            className={styles.vaccineModal}
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        >
+                            <div className={styles.modalHeader}>
+                                <div className={styles.modalTitleGroup}>
+                                    <h2>Arion CareCycle</h2>
+                                    <p className={styles.modalSubtitle}>{animal.breed} • {vaccineSchedule.length} vaccines</p>
+                                </div>
+                                <button className={styles.regenerateBtn} onClick={handleRegenerateCareCycle} disabled={isFetchingVaccines}>
+                                    <RefreshCw size={12} /> Regenerate
+                                </button>
+                                <button className={styles.closeModalBtn} onClick={() => setShowVaccineModal(false)}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className={styles.modalContent}>
+                                {isFetchingVaccines ? (
+                                    <div className={styles.loadingState}>
+                                        <div className={styles.loaderFlash}>
+                                            <Zap size={28} strokeWidth={2.5} />
+                                        </div>
+                                        <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>Generating CareCycle roadmap...</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Analyzing {animal.breed} lifecycle</div>
+                                    </div>
+                                ) : (
+                                    <div className={styles.vxList}>
+                                        {vaccineSchedule.length > 0 ? (
+                                            <>
+                                                {aiConclusion && (
+                                                    <div className={styles.vxBrief}>{aiConclusion}</div>
+                                                )}
+                                                {vaccineSchedule.map((v, idx) => (
+                                                    <VaccineItem
+                                                        key={`v-${idx}`} v={v} idx={idx}
+                                                        toggleVaccineStatus={toggleVaccineStatus}
+                                                        handleVaccineDateChange={handleVaccineDateChange}
+                                                    />
+                                                ))}
+                                            </>
+                                        ) : (
+                                            <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: '0.85rem' }}>No recommendations found.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className={styles.modalFooter}>
+                                <span className={styles.footerNote}>{vaccineSchedule.filter(v => v.status === 'Completed').length}/{vaccineSchedule.length} completed</span>
+                                <button className={styles.saveBtn} onClick={handleSaveVaccinations} disabled={isSavingVaccines || isFetchingVaccines}>
+                                    {isSavingVaccines ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </React.Fragment>
+
     );
 }

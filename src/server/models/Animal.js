@@ -59,6 +59,16 @@ const animalSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    vaccinationSchedule: [{
+        name: { type: String, required: true },
+        type: { type: String, enum: ['Core', 'Optional'], default: 'Core' },
+        status: { type: String, enum: ['Pending', 'Completed'], default: 'Pending' },
+        lastDate: { type: Date },
+        dueDate: { type: Date },
+        frequencyMonths: { type: Number },
+        description: { type: String },
+        dateSet: { type: Date, default: Date.now }
+    }],
     lastUpdated: {
         type: Date,
         default: Date.now

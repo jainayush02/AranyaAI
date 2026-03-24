@@ -28,6 +28,9 @@ export default function Dashboard() {
     const [adminStats, setAdminStats] = useState({ totalUsers: 0, totalAnimals: 0, criticalAnimals: 0, platformLoad: 0, newThisWeek: 0, activeToday: 0, blockedUsers: 0, proUsers: 0 });
     const [activityLog, setActivityLog] = useState([]);
     const [filterStatus, setFilterStatus] = useState('all'); // all, healthy, warning, critical
+    const [upcomingVaccines, setUpcomingVaccines] = useState([]);
+    const [isVaxTimelineOpen, setIsVaxTimelineOpen] = useState(false);
+
     const fetchAnimals = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -58,10 +61,23 @@ export default function Dashboard() {
         }
     }
 
-
+    const fetchUpcomingVaccines = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get('/api/animals/vaccinations/upcoming', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setUpcomingVaccines(res.data);
+        } catch (err) {
+            console.error('Upcoming vax fetch failed', err);
+        }
+    };
 
     useEffect(() => {
         fetchAnimals();
+        if (role !== 'admin') {
+            fetchUpcomingVaccines();
+        }
     }, [role]);
 
     const handleAddAnimal = async (newAnimalData) => {
@@ -220,7 +236,7 @@ export default function Dashboard() {
         const today = new Date();
         let years = today.getFullYear() - birthDate.getFullYear();
         let months = today.getMonth() - birthDate.getMonth();
-        
+
         if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
             years--;
             months += 12;
@@ -260,10 +276,54 @@ export default function Dashboard() {
                     </div>
                 </div>
                 <div className={styles.greetRight}>
+                    <div style={{ position: 'relative' }}>
+                        <button className={styles.vaxTimelineBtn} onClick={() => setIsVaxTimelineOpen(!isVaxTimelineOpen)}>
+                            <Calendar size={16} /> CareCycle
+                            {upcomingVaccines.length > 0 && <span className={styles.vaxBadge}>{upcomingVaccines.length}</span>}
+                        </button>
+                        
+                        <AnimatePresence>
+                            {isVaxTimelineOpen && (
+                                <motion.div 
+                                    className={styles.vaxDropdown}
+                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                >
+                                    <div className={styles.vaxDropHeader}>
+                                        <h4>Upcoming Protection</h4>
+                                        <X size={14} className={styles.closeDrop} onClick={() => setIsVaxTimelineOpen(false)} />
+                                    </div>
+                                    <div className={styles.vaxDropList}>
+                                        {upcomingVaccines.length > 0 ? (
+                                            upcomingVaccines.map((v, i) => (
+                                                <div 
+                                                    key={i} 
+                                                    className={styles.vaxDropItem}
+                                                    onClick={() => navigate(`/animal/${v.animalId}?openCareCycle=true`)}
+                                                >
+                                                    <div className={styles.vaxDropInfo}>
+                                                        <strong>{v.animalName} ({v.breed})</strong>
+                                                        <p>{v.vaccineName}</p>
+                                                    </div>
+                                                    <div className={styles.vaxDropDate}>
+                                                        {new Date(v.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className={styles.emptyVax}>No upcoming vaccines scheduled.</div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                     <button id="tour-add" className="btn-primary" onClick={() => setIsAddAnimalOpen(true)}>
                         <Plus size={16} /> Add New Aranya
                     </button>
                 </div>
+
             </header>
 
 
