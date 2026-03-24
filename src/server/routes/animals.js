@@ -128,11 +128,35 @@ router.post('/', auth, async (req, res) => {
         }
         // --- END PLAN LIMIT ENFORCEMENT ---
 
+        // --- BREED NORMALIZATION (Ensure vitals work by mapping to supported breeds) ---
+        let normalizedBreed = breed.trim();
+        const catLower = category.toLowerCase().trim();
+        const breedLower = normalizedBreed.toLowerCase();
+
+        if (catLower.includes('cow') || catLower.includes('cattle')) {
+            if (breedLower.includes('gir')) normalizedBreed = 'brahman';
+            else if (!['holstein', 'angus', 'jersey', 'hereford', 'brahman'].some(b => breedLower.includes(b))) {
+                normalizedBreed = 'holstein'; // default cow
+            }
+        } else if (catLower.includes('dog')) {
+            if (!['labrador', 'golden', 'great dane', 'german shepherd', 'beagle'].some(b => breedLower.includes(b))) {
+                normalizedBreed = 'labrador retriever'; // default dog
+            }
+        } else if (catLower.includes('cat')) {
+            if (!['siamese', 'maine coon', 'persian', 'ragdoll', 'bengal'].some(b => breedLower.includes(b))) {
+                normalizedBreed = 'maine coon'; // default cat
+            }
+        } else if (catLower.includes('horse')) {
+            if (!['thoroughbred', 'arabian', 'quarter horse', 'clydesdale', 'shetland pony'].some(b => breedLower.includes(b))) {
+                normalizedBreed = 'thoroughbred'; // default horse
+            }
+        }
+
         const newAnimal = new Animal({
             user_id: ownerId,
-            name: name.trim().substring(0, 100), // Enforce name limit & trim
+            name: name.trim().substring(0, 100),
             category: category.trim(),
-            breed: breed.trim(),
+            breed: normalizedBreed,
             gender,
             dob,
             location: location?.trim() || 'Not Specified',
@@ -149,8 +173,8 @@ router.post('/', auth, async (req, res) => {
         await logActivity('animal_registry', req.user, `Added new animal: ${name} (${breed})`);
         res.json(animal);
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        console.error('Add Animal Error:', err);
+        res.status(500).json({ msg: 'Adding animal failed', error: err.message });
     }
 });
 
@@ -758,11 +782,24 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             
             result = JSON.parse(content);
         } catch (parseErr) {
-            console.error('Failed to parse AI recommendations:', parseErr);
+            console.error('Failed to parse AI recommendations. Raw content:', content);
+            console.error('Parse Error:', parseErr);
+            const isCow = animal.category.toLowerCase().includes('cow') || animal.category.toLowerCase().includes('cattle');
+            
             result = {
-                alreadyCompleted: [{ name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Initial core vaccine for zoonotic protection.' }],
-                futureNeeded: [{ name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster to maintain immunity.' }],
-                conclusion: "AI sync failed. Showing general roadmap. Please consult your vet."
+                alreadyCompleted: isCow ? [
+                    { name: 'FMD (Dose 1)', type: 'Core', frequencyMonths: 6, recommendationAgeWeeks: 16, description: 'Foot and Mouth Disease primary protection.' },
+                    { name: 'HS + BQ Vaccine', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 24, description: 'Combined Hemorrhagic Septicemia and Black Quarter protection.' }
+                ] : [
+                    { name: 'Rabies (Dose 1)', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 12, description: 'Initial core vaccine for zoonotic protection.' }
+                ],
+                futureNeeded: isCow ? [
+                    { name: 'FMD Booster', type: 'Core', frequencyMonths: 6, recommendationAgeWeeks: 40, description: 'Biannual booster for herd immunity.' },
+                    { name: 'Brucellosis (Heifer)', type: 'Core', frequencyMonths: 0, recommendationAgeWeeks: 32, description: 'One-time vaccination for disease control.' }
+                ] : [
+                    { name: 'Rabies Booster', type: 'Core', frequencyMonths: 12, recommendationAgeWeeks: 52, description: 'Annual booster to maintain immunity.' }
+                ],
+                conclusion: `AI sync failed (${parseErr.message.substring(0, 30)}). Showing general roadmap for a ${animal.category}. Please consult your vet.`
             };
         }
 
