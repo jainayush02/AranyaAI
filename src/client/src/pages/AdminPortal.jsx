@@ -137,17 +137,17 @@ function VendorIcon({ vendor, icon, color, focused }) {
 
 function ToggleSwitch({ checked, onChange, disabled, activeColor = '#2d5f3f' }) {
     return (
-        <div 
+        <div
             onClick={() => !disabled && onChange(!checked)}
-            style={{ 
-                cursor: disabled ? 'default' : 'pointer', 
+            style={{
+                cursor: disabled ? 'default' : 'pointer',
                 opacity: disabled ? 0.6 : 1,
                 display: 'flex',
                 alignItems: 'center'
             }}
         >
-            <div 
-                style={{ 
+            <div
+                style={{
                     width: '42px',
                     height: '24px',
                     borderRadius: '24px',
@@ -160,10 +160,10 @@ function ToggleSwitch({ checked, onChange, disabled, activeColor = '#2d5f3f' }) 
                     border: `1.5px solid ${checked ? activeColor : '#edf2f7'}`
                 }}
             >
-                <motion.div 
+                <motion.div
                     animate={{ x: checked ? 18 : 0 }}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    style={{ 
+                    style={{
                         width: '18px',
                         height: '18px',
                         backgroundColor: '#fff',
@@ -179,17 +179,17 @@ function ToggleSwitch({ checked, onChange, disabled, activeColor = '#2d5f3f' }) 
 }
 
 // New internal component for AI Gateway configuration
-function AiGatewayConfig({ 
-    title, 
-    icon: Icon, 
-    config, 
-    isEditing, 
-    setAiConfig, 
-    addModel, 
-    updateModel, 
-    removeModel, 
-    toggleEngine, 
-    engineKey, 
+function AiGatewayConfig({
+    title,
+    icon: Icon,
+    config,
+    isEditing,
+    setAiConfig,
+    addModel,
+    updateModel,
+    removeModel,
+    toggleEngine,
+    engineKey,
     activeColor = "#2d5f3f",
     aiConfigSaving,
     showKey,
@@ -197,7 +197,7 @@ function AiGatewayConfig({
     s
 }) {
     if (!config) return null;
-    
+
     return (
         <div style={{ background: '#ffffff', padding: '2rem', borderRadius: '24px', border: '1.5px solid #f1f5f9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', position: 'relative', opacity: isEditing ? 1 : 0.85 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
@@ -632,7 +632,7 @@ export default function AdminPortal() {
         try {
             const r = await axios.get(`${API}/admin/config/ai`, authH());
             const data = r.data;
-            
+
             // Initialize new vaccine fields if they don't exist
             const defaultGateway = {
                 enabled: false,
@@ -644,10 +644,10 @@ export default function AdminPortal() {
             };
 
             if (!data.vaccinePrimary) {
-                data.vaccinePrimary = { 
-                    ...defaultGateway, 
-                    provider: 'Hugging Face', 
-                    baseURL: 'https://router.huggingface.co/v1' 
+                data.vaccinePrimary = {
+                    ...defaultGateway,
+                    provider: 'Hugging Face',
+                    baseURL: 'https://router.huggingface.co/v1'
                 };
             }
             if (!data.vaccineFallback) {
@@ -2128,7 +2128,7 @@ export default function AdminPortal() {
                                                                                         const next = { ...focusedUser.user.planOverrides, allowExport: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                     }}>
-                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowExport ?? false} onChange={() => {}} />
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowExport ?? false} onChange={() => { }} />
                                                                                         <span className={s.toggleLabel}>Data Export Control</span>
                                                                                     </div>
                                                                                     <div className={s.switchWrapperPremium} onClick={() => {
@@ -2136,7 +2136,7 @@ export default function AdminPortal() {
                                                                                         const next = { ...focusedUser.user.planOverrides, allowBulkImport: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                     }}>
-                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowBulkImport ?? false} onChange={() => {}} />
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowBulkImport ?? false} onChange={() => { }} />
                                                                                         <span className={s.toggleLabel}>Bulk Ingestion Access</span>
                                                                                     </div>
                                                                                     <div className={s.switchWrapperPremium} onClick={() => {
@@ -2144,7 +2144,7 @@ export default function AdminPortal() {
                                                                                         const next = { ...focusedUser.user.planOverrides, allowAdvancedAI: val };
                                                                                         setFocusedUser(prev => ({ ...prev, user: { ...prev.user, planOverrides: next } }));
                                                                                     }}>
-                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowAdvancedAI ?? false} onChange={() => {}} />
+                                                                                        <ToggleSwitch checked={focusedUser.user.planOverrides?.allowAdvancedAI ?? false} onChange={() => { }} />
                                                                                         <span className={s.toggleLabel}>Advanced LLM Models</span>
                                                                                     </div>
                                                                                 </div>
@@ -2632,13 +2632,13 @@ export default function AdminPortal() {
                                                                     <MessageSquare size={18} color="#2d5f3f" /> Chatbot AI Routing
                                                                 </div>
                                                                 <div className={s.pillTabs}>
-                                                                    <button 
+                                                                    <button
                                                                         className={`${s.pillTab} ${chatRoutingTab === 'primary' ? s.pillTabActive : ''}`}
                                                                         onClick={() => setChatRoutingTab('primary')}
                                                                     >
                                                                         <Crown size={14} /> Primary
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         className={`${s.pillTab} ${chatRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
                                                                         onClick={() => setChatRoutingTab('fallback')}
                                                                     >
@@ -2646,13 +2646,13 @@ export default function AdminPortal() {
                                                                     </button>
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             <div className={s.aiConfigSingle}>
                                                                 {chatRoutingTab === 'primary' ? (
-                                                                    <AiGatewayConfig 
-                                                                        title="" 
-                                                                        icon={Crown} 
-                                                                        config={aiConfig.primary} 
+                                                                    <AiGatewayConfig
+                                                                        title=""
+                                                                        icon={Crown}
+                                                                        config={aiConfig.primary}
                                                                         isEditing={isEditingAi}
                                                                         setAiConfig={setAiConfig}
                                                                         addModel={addModel}
@@ -2667,10 +2667,10 @@ export default function AdminPortal() {
                                                                         s={s}
                                                                     />
                                                                 ) : (
-                                                                    <AiGatewayConfig 
-                                                                        title="" 
-                                                                        icon={ShieldCheck} 
-                                                                        config={aiConfig.fallback} 
+                                                                    <AiGatewayConfig
+                                                                        title=""
+                                                                        icon={ShieldCheck}
+                                                                        config={aiConfig.fallback}
                                                                         isEditing={isEditingAi}
                                                                         setAiConfig={setAiConfig}
                                                                         addModel={addModel}
@@ -2695,13 +2695,13 @@ export default function AdminPortal() {
                                                                     <Activity size={18} color="#8b5cf6" /> Vaccination AI Routing
                                                                 </div>
                                                                 <div className={s.pillTabs}>
-                                                                    <button 
+                                                                    <button
                                                                         className={`${s.pillTab} ${vaxRoutingTab === 'primary' ? s.pillTabActive : ''}`}
                                                                         onClick={() => setVaxRoutingTab('primary')}
                                                                     >
                                                                         <Zap size={14} /> Primary
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         className={`${s.pillTab} ${vaxRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
                                                                         onClick={() => setVaxRoutingTab('fallback')}
                                                                     >
@@ -2712,10 +2712,10 @@ export default function AdminPortal() {
 
                                                             <div className={s.aiConfigSingle}>
                                                                 {vaxRoutingTab === 'primary' ? (
-                                                                    <AiGatewayConfig 
-                                                                        title="" 
-                                                                        icon={Zap} 
-                                                                        config={aiConfig.vaccinePrimary} 
+                                                                    <AiGatewayConfig
+                                                                        title=""
+                                                                        icon={Zap}
+                                                                        config={aiConfig.vaccinePrimary}
                                                                         isEditing={isEditingAi}
                                                                         setAiConfig={setAiConfig}
                                                                         addModel={addModel}
@@ -2730,10 +2730,10 @@ export default function AdminPortal() {
                                                                         s={s}
                                                                     />
                                                                 ) : (
-                                                                    <AiGatewayConfig 
-                                                                        title="" 
-                                                                        icon={ShieldAlert} 
-                                                                        config={aiConfig.vaccineFallback} 
+                                                                    <AiGatewayConfig
+                                                                        title=""
+                                                                        icon={ShieldAlert}
+                                                                        config={aiConfig.vaccineFallback}
                                                                         isEditing={isEditingAi}
                                                                         setAiConfig={setAiConfig}
                                                                         addModel={addModel}
@@ -2765,47 +2765,43 @@ export default function AdminPortal() {
                                                     initial={{ scale: 0.9, opacity: 0, y: 20 }}
                                                     animate={{ scale: 1, opacity: 1, y: 0 }}
                                                     exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                                    style={{ width: '1000px', maxWidth: '95vw', height: '85vh' }}
+                                                    style={{ width: '90%', maxWidth: '1100px', height: '85vh' }}
                                                 >
-                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(to right, #ffffff, #f8fafc)' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                            <div style={{ width: 40, height: 40, borderRadius: '12px', background: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <FileText size={20} color="#8b5cf6" />
-                                                            </div>
-                                                            <div>
-                                                                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.1rem' }}>Edit System Instructions</div>
-                                                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Global AI personality and feature logic</div>
-                                                            </div>
+                                                    <button
+                                                        onClick={() => setShowPromptModal(false)}
+                                                        style={{
+                                                            position: 'absolute', top: '20px', right: '20px', zIndex: 50,
+                                                            width: 32, height: 32, borderRadius: '50%', background: '#f8fafc',
+                                                            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                                                            justifyContent: 'center', color: '#64748b', transition: '0.2s',
+                                                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                                                        }}
+                                                        onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                                                        onMouseOut={e => e.currentTarget.style.background = '#f8fafc'}
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+
+                                                    <div style={{ padding: '1.5rem 2rem 1rem 2rem', background: '#ffffff', display: 'flex' }}>
+                                                        <div className={s.pillTabs}>
+                                                            <button
+                                                                className={`${s.pillTab} ${promptTab === 'persona' || promptTab === 'assistant' ? s.pillTabActive : ''}`}
+                                                                onClick={() => setPromptTab('assistant')}
+                                                            >
+                                                                <MessageSquare size={16} />
+                                                                Assistant Persona
+                                                            </button>
+                                                            <button
+                                                                className={`${s.pillTab} ${promptTab === 'vaccine' ? s.pillTabActive : ''}`}
+                                                                onClick={() => setPromptTab('vaccine')}
+                                                            >
+                                                                <Shield size={16} />
+                                                                Vaccination Roadmap
+                                                            </button>
                                                         </div>
-                                                        <button onClick={() => setShowPromptModal(false)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', transition: '0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#e2e8f0'} onMouseOut={e => e.currentTarget.style.background = '#f1f5f9'}><X size={18} /></button>
                                                     </div>
 
-                                                    <div style={{ padding: '0.75rem 2rem', borderBottom: '1px solid #f1f5f9', background: '#fff', display: 'flex', gap: '1.5rem' }}>
-                                                        <button 
-                                                            onClick={() => setPromptTab('assistant')}
-                                                            style={{ 
-                                                                padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer',
-                                                                color: promptTab === 'assistant' ? '#8b5cf6' : '#94a3b8',
-                                                                borderBottom: promptTab === 'assistant' ? '2px solid #8b5cf6' : '2px solid transparent',
-                                                                transition: '0.2s'
-                                                            }}
-                                                        >
-                                                            Assistant Persona
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setPromptTab('vaccine')}
-                                                            style={{ 
-                                                                padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontWeight: 700, border: 'none', background: 'none', cursor: 'pointer',
-                                                                color: promptTab === 'vaccine' ? '#8b5cf6' : '#94a3b8',
-                                                                borderBottom: promptTab === 'vaccine' ? '2px solid #8b5cf6' : '2px solid transparent',
-                                                                transition: '0.2s'
-                                                            }}
-                                                        >
-                                                            Vaccination Roadmap
-                                                        </button>
-                                                    </div>
-
-                                                    <div style={{ flex: 1, padding: '2rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    <div style={{ flex: 1, padding: '1.25rem 2rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                             <label className={s.inputLabel} style={{ fontSize: '0.85rem' }}>
                                                                 {promptTab === 'assistant' ? 'Global Chatbot Guardrails' : 'Medical Logic & JSON Structure'}
@@ -2815,9 +2811,9 @@ export default function AdminPortal() {
                                                         <textarea
                                                             className={s.premiumTextarea}
                                                             value={promptTab === 'assistant' ? aiConfig.systemPrompt : (aiConfig.vaccinePrompt || '')}
-                                                            onChange={e => setAiConfig(p => ({ 
-                                                                ...p, 
-                                                                [promptTab === 'assistant' ? 'systemPrompt' : 'vaccinePrompt']: e.target.value 
+                                                            onChange={e => setAiConfig(p => ({
+                                                                ...p,
+                                                                [promptTab === 'assistant' ? 'systemPrompt' : 'vaccinePrompt']: e.target.value
                                                             }))}
                                                             placeholder={promptTab === 'assistant' ? "Define rules, tone, and clinical protocols..." : "Specify how vaccines should be categorized and formatted..."}
                                                             style={{ flex: 1, fontFamily: promptTab === 'vaccine' ? 'monospace' : 'inherit' }}
@@ -2829,7 +2825,7 @@ export default function AdminPortal() {
                                                         )}
                                                     </div>
 
-                                                    <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                                                    <div style={{ padding: '1rem 2rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                                                         <button className={`${s.premiumButton} ${s.btnSecondary}`} onClick={() => setShowPromptModal(false)}>
                                                             Discard Changes
                                                         </button>

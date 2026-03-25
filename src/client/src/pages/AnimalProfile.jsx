@@ -53,7 +53,6 @@ const VaccineItem = ({ v, idx, toggleVaccineStatus, handleVaccineDateChange }) =
             <div className={styles.timelineConnector}>
                 <div
                     className={`${styles.timelineNode} ${done ? styles.nodeGolden : ''}`}
-                    onClick={() => toggleVaccineStatus(idx)}
                 >
                     {done ? <ShieldCheck size={14} className={styles.goldenIcon} strokeWidth={2.5} /> : <Circle size={10} strokeWidth={3} className={styles.emptyNodeIcon} />}
                 </div>
@@ -62,55 +61,83 @@ const VaccineItem = ({ v, idx, toggleVaccineStatus, handleVaccineDateChange }) =
 
             <div className={`${styles.careCard} ${done ? styles.careCardDone : ''}`}>
                 <div className={styles.ccHeader}>
-                    <div className={styles.ccTitleGroup}>
-                        <h4 className={styles.ccTitle}>{v.name}</h4>
-                        <span className={`${styles.ccBadge} ${v.type === 'Core' ? styles.ccBadgeCore : styles.ccBadgeOpt}`}>
-                            {v.type}
-                        </span>
+                    <div className={styles.ccTitleWrapper}>
+                        <div className={styles.ccTitleGroup}>
+                            <h4 className={styles.ccTitle}>{v.name}</h4>
+                            <span className={`${styles.ccBadge} ${v.type === 'Core' ? styles.ccBadgeCore : styles.ccBadgeOpt}`}>
+                                {v.type}
+                            </span>
+                        </div>
                     </div>
-                    <button
-                        className={`${styles.ccToggleBtn} ${done ? styles.ccToggleDone : ''}`}
-                        onClick={() => toggleVaccineStatus(idx)}
-                    >
-                        {done ? 'Protected' : 'Mark Protected'}
-                    </button>
+
+                    <label className={styles.ccCheckboxContainer}>
+                        <input
+                            type="checkbox"
+                            checked={done}
+                            onChange={() => toggleVaccineStatus(idx)}
+                            className={styles.ccHiddenCheckbox}
+                        />
+                        <div className={`${styles.ccCustomCheckbox} ${done ? styles.ccChecked : ''}`}>
+                            {done ? <Check size={14} strokeWidth={3} /> : null}
+                        </div>
+                    </label>
                 </div>
 
                 <p className={styles.ccDesc}>{v.description}</p>
 
                 <div className={styles.ccDates}>
-                    <div className={styles.ccDateBlock}>
-                        <div className={styles.ccDateIconWrap}>
-                            <Calendar size={14} className={styles.ccDateIcon} />
+                    <div className={styles.ccDateGroup}>
+                        <div className={styles.ccDateBlock}>
+                            <div className={styles.ccDateIconWrap}>
+                                <Calendar size={14} className={styles.ccDateIcon} />
+                            </div>
+                            <div className={styles.ccDateInputWrapper}>
+                                <label>Last Given</label>
+                                <input
+                                    type="date"
+                                    className={styles.cleanDateInput}
+                                    value={v.lastDate ? new Date(v.lastDate).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => handleVaccineDateChange(idx, 'lastDate', e.target.value)}
+                                />
+                            </div>
                         </div>
-                        <div className={styles.ccDateInputWrapper}>
-                            <label>Last Given</label>
-                            <input
-                                type="date"
-                                className={styles.cleanDateInput}
-                                value={v.lastDate ? new Date(v.lastDate).toISOString().split('T')[0] : ''}
-                                onChange={(e) => handleVaccineDateChange(idx, 'lastDate', e.target.value)}
-                            />
+
+
+                        <div className={styles.ccDateBlock}>
+                            <div className={styles.ccDateIconWrap}>
+                                <Calendar size={14} className={styles.ccDateIcon} />
+                            </div>
+                            <div className={styles.ccDateInputWrapper}>
+                                <label>Next Due</label>
+                                <span className={styles.ccDateDisplay}>
+                                    {v.dueDate ? (() => {
+                                        const d = new Date(v.dueDate);
+                                        return `${d.getDate()} ${d.toLocaleDateString('en-IN', { month: 'short' })}, ${d.getFullYear().toString().slice(-2)}`;
+                                    })() : '—'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className={styles.ccDateDivider}>
-                        <div className={styles.dashLine}></div>
-                    </div>
-
-                    <div className={styles.ccDateBlock}>
-                        <div className={styles.ccDateIconWrap}>
-                            <Calendar size={14} className={styles.ccDateIcon} />
-                        </div>
-                        <div className={styles.ccDateInputWrapper}>
-                            <label>Next Due</label>
-                            <input
-                                type="date"
-                                className={styles.cleanDateInput}
-                                value={v.dueDate ? new Date(v.dueDate).toISOString().split('T')[0] : ''}
-                                onChange={(e) => handleVaccineDateChange(idx, 'dueDate', e.target.value)}
-                            />
-                        </div>
+                    <div className={styles.ccInfoPills}>
+                        {(v.frequencyLabel || v.isOneTime || v.frequencyMonths) && (
+                            <span className={styles.ccFreqPill}>
+                                <RefreshCw size={10} /> {
+                                    v.frequencyLabel || (
+                                        v.isOneTime ? 'PROTECTED' : (
+                                            v.frequencyMonths >= 12 && v.frequencyMonths % 12 === 0
+                                                ? `Every ${v.frequencyMonths / 12} ${v.frequencyMonths / 12 === 1 ? 'Year' : 'Years'}`
+                                                : `Every ${v.frequencyMonths || 12} Months`
+                                        )
+                                    )
+                                }
+                            </span>
+                        )}
+                        {v.ageRangeLabel && (
+                            <span className={styles.ccAgePill}>
+                                <Clock size={10} /> {v.ageRangeLabel}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -487,13 +514,17 @@ export default function AnimalProfile() {
         });
     };
 
-    const calculateDueDate = (lastDate, frequencyMonths, dob, recommendationAgeWeeks) => {
+    const calculateDueDate = (v, lastDateValue) => {
+        const { frequencyMonths, recommendationAgeWeeks, isOneTime } = v;
+        const lastDate = lastDateValue || v.lastDate;
+
+        if (isOneTime && lastDate) return '';
         if (lastDate) {
             const d = new Date(lastDate);
             d.setMonth(d.getMonth() + (frequencyMonths || 12));
             return d.toISOString().split('T')[0];
-        } else if (dob && recommendationAgeWeeks) {
-            const d = new Date(dob);
+        } else if (animal.dob && recommendationAgeWeeks) {
+            const d = new Date(animal.dob);
             d.setDate(d.getDate() + (recommendationAgeWeeks * 7));
             return d.toISOString().split('T')[0];
         }
@@ -522,23 +553,30 @@ export default function AnimalProfile() {
             const { alreadyCompleted = [], futureNeeded = [], conclusion = "" } = res.data;
 
             // Map both lists into one but preserve group info or just handle in UI
-            const completed = alreadyCompleted.map(v => ({
-                ...v,
-                status: 'Pending',
-                lastDate: '',
-                dueDate: calculateDueDate('', v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
-                isHistorical: true
-            }));
+            const completed = alreadyCompleted.map(v => {
+                const suggestedDate = new Date(animal.dob);
+                suggestedDate.setDate(suggestedDate.getDate() + (v.recommendationAgeWeeks * 7));
+                const lastDateStr = suggestedDate.toISOString().split('T')[0];
+                return {
+                    ...v,
+                    status: 'Completed',
+                    lastDate: lastDateStr,
+                    dueDate: calculateDueDate(v, lastDateStr),
+                    isHistorical: true
+                };
+            });
 
             const future = futureNeeded.map(v => ({
                 ...v,
                 status: 'Pending',
                 lastDate: '',
-                dueDate: calculateDueDate('', v.frequencyMonths, animal.dob, v.recommendationAgeWeeks),
+                dueDate: calculateDueDate(v, ''),
                 isHistorical: false
             }));
 
-            setVaccineSchedule([...completed, ...future]);
+            const allVaccines = [...completed, ...future].sort((a, b) => (a.recommendationAgeWeeks || 0) - (b.recommendationAgeWeeks || 0));
+
+            setVaccineSchedule(allVaccines);
             setAiConclusion(conclusion);
         } catch (err) {
             console.error('Failed to fetch recommendations', err);
@@ -612,7 +650,7 @@ export default function AnimalProfile() {
         item.status = item.status === 'Completed' ? 'Pending' : 'Completed';
         if (item.status === 'Completed' && !item.lastDate) {
             item.lastDate = new Date().toISOString().split('T')[0];
-            item.dueDate = calculateDueDate(item.lastDate, item.frequencyMonths, animal.dob, item.recommendationAgeWeeks);
+            item.dueDate = calculateDueDate(item, item.lastDate);
         }
         setVaccineSchedule(updated);
     };
@@ -622,7 +660,7 @@ export default function AnimalProfile() {
         const item = updated[index];
         item[field] = value;
         if (field === 'lastDate') {
-            item.dueDate = calculateDueDate(value, item.frequencyMonths, animal.dob, item.recommendationAgeWeeks);
+            item.dueDate = calculateDueDate(item, value);
             if (value) item.status = 'Completed';
         }
         setVaccineSchedule(updated);

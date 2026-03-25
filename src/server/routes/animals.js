@@ -304,7 +304,7 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
             // Default: Route to New Scientific JS Brain
             const reanalyzeMonitor = new MLEngineeredMonitor();
             // Process logs in chronological order to build up EWMA state
-            const chronologicalLogs = [...logs].reverse(); 
+            const chronologicalLogs = [...logs].reverse();
             for (const log of chronologicalLogs) {
                 const rawVitals = {
                     hr: parseFloat(log.heartRate) || 70,
@@ -327,11 +327,11 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
             await animal.save();
         }
 
-        res.json({ 
-            animalStatus: animal.status, 
-            detail: animal.statusDetail, 
-            aiErrorScore: animal.aiErrorScore, 
-            engine: activeEngine 
+        res.json({
+            animalStatus: animal.status,
+            detail: animal.statusDetail,
+            aiErrorScore: animal.aiErrorScore,
+            engine: activeEngine
         });
     } catch (err) {
         console.error("Reanalyze Error:", err);
@@ -724,7 +724,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         // ── 1. Determine model mapping ──
         const primaryTextModel = (vPri.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
         const fallbackTextModel = (vFb.models || []).find(m => m.type === 'text' || m.type === 'text+vision');
-        
+
         // ── 0. Lazy AI Logic: Only run LLM if forced or schedule empty ──
         const forceRefresh = req.query.force === 'true';
         if (!forceRefresh && animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
@@ -738,7 +738,10 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         const rawPrompt = aiConfig.vaccinePrompt || `You are a career veterinary consultant for Arion CareCycle. 
         Analyze a ${animal.category} of breed ${animal.breed} and current age ${ageString}.
         
-        Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (${ageString}):
+        Generate a comprehensive lifecycle vaccination roadmap from birth till current age and future needs. 
+        SORT the vaccines by age (from birth to current age then future age).
+        
+        Divide the vaccines into two categories based on the animal's current age (${ageString}):
         1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
         2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
         
@@ -747,10 +750,13 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
           "name": "string",
           "type": "'Core' or 'Optional'",
           "frequencyMonths": integer,
+          "frequencyLabel": "string (e.g., 'Every 3 years', 'Every 2 weeks', or 'Lifetime' for one-time vaccines)",
           "ageRange": "string",
+          "ageRangeLabel": "string (e.g., '2-3 weeks', 'Birth', or '1-2 years')",
           "clinicalCycle": "string",
-          "recommendationAgeWeeks": integer,
-          "description": "string"
+          "recommendationAgeWeeks": integer (Exact age in weeks for initial dose/recommendation),
+          "description": "string",
+          "isOneTime": boolean
         }
         
         CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
@@ -901,16 +907,16 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
                 if (lines[lines.length - 1].includes('```')) lines.pop();
                 content = lines.join('\n').trim();
             }
-            
+
             const startIdx = content.indexOf('{');
             const endIdx = content.lastIndexOf('}');
             if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
                 content = content.substring(startIdx, endIdx + 1);
             }
-            
+
             // Standardize potential errors
             content = content.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
-            
+
             result = JSON.parse(content);
 
             // POST-PARSE SANITIZATION (The "Mongoose Protection Layer")
@@ -928,7 +934,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             console.error('Failed to parse AI recommendations. Raw content:', content);
             console.error('Parse Error:', parseErr);
             const isCow = animal.category.toLowerCase().includes('cow') || animal.category.toLowerCase().includes('cattle');
-            
+
             result = {
                 alreadyCompleted: isCow ? [
                     { name: 'FMD (Dose 1)', type: 'Core', frequencyMonths: 6, recommendationAgeWeeks: 16, description: 'Foot and Mouth Disease primary protection.' },
@@ -949,10 +955,10 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error("Recommendation Fetch Error:", err);
-        res.status(500).json({ 
-            msg: 'AI recommendations failed', 
+        res.status(500).json({
+            msg: 'AI recommendations failed',
             error: err.message,
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         });
     }
 });
@@ -998,7 +1004,7 @@ router.get('/weather/:location', async (req, res) => {
         const { location } = req.params;
         const targetHost = 'wttr.in';
         const sanitizedLoc = encodeURIComponent(location);
-        
+
         // Call wttr.in bypassing browser CORS
         const response = await axios.get(`https://${targetHost}/${sanitizedLoc}?format=j1`, { timeout: 8000 });
         res.json(response.data);

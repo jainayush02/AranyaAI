@@ -306,7 +306,10 @@ export default function Dashboard() {
                                                         <p>{v.vaccineName}</p>
                                                     </div>
                                                     <div className={styles.vaxDropDate}>
-                                                        {new Date(v.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                        {(() => {
+                                                            const d = new Date(v.dueDate);
+                                                            return `${d.getDate()} ${d.toLocaleDateString('en-IN', { month: 'short' })}, ${d.getFullYear().toString().slice(-2)}`;
+                                                        })()}
                                                     </div>
                                                 </div>
                                             ))

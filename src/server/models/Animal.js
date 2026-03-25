@@ -74,6 +74,9 @@ const animalSchema = new mongoose.Schema({
         lastDate: { type: Date },
         dueDate: { type: Date },
         frequencyMonths: { type: Number },
+        frequencyLabel: { type: String },
+        ageRangeLabel: { type: String },
+        isOneTime: { type: Boolean, default: false },
         description: { type: String },
         dateSet: { type: Date, default: Date.now }
     }],
