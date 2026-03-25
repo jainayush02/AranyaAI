@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Mail, Lock, User, Phone,
     Twitter, Linkedin, Facebook, Youtube, Github,
-    ChevronRight, ArrowRight, ShieldCheck, Zap, BarChart3,
-    CheckCircle2, Activity, TrendingUp, Eye, EyeOff
+    ChevronRight, ArrowRight, ShieldCheck, Scan, MessageSquare,
+    Activity, Shield, Eye, EyeOff, CheckCircle, Sparkles, Zap,
+    Clock, Star, HardDrive, Syringe
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -21,48 +22,6 @@ const GoogleIcon = () => (
     </svg>
 );
 
-/* ── Carousel data ── */
-const FEATURES = [
-    {
-        icon: BarChart3,
-        title: 'Advanced AI Diagnostics',
-        desc: 'Real-time vitals tracking with 99.2% diagnostic accuracy across 50K+ animals',
-        stat: '99.2%',
-        color: '#22c55e',
-        tag: 'HEALTH AI',
-    },
-    {
-        icon: Zap,
-        title: 'Real-time IoT Sync',
-        desc: 'Live sensor-to-cloud streaming with sub-10ms latency — zero data gaps',
-        stat: '<10ms',
-        color: '#f59e0b',
-        tag: 'LOW LATENCY',
-    },
-    {
-        icon: ShieldCheck,
-        title: 'Predictive Diagnostics',
-        desc: 'Detect critical illness 72 hours before visible symptoms appear',
-        stat: '72hrs early',
-        color: '#3b82f6',
-        tag: 'PREDICTIVE',
-    },
-    {
-        icon: TrendingUp,
-        title: 'Yield Intelligence',
-        desc: 'AI-driven breeding & feed optimization boosting farm yield by up to 31%',
-        stat: '+31% yield',
-        color: '#a78bfa',
-        tag: 'OPTIMIZATION',
-    },
-];
-
-const STATS = [
-    { value: '50K+', label: 'Animals Monitored' },
-    { value: '500+', label: 'Partner Farms' },
-    { value: '99.9%', label: 'Uptime SLA' },
-];
-
 const COUNTRY_CODES = [
     { code: '+91', label: 'IN (+91)', flag: '🇮🇳' },
     { code: '+1', label: 'US (+1)', flag: '🇺🇸' },
@@ -75,10 +34,17 @@ const COUNTRY_CODES = [
     { code: '+65', label: 'SG (+65)', flag: '🇸🇬' },
 ];
 
-const CAROUSEL_INTERVAL = 4200;
-
-// Dynamic API URL for mobile/network testing
 const API_BASE_URL = `/api/auth`;
+
+/* ── Animation variants ── */
+const stagger = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.15 } }
+};
+const fadeUp = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.25, 0.8, 0.25, 1] } }
+};
 
 export default function Login() {
     const [isSignUp, setIsSignUp] = useState(false);
@@ -95,14 +61,11 @@ export default function Login() {
     const [isLoading, setIsLoading] = useState(false);
     const [loginType, setLoginType] = useState('email');
     const [showOTP, setShowOTP] = useState(false);
-    const [activeFeature, setActiveFeature] = useState(0);
     const [resendTimer, setResendTimer] = useState(0);
     const [expireTimer, setExpireTimer] = useState(0);
-    const [showStatus, setShowStatus] = useState(false);
-    const [statusMsg, setStatusMsg] = useState('');
 
     // Forgot password states
-    const [resetStep, setResetStep] = useState(1); // 1 = enter email, 2 = enter OTP + new password
+    const [resetStep, setResetStep] = useState(1);
     const [newPassword, setNewPassword] = useState('');
     const [resetResendTimer, setResetResendTimer] = useState(0);
     const [resetExpireTimer, setResetExpireTimer] = useState(0);
@@ -113,41 +76,18 @@ export default function Login() {
     const [adminResetStep, setAdminResetStep] = useState(1);
 
     const navigate = useNavigate();
-    const timerRef = useRef(null);
 
-    /* Auto-advance carousel */
-    const startCarousel = () => {
-        timerRef.current = setInterval(() =>
-            setActiveFeature(p => (p + 1) % FEATURES.length), CAROUSEL_INTERVAL
-        );
-    };
-    useEffect(() => {
-        startCarousel();
-        return () => clearInterval(timerRef.current);
-    }, []);
-
-    /* Handlers for OTP and Expiry Timers */
+    /* Timer logic */
     useEffect(() => {
         let interval = null;
         if (resendTimer > 0 || expireTimer > 0 || resetResendTimer > 0 || resetExpireTimer > 0) {
             interval = setInterval(() => {
                 if (resendTimer > 0) setResendTimer(prev => prev - 1);
                 if (resetResendTimer > 0) setResetResendTimer(prev => prev - 1);
-                if (expireTimer > 0) {
-                    setExpireTimer(prev => {
-                        if (prev === 1) {
-                            setStatusMsg('Security code has expired.');
-                            setShowStatus(true);
-                            setTimeout(() => setShowStatus(false), 4000);
-                        }
-                        return prev - 1;
-                    });
-                }
+                if (expireTimer > 0) setExpireTimer(prev => prev - 1);
                 if (resetExpireTimer > 0) {
                     setResetExpireTimer(prev => {
-                        if (prev === 1) {
-                            setError('Reset code has expired. Please request a new one.');
-                        }
+                        if (prev === 1) setError('Reset code has expired. Please request a new one.');
                         return prev - 1;
                     });
                 }
@@ -156,62 +96,44 @@ export default function Login() {
         return () => clearInterval(interval);
     }, [resendTimer, expireTimer, resetResendTimer, resetExpireTimer]);
 
-    const pickFeature = (i) => {
-        clearInterval(timerRef.current);
-        setActiveFeature(i);
-        startCarousel();
+    const resetState = () => {
+        setError(''); setSuccessMsg(''); setShowOTP(false); setOtp('');
+        setResetStep(1); setNewPassword(''); setResetResendTimer(0);
+        setResetExpireTimer(0); setIsAdminForgot(false); setAdminResetStep(1);
     };
 
-    /* Google Login Handler — USER portal */
+    /* Google Login — User */
     const handleGoogleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
-            setIsLoading(true);
-            setError('');
+            setIsLoading(true); setError('');
             try {
-                const res = await axios.post(`${API_BASE_URL}/google`, {
-                    accessToken: tokenResponse.access_token
-                });
+                const res = await axios.post(`${API_BASE_URL}/google`, { accessToken: tokenResponse.access_token });
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
-                setSuccessMsg('Signed in successfully with Google!');
                 window.location.href = '/';
             } catch (err) {
-                setError(err.response?.data?.message || 'Google authentication failed. Please try again.');
-            } finally {
-                setIsLoading(false);
-            }
+                setError(err.response?.data?.message || 'Google authentication failed.');
+            } finally { setIsLoading(false); }
         },
         onError: () => setError('Google sign-in was unsuccessful. Please try again.')
     });
 
-    /* Google Login Handler — ADMIN portal */
+    /* Google Login — Admin */
     const handleGoogleAdminLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
-            setIsLoading(true);
-            setError('');
+            setIsLoading(true); setError('');
             try {
-                const res = await axios.post(`${API_BASE_URL}/google-admin`, {
-                    accessToken: tokenResponse.access_token
-                });
-                if (res.data.user?.role !== 'admin') {
-                    setError('Unauthorized. Only admin accounts can access this portal.');
-                    setIsLoading(false);
-                    return;
-                }
+                const res = await axios.post(`${API_BASE_URL}/google-admin`, { accessToken: tokenResponse.access_token });
+                if (res.data.user?.role !== 'admin') { setError('Unauthorized. Only admin accounts.'); setIsLoading(false); return; }
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
-                setSuccessMsg('Admin authenticated via Google!');
                 window.location.href = '/';
             } catch (err) {
-                setError(err.response?.data?.message || 'Unauthorized. Only admin accounts can access this portal.');
-            } finally {
-                setIsLoading(false);
-            }
+                setError(err.response?.data?.message || 'Admin Google auth failed.');
+            } finally { setIsLoading(false); }
         },
-        onError: () => setError('Google sign-in was unsuccessful. Please try again.')
+        onError: () => setError('Google sign-in was unsuccessful.')
     });
-
-    const resetState = () => { setError(''); setSuccessMsg(''); setShowOTP(false); setOtp(''); setResetStep(1); setNewPassword(''); setResetResendTimer(0); setResetExpireTimer(0); setIsAdminForgot(false); setAdminResetStep(1); };
 
     /* OTP request */
     const handleRequestOTP = async () => {
@@ -226,9 +148,7 @@ export default function Login() {
             setShowOTP(true);
             setResendTimer(60);
             setExpireTimer(60);
-            setStatusMsg('New verification code sent successfully.');
-            setShowStatus(true);
-            setTimeout(() => setShowStatus(false), 3000);
+            setSuccessMsg('Verification code sent!');
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to send OTP');
         } finally { setIsLoading(false); }
@@ -238,78 +158,52 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault(); setIsLoading(true); setError(''); setSuccessMsg('');
 
+        // User forgot password
         if (isForgotPassword) {
             if (resetStep === 1) {
-                // Step 1: Request OTP
                 try {
                     const res = await axios.post(`${API_BASE_URL}/forgot-password/request`, { email });
                     setSuccessMsg(res.data.message);
-                    setResetStep(2);
-                    setResetResendTimer(60);
-                    setResetExpireTimer(90);
-                } catch (err) {
-                    setError(err.response?.data?.message || 'Failed to send reset code.');
-                } finally { setIsLoading(false); }
+                    setResetStep(2); setResetResendTimer(60); setResetExpireTimer(90);
+                } catch (err) { setError(err.response?.data?.message || 'Failed to send reset code.'); }
+                finally { setIsLoading(false); }
                 return;
             } else {
-                // Step 2: Verify OTP + Reset Password
                 try {
-                    const res = await axios.post(`${API_BASE_URL}/forgot-password/reset`, {
-                        email,
-                        otp,
-                        newPassword
-                    });
+                    const res = await axios.post(`${API_BASE_URL}/forgot-password/reset`, { email, otp, newPassword });
                     setSuccessMsg(res.data.message);
-                    // Go back to login after success
-                    setTimeout(() => {
-                        setIsForgotPassword(false);
-                        resetState();
-                    }, 2500);
-                } catch (err) {
-                    setError(err.response?.data?.message || 'Failed to reset password.');
-                } finally { setIsLoading(false); }
+                    setTimeout(() => { setIsForgotPassword(false); resetState(); }, 2500);
+                } catch (err) { setError(err.response?.data?.message || 'Failed to reset password.'); }
+                finally { setIsLoading(false); }
                 return;
             }
         }
 
-        /* ── Hardened admin endpoint ── */
+        // Admin portal
         if (isAdminPortal) {
-            // Admin Forgot Password flow
             if (isAdminForgot) {
                 if (adminResetStep === 1) {
                     try {
                         const res = await axios.post(`${API_BASE_URL}/forgot-password/admin/request`, { email });
                         setSuccessMsg(res.data.message);
-                        setAdminResetStep(2);
-                        setResetResendTimer(60);
-                        setResetExpireTimer(90);
-                    } catch (err) {
-                        setError(err.response?.data?.message || 'Failed to send reset code.');
-                    } finally { setIsLoading(false); }
+                        setAdminResetStep(2); setResetResendTimer(60); setResetExpireTimer(90);
+                    } catch (err) { setError(err.response?.data?.message || 'Failed to send reset code.'); }
+                    finally { setIsLoading(false); }
                     return;
                 } else {
                     try {
-                        const res = await axios.post(`${API_BASE_URL}/forgot-password/admin/reset`, {
-                            email, otp, newPassword
-                        });
+                        const res = await axios.post(`${API_BASE_URL}/forgot-password/admin/reset`, { email, otp, newPassword });
                         setSuccessMsg(res.data.message);
-                        setTimeout(() => {
-                            setIsAdminForgot(false);
-                            setAdminResetStep(1);
-                            resetState();
-                        }, 2500);
-                    } catch (err) {
-                        setError(err.response?.data?.message || 'Failed to reset password.');
-                    } finally { setIsLoading(false); }
+                        setTimeout(() => { setIsAdminForgot(false); setAdminResetStep(1); resetState(); }, 2500);
+                    } catch (err) { setError(err.response?.data?.message || 'Failed to reset password.'); }
+                    finally { setIsLoading(false); }
                     return;
                 }
             }
             // Normal admin login
             try {
                 const res = await axios.post(`${API_BASE_URL}/admin-login`, { email, password });
-                if (res.data.user?.role !== 'admin') {
-                    setError('Access denied. Admin privileges required.'); setIsLoading(false); return;
-                }
+                if (res.data.user?.role !== 'admin') { setError('Access denied.'); setIsLoading(false); return; }
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
                 navigate('/');
@@ -319,21 +213,13 @@ export default function Login() {
             return;
         }
 
-        /* ── Regular user ── */
+        // Regular user
         try {
-            // Prevent accidental submit for mobile/OTP before OTP is requested
             if ((loginType === 'mobile' || (isSignUp && loginType === 'mobile')) && !showOTP) {
-                // If they hit enter or submit button, trigger OTP request instead
-                await handleRequestOTP();
-                return;
+                await handleRequestOTP(); return;
             }
-
-            const endpoint = isSignUp
-                ? `${API_BASE_URL}/register`
-                : `${API_BASE_URL}/login`;
-
+            const endpoint = isSignUp ? `${API_BASE_URL}/register` : `${API_BASE_URL}/login`;
             const combinedMobile = mobile ? `${countryCode}${mobile.replace(/\D/g, '')}` : undefined;
-
             const payload = isSignUp
                 ? { email: loginType === 'email' ? email : undefined, mobile: combinedMobile, password, full_name: fullName, otp }
                 : loginType === 'mobile' || showOTP
@@ -348,441 +234,264 @@ export default function Login() {
         } finally { setIsLoading(false); }
     };
 
-    const feat = FEATURES[activeFeature];
-    const FeatIcon = feat.icon;
-
     return (
         <div className={styles.page}>
-
-            {/* ══════════════════════════════════════════════
-                SPLIT ROW — Left brand + Right auth
-            ══════════════════════════════════════════════ */}
-            <div className={styles.splitRow}>
-
-                {/* ─────────── LEFT — BRAND PANEL ─────────── */}
-                <div className={styles.leftPanel}>
-                    {/* Radial glow orbs */}
-                    <div className={styles.orb1} aria-hidden="true" />
-                    <div className={styles.orb2} aria-hidden="true" />
-                    <div className={styles.orb3} aria-hidden="true" />
-                    <div className={styles.gridMesh} aria-hidden="true" />
-
-                    {/* Top Toast Notification */}
-                    <AnimatePresence mode="wait">
-                        {showStatus && (
-                            <motion.div
-                                className={styles.aranyaToast}
-                                initial={{ y: -60, x: '-50%', opacity: 0, scale: 0.9 }}
-                                animate={{ y: 24, x: '-50%', opacity: 1, scale: 1 }}
-                                exit={{ y: -60, x: '-50%', opacity: 0, scale: 0.9 }}
-                                transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                            >
-                                <Zap size={16} fill="#fbbf24" color="#fbbf24" />
-                                <span>{statusMsg}</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Left Branding Panel */}
-                    <div className={styles.leftContent}>
-
-                        {/* Brand mark */}
-                        <div className={styles.brandMark}>
-                            <span className={styles.brandMarkText}>
-                                Aranya<span className={styles.brandMarkAi}>Ai</span>
-                            </span>
-                        </div>
-
-                        {/* Hero */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 28 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.12, duration: 0.72 }}
-                            className={styles.heroBlock}
-                        >
-                            <div className={styles.pill}>PRECISION ARANYA AI</div>
-                            <h1 className={styles.heroH1}>
-                                The Future of<br />
-                                <span className={styles.heroGreen}>Herd Intelligence</span>
-                            </h1>
-                            <p className={styles.heroP}>
-                                AI-powered diagnostics that catch critical health issues
-                                before they happen — keeping your animals thriving.
-                            </p>
-                        </motion.div>
-
-                        {/* Auto-rotating Feature Carousel */}
-                        <div className={styles.featureStack}>
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={feat.title}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.38 }}
-                                    className={`${styles.featureCard} ${styles.featureCardActive}`}
-                                >
-                                    <div
-                                        className={styles.fIcon}
-                                        style={{ background: `${feat.color}18`, color: feat.color }}
-                                    >
-                                        <FeatIcon size={20} />
-                                    </div>
-                                    <div className={styles.fText}>
-                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', color: feat.color, marginBottom: '0.2rem', display: 'block' }}>
-                                            {feat.tag}
-                                        </span>
-                                        <strong>{feat.title}</strong>
-                                        <span>{feat.desc}</span>
-                                    </div>
-                                    <span className={styles.fStat} style={{ color: feat.color }}>
-                                        {feat.stat}
-                                    </span>
-                                </motion.div>
-                            </AnimatePresence>
-
-                            {/* Progress dots */}
-                            <div className={styles.carouselDots}>
-                                {FEATURES.map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className={`${styles.dot} ${activeFeature === i ? styles.dotActive : ''}`}
-                                        style={{ width: activeFeature === i ? 24 : 8 }}
-                                        onClick={() => pickFeature(i)}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Stats bar */}
-                        <div className={styles.statsBar}>
-                            {STATS.map(s => (
-                                <div key={s.label} className={styles.statItem}>
-                                    <span className={styles.statVal}>{s.value}</span>
-                                    <span className={styles.statLbl}>{s.label}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Trust badge */}
-                        <div className={styles.trustBadge}>
-                            <CheckCircle2 size={15} color="#22c55e" style={{ flexShrink: 0 }} />
-                            <span className={styles.trustBadgeText}>
-                                Trusted by <strong>500+ High-Performance Farms</strong> · ISO 27001 · SOC 2 Type II
-                            </span>
-                        </div>
-
-                    </div>
+            {/* ══ AURORA BACKGROUND ══ */}
+            <div className={styles.auroraBg}>
+                <div className={styles.blob1} />
+                <div className={styles.blob2} />
+                <div className={styles.blob3} />
+                <div className={styles.blob4} />
+                <div className={styles.dotGrid} />
+                <div className={styles.particles}>
+                    {[...Array(8)].map((_, i) => <div key={i} className={styles.particle} />)}
                 </div>
+                <div className={styles.scanLine} />
+            </div>
 
-                {/* ─────────── RIGHT — AUTH PANEL ─────────── */}
-                <div className={styles.rightPanel}>
-                    <div className={styles.dotGrid} aria-hidden="true" />
+            <div className={styles.mainContainer}>
+                <div className={styles.splitRow}>
+                    {/* ─── LEFT — VISUAL PANEL ─── */}
+                    <div className={styles.leftPanel}>
+                        <motion.div
+                            initial={{ opacity: 0, x: -40 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.9, ease: [0.25, 0.8, 0.25, 1] }}
+                            className={styles.visualContent}
+                        >
+                            <div className={styles.brandMark}>
+                                <span className={styles.brandMarkText}>
+                                    Aranya<span className={styles.brandMarkAi}>Ai</span>
+                                </span>
+                            </div>
 
-                    <div className={styles.formShell}>
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={
-                                    isAdminPortal ? 'admin' :
-                                        isForgotPassword ? 'forgot' :
-                                            isSignUp ? 'signup' : 'login'
-                                }
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -16 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                {/* Form header */}
+                            <div className={styles.heroBlock}>
+                                <h1>
+                                    <span className={styles.heroLine1}>Because They Can't Tell You</span>
+                                    <span className={styles.heroLine2}>Before it Happens.</span>
+                                </h1>
+                                <p className={styles.heroP}>
+                                    Predict health risks before they manifest.
+                                    Expert care for every pet and farm.
+                                </p>
+                            </div>
+
+                            <motion.div className={styles.bentoGrid} variants={stagger} initial="hidden" animate="show">
+                                <motion.div variants={fadeUp} className={styles.bentoItem}>
+                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon1}`}><Clock size={20} strokeWidth={2.5} /></div>
+                                    <span className={styles.bentoVal}>Advanced</span>
+                                    <span className={styles.bentoLbl}>Predictive Warning System</span>
+                                </motion.div>
+                                <motion.div variants={fadeUp} className={styles.bentoItem}>
+                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon2}`}><Sparkles size={20} strokeWidth={2.5} /></div>
+                                    <span className={styles.bentoVal}>Arion</span>
+                                    <span className={styles.bentoLbl}>24/7 Personalised Health Assistant</span>
+                                </motion.div>
+                                <motion.div variants={fadeUp} className={styles.bentoItem}>
+                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon3}`}><Eye size={20} strokeWidth={2.5} /></div>
+                                    <span className={styles.bentoVal}>Visual Scan</span>
+                                    <span className={styles.bentoLbl}>Advanced Symptom Checker</span>
+                                </motion.div>
+                                <motion.div variants={fadeUp} className={styles.bentoItem}>
+                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon4}`}><Star size={20} strokeWidth={2.5} /></div>
+                                    <span className={styles.bentoVal}>99.2%</span>
+                                    <span className={styles.bentoLbl}>Diagnostic Rating</span>
+                                </motion.div>
+                            </motion.div>
+
+                            <div className={styles.trustRow}>
+                                <div className={styles.trustBadge}><span className={styles.trustDot} /> All systems online</div>
+                                <div className={styles.trustBadge}>SOC2 Compliant</div>
+                                <div className={styles.trustBadge}>256-bit Encrypted</div>
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* ─── RIGHT — AUTH PANEL ─── */}
+                    <div className={styles.rightPanel}>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.6, ease: [0.25, 0.8, 0.25, 1] }}
+                            className={styles.cardWrapper}
+                        >
+                            <div className={styles.glassCard}>
+                                {/* Header */}
                                 <div className={styles.formHead}>
-                                    <p className={styles.formEyebrow}>
-                                        {isAdminPortal
-                                            ? (isAdminForgot ? '🔑 ADMIN RECOVERY' : '🔐 RESTRICTED ACCESS')
-                                            : isForgotPassword ? '🔑 ACCOUNT RECOVERY'
-                                                : isSignUp ? '✦ FREE · NO CREDIT CARD' : '👋 WELCOME BACK'}
-                                    </p>
                                     <h2 className={styles.formTitle}>
-                                        {isForgotPassword
-                                            ? (resetStep === 1 ? 'Recover your access.' : 'Set your new password.')
-                                            : isAdminPortal
-                                                ? (isAdminForgot
-                                                    ? (adminResetStep === 1 ? 'Recover admin access.' : 'Set new admin password.')
-                                                    : 'Authorize access.')
-                                                : isSignUp
-                                                    ? 'Your herd deserves AI.'
-                                                    : 'Good to see you again.'}
+                                        {isAdminPortal
+                                            ? (isAdminForgot ? 'Admin Recovery 🔑' : 'Admin Portal 🔐')
+                                            : isForgotPassword
+                                                ? (resetStep === 1 ? 'Recover Access 🛡️' : 'New Password ⚒️')
+                                                : isSignUp ? 'Join Aranya ✨' : 'Welcome back 👋'}
                                     </h2>
-                                    {isAdminForgot && (
-                                        <p className={styles.formSub}>
-                                            {adminResetStep === 1
-                                                ? 'Enter admin email to receive a reset code.'
-                                                : 'Check your inbox for the admin reset code.'}
-                                        </p>
-                                    )}
-                                    {isForgotPassword && (
-                                        <p className={styles.formSub}>
-                                            {resetStep === 1
-                                                ? 'Enter your email and we\'ll send you a 6-digit reset code.'
-                                                : 'Check your inbox for the reset code.'}
-                                        </p>
-                                    )}
-                                    {!isForgotPassword && !isAdminPortal && (
-                                        <p className={styles.formSub}>
-                                            {isSignUp
-                                                ? '500+ farms use our AI to prevent loss and boost yield.'
-                                                : 'Your Aranya dashboard is ready when you are.'}
-                                        </p>
-                                    )}
+                                    <p className={styles.formSub}>
+                                        {isAdminPortal
+                                            ? (isAdminForgot
+                                                ? (adminResetStep === 1 ? 'Enter admin email for reset code' : 'Enter reset code & new password')
+                                                : 'Authorize restricted access')
+                                            : isForgotPassword
+                                                ? (resetStep === 1 ? 'Enter your email for a reset code' : 'Check your inbox for the code')
+                                                : isSignUp ? 'Start for free' : 'Sign in to your dashboard'}
+                                    </p>
                                 </div>
 
                                 {/* Alerts */}
-                                <div style={{ minHeight: (error || successMsg) ? 'auto' : 0, marginBottom: (error || successMsg) ? '1rem' : 0, transition: '0.3s' }}>
-                                    <AnimatePresence mode="wait">
-                                        {error && (
-                                            <motion.div
-                                                key="err"
-                                                initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                                                transition={{ duration: 0.2 }}
-                                                className={styles.alertErr}
-                                            >
-                                                ⚠ {error}
-                                            </motion.div>
-                                        )}
-                                        {successMsg && (
-                                            <motion.div
-                                                key="ok"
-                                                initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                                                transition={{ duration: 0.2 }}
-                                                className={styles.alertOk}
-                                            >
-                                                ✓ {successMsg}
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
+                                <AnimatePresence mode="wait">
+                                    {error && (
+                                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.alertErr}>
+                                            ⚠ {error}
+                                        </motion.div>
+                                    )}
+                                    {successMsg && (
+                                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={styles.alertOk}>
+                                            ✓ {successMsg}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
-                                {/* Google SSO — shown on main forms only */}
-                                {!isForgotPassword && !isAdminPortal && (
+                                {/* Google SSO */}
+                                {!isForgotPassword && !isAdminForgot && (
                                     <>
-                                        <motion.button
-                                            type="button"
-                                            className={styles.googleBtn}
-                                            whileHover={{ y: -1 }}
-                                            whileTap={{ scale: 0.99 }}
-                                            onClick={() => handleGoogleLogin()}
-                                            disabled={isLoading}
-                                        >
+                                        <button type="button" className={styles.googleBtn}
+                                            onClick={() => isAdminPortal ? handleGoogleAdminLogin() : handleGoogleLogin()}
+                                            disabled={isLoading}>
                                             <GoogleIcon />
-                                            <span>{isSignUp ? 'Sign up with Google' : 'Sign in with Google'}</span>
-                                        </motion.button>
-                                        <div className={styles.orRow}><span>or continue with email</span></div>
+                                            <span>{isAdminPortal ? 'Authorize with Google' : isSignUp ? 'Sign up with Google' : 'Sign in with Google'}</span>
+                                        </button>
+                                        <div className={styles.divider}>
+                                            <span>{isAdminPortal ? 'or authorize with credentials' : 'or continue with email'}</span>
+                                        </div>
                                     </>
                                 )}
 
-                                {/* Google SSO — Admin Portal */}
-                                {isAdminPortal && (
-                                    <>
-                                        <motion.button
-                                            type="button"
-                                            className={styles.googleBtn}
-                                            whileHover={{ y: -1 }}
-                                            whileTap={{ scale: 0.99 }}
-                                            onClick={() => handleGoogleAdminLogin()}
-                                            disabled={isLoading}
-                                            style={{ borderColor: '#dc2626' }}
-                                        >
-                                            <GoogleIcon />
-                                            <span>Authorize with Google</span>
-                                        </motion.button>
-                                        <div className={styles.orRow}><span>or authorize with credentials</span></div>
-                                    </>
-                                )}
-
-                                {/* Email / Mobile toggle */}
+                                {/* Email / Mobile toggle — for non-admin, non-forgot */}
                                 {!isForgotPassword && !isAdminPortal && (
                                     <div className={styles.methodRow}>
                                         {['email', 'mobile'].map(t => (
                                             <button
-                                                key={t}
-                                                type="button"
+                                                key={t} type="button"
                                                 className={`${styles.methodBtn} ${loginType === t ? styles.methodActive : ''}`}
                                                 onClick={() => { setLoginType(t); resetState(); }}
                                             >
-                                                {t === 'email' ? <Mail size={13} /> : <Phone size={13} />}
+                                                {t === 'email' ? <Mail size={14} /> : <Phone size={14} />}
                                                 {t.charAt(0).toUpperCase() + t.slice(1)}
                                             </button>
                                         ))}
                                     </div>
                                 )}
 
-                                <form onSubmit={handleSubmit} className={styles.form}>
-
+                                {/* Form */}
+                                <form onSubmit={handleSubmit} className={styles.fieldGroup}>
                                     {/* Full Name — sign up only */}
-                                    {isSignUp && (
-                                        <Field icon={<User size={16} />} type="text" placeholder="Full Name"
-                                            value={fullName} onChange={e => setFullName(e.target.value)} required />
-                                    )}
+                                    <AnimatePresence>
+                                        {isSignUp && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                                                <Field label="Full Name" type="text" value={fullName} onChange={e => setFullName(e.target.value)} required />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
 
                                     {/* Email or Mobile */}
-                                    {loginType === 'email' || isAdminPortal ? (
-                                        <Field icon={<Mail size={16} />} type="email"
-                                            placeholder={isAdminPortal ? 'Admin Email' : 'Email Address'}
-                                            value={email} onChange={e => setEmail(e.target.value)}
-                                            required disabled={showOTP} />
+                                    {loginType === 'email' || isAdminPortal || isForgotPassword || isAdminForgot ? (
+                                        <Field label={isAdminPortal ? 'Admin Email' : 'Email Address'} type="email"
+                                            value={email} onChange={e => setEmail(e.target.value)} required disabled={showOTP} />
                                     ) : (
-                                        <Field
-                                            icon={<Phone size={16} />}
-                                            type="tel"
-                                            placeholder="Mobile Number"
-                                            value={mobile}
-                                            onChange={e => {
-                                                const rawVal = e.target.value;
-                                                const cleanVal = rawVal.replace(/\D/g, ''); // Digits only
-
-                                                // 1. Detect if it starts with '+'
-                                                if (rawVal.startsWith('+')) {
-                                                    const matched = COUNTRY_CODES
-                                                        .slice()
-                                                        .sort((a, b) => b.code.length - a.code.length)
-                                                        .find(c => rawVal.startsWith(c.code));
-                                                    if (matched) {
-                                                        setCountryCode(matched.code);
-                                                        setMobile(rawVal.slice(matched.code.length).replace(/\D/g, ''));
-                                                        return;
+                                        <div className={styles.phoneRow}>
+                                            <select value={countryCode} onChange={e => setCountryCode(e.target.value)} className={styles.countrySelect}>
+                                                {COUNTRY_CODES.map(c => (
+                                                    <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
+                                                ))}
+                                            </select>
+                                            <Field label="Mobile Number" type="tel" value={mobile}
+                                                onChange={e => {
+                                                    const rawVal = e.target.value;
+                                                    const cleanVal = rawVal.replace(/\D/g, '');
+                                                    if (rawVal.startsWith('+')) {
+                                                        const matched = COUNTRY_CODES.slice().sort((a, b) => b.code.length - a.code.length)
+                                                            .find(c => rawVal.startsWith(c.code));
+                                                        if (matched) { setCountryCode(matched.code); setMobile(rawVal.slice(matched.code.length).replace(/\D/g, '')); return; }
                                                     }
-                                                }
-
-                                                // 2. Intelligent digit-based detection (no + sign)
-                                                // Check if the number starts with a known country code (digits only)
-                                                const matchedByDigits = COUNTRY_CODES
-                                                    .slice()
-                                                    .sort((a, b) => b.code.length - a.code.length)
-                                                    .find(c => {
-                                                        const codeDigits = c.code.replace('+', '');
-                                                        // Only detect if it's longer than just the code (so we don't switch while they are typing)
-                                                        return cleanVal.startsWith(codeDigits) && cleanVal.length > codeDigits.length + 5;
-                                                    });
-
-                                                if (matchedByDigits) {
-                                                    const codeDigits = matchedByDigits.code.replace('+', '');
-                                                    setCountryCode(matchedByDigits.code);
-                                                    setMobile(cleanVal.slice(codeDigits.length));
-                                                } else {
-                                                    setMobile(cleanVal);
-                                                }
-                                            }}
-                                            required
-                                            disabled={showOTP}
-                                            isPhone
-                                            countryCode={countryCode}
-                                            onCountryChange={e => setCountryCode(e.target.value)}
-                                        />
+                                                    const matchedByDigits = COUNTRY_CODES.slice().sort((a, b) => b.code.length - a.code.length)
+                                                        .find(c => { const cd = c.code.replace('+', ''); return cleanVal.startsWith(cd) && cleanVal.length > cd.length + 5; });
+                                                    if (matchedByDigits) { const cd = matchedByDigits.code.replace('+', ''); setCountryCode(matchedByDigits.code); setMobile(cleanVal.slice(cd.length)); }
+                                                    else { setMobile(cleanVal); }
+                                                }}
+                                                required disabled={showOTP} />
+                                        </div>
                                     )}
 
-                                    {/* Password — shown for email login + admin login (when NOT in forgot password) */}
+                                    {/* Password — email login + admin (not forgot) */}
                                     {!showOTP && !isForgotPassword && !isAdminForgot && (loginType === 'email' || isAdminPortal) && (
-                                        <Field icon={<Lock size={16} />} type="password" placeholder="Password"
-                                            value={password} onChange={e => setPassword(e.target.value)}
-                                            required={!isSignUp} />
+                                        <Field label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required={!isSignUp} />
                                     )}
 
-                                    {/* OTP */}
-                                    {showOTP && (
-                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                                            <Field
-                                                icon={<ShieldCheck size={16} />}
-                                                type="text"
-                                                maxLength={6}
-                                                placeholder="6-digit OTP"
-                                                value={otp}
-                                                onChange={e => setOtp(e.target.value)}
-                                                required
-                                                isOTP
-                                                progress={(expireTimer / 60) * 100}
-                                            />
-                                            <div className={styles.otpStatusRow} style={{ justifyContent: 'flex-end' }}>
-                                                <button
-                                                    type="button"
-                                                    className={styles.resendLink}
-                                                    onClick={handleRequestOTP}
-                                                    disabled={resendTimer > 0 || isLoading}
-                                                >
-                                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-                                                </button>
-                                            </div>
-                                        </motion.div>
-                                    )}
+                                    {/* OTP Field */}
+                                    <AnimatePresence>
+                                        {showOTP && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                                                <Field label="6-digit OTP" type="text" maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} required isOTP progress={(expireTimer / 60) * 100} />
+                                                <div className={styles.otpRow}>
+                                                    <button type="button" className={styles.resendLink} onClick={handleRequestOTP} disabled={resendTimer > 0 || isLoading}>
+                                                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                                                    </button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
 
-                                    {/* ── Forgot Password: Step 2 — OTP + New Password ── */}
-                                    {isForgotPassword && resetStep === 2 && (
-                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                                            <Field
-                                                icon={<ShieldCheck size={16} />}
-                                                type="text"
-                                                maxLength={6}
-                                                placeholder="6-digit reset code"
-                                                value={otp}
-                                                onChange={e => setOtp(e.target.value)}
-                                                required
-                                                isOTP
-                                                progress={(resetExpireTimer / 90) * 100}
-                                            />
-                                            <div className={styles.otpStatusRow} style={{ justifyContent: 'space-between' }}>
-                                                <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
-                                                    {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    className={styles.resendLink}
-                                                    onClick={async () => {
-                                                        if (resetResendTimer > 0) return;
-                                                        try {
-                                                            setError('');
-                                                            await axios.post(`${API_BASE_URL}/forgot-password/request`, { email });
-                                                            setSuccessMsg('New reset code sent!');
-                                                            setResetResendTimer(60);
-                                                            setResetExpireTimer(90);
-                                                            setOtp('');
-                                                        } catch (err) {
-                                                            setError(err.response?.data?.message || 'Failed to resend.');
-                                                        }
-                                                    }}
-                                                    disabled={resetResendTimer > 0}
-                                                >
-                                                    {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
-                                                </button>
-                                            </div>
-                                            <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-                                                <Field
-                                                    icon={<Lock size={16} />}
-                                                    type={showNewPassword ? 'text' : 'password'}
-                                                    placeholder="New password (min 6 chars)"
-                                                    value={newPassword}
-                                                    onChange={e => setNewPassword(e.target.value)}
-                                                    required
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowNewPassword(!showNewPassword)}
-                                                    style={{
-                                                        position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
-                                                        background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px'
-                                                    }}
-                                                >
-                                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                </button>
-                                            </div>
-                                        </motion.div>
-                                    )}
+                                    {/* Forgot Password Step 2: OTP + New Password */}
+                                    <AnimatePresence>
+                                        {isForgotPassword && resetStep === 2 && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                <Field label="6-digit Reset Code" type="text" maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} required isOTP progress={(resetExpireTimer / 90) * 100} />
+                                                <div className={styles.otpRow}>
+                                                    <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
+                                                        {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
+                                                    </span>
+                                                    <button type="button" className={styles.resendLink}
+                                                        onClick={async () => {
+                                                            if (resetResendTimer > 0) return;
+                                                            try { setError(''); await axios.post(`${API_BASE_URL}/forgot-password/request`, { email }); setSuccessMsg('New reset code sent!'); setResetResendTimer(60); setResetExpireTimer(90); setOtp(''); }
+                                                            catch (err) { setError(err.response?.data?.message || 'Failed to resend.'); }
+                                                        }}
+                                                        disabled={resetResendTimer > 0}>
+                                                        {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
+                                                    </button>
+                                                </div>
+                                                <Field label="New Password (min 6 chars)" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Admin Forgot Step 2 */}
+                                    <AnimatePresence>
+                                        {isAdminForgot && adminResetStep === 2 && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                <Field label="6-digit Reset Code" type="text" maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} required isOTP progress={(resetExpireTimer / 90) * 100} />
+                                                <div className={styles.otpRow}>
+                                                    <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
+                                                        {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
+                                                    </span>
+                                                    <button type="button" className={styles.resendLink}
+                                                        onClick={async () => {
+                                                            if (resetResendTimer > 0) return;
+                                                            try { setError(''); await axios.post(`${API_BASE_URL}/forgot-password/admin/request`, { email }); setSuccessMsg('New reset code sent!'); setResetResendTimer(60); setResetExpireTimer(90); setOtp(''); }
+                                                            catch (err) { setError(err.response?.data?.message || 'Failed to resend.'); }
+                                                        }}
+                                                        disabled={resetResendTimer > 0}>
+                                                        {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
+                                                    </button>
+                                                </div>
+                                                <Field label="New Password (min 6 chars)" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
 
                                     {/* Forgot password link — User */}
                                     {!isSignUp && !isForgotPassword && !isAdminPortal && loginType === 'email' && !showOTP && (
                                         <div className={styles.forgotRow}>
-                                            <button type="button" className={styles.forgotLink}
-                                                onClick={() => { setIsForgotPassword(true); resetState(); }}>
+                                            <button type="button" className={styles.forgotLink} onClick={() => { setIsForgotPassword(true); resetState(); }}>
                                                 Forgot password?
                                             </button>
                                         </div>
@@ -798,96 +507,35 @@ export default function Login() {
                                         </div>
                                     )}
 
-                                    {/* Admin Forgot Password: Step 2 — OTP + New Password */}
-                                    {isAdminForgot && adminResetStep === 2 && (
-                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                                            <Field
-                                                icon={<ShieldCheck size={16} />}
-                                                type="text"
-                                                maxLength={6}
-                                                placeholder="6-digit reset code"
-                                                value={otp}
-                                                onChange={e => setOtp(e.target.value)}
-                                                required
-                                                isOTP
-                                                progress={(resetExpireTimer / 90) * 100}
-                                            />
-                                            <div className={styles.otpStatusRow} style={{ justifyContent: 'space-between' }}>
-                                                <span style={{ fontSize: '0.78rem', color: resetExpireTimer <= 10 ? '#dc2626' : '#64748b' }}>
-                                                    {resetExpireTimer > 0 ? `Expires in ${resetExpireTimer}s` : 'Code expired'}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    className={styles.resendLink}
-                                                    onClick={async () => {
-                                                        if (resetResendTimer > 0) return;
-                                                        try {
-                                                            setError('');
-                                                            await axios.post(`${API_BASE_URL}/forgot-password/admin/request`, { email });
-                                                            setSuccessMsg('New reset code sent!');
-                                                            setResetResendTimer(60);
-                                                            setResetExpireTimer(90);
-                                                            setOtp('');
-                                                        } catch (err) {
-                                                            setError(err.response?.data?.message || 'Failed to resend.');
-                                                        }
-                                                    }}
-                                                    disabled={resetResendTimer > 0}
-                                                >
-                                                    {resetResendTimer > 0 ? `Resend in ${resetResendTimer}s` : 'Resend Code'}
-                                                </button>
-                                            </div>
-                                            <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-                                                <Field
-                                                    icon={<Lock size={16} />}
-                                                    type={showNewPassword ? 'text' : 'password'}
-                                                    placeholder="New password (min 6 chars)"
-                                                    value={newPassword}
-                                                    onChange={e => setNewPassword(e.target.value)}
-                                                    required
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowNewPassword(!showNewPassword)}
-                                                    style={{
-                                                        position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
-                                                        background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px'
-                                                    }}
-                                                >
-                                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                </button>
-                                            </div>
-                                        </motion.div>
-                                    )}
-
-                                    {/* Send OTP CTA */}
+                                    {/* Send OTP CTA — Required for Mobile or any Signup phase 1 */}
                                     {!isAdminPortal && (isSignUp || loginType === 'mobile') && !showOTP && (
                                         <motion.button type="button" className={styles.otpBtn}
                                             onClick={handleRequestOTP} disabled={isLoading}
-                                            whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+                                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                             {isLoading ? <Spinner /> : null}
                                             {isLoading ? 'Sending...' : 'Send Verification Code'}
                                         </motion.button>
                                     )}
 
-                                    {/* Primary CTA */}
-                                    {(loginType === 'email' || showOTP || isForgotPassword || isAdminPortal) && (
-                                        <motion.button type="submit" className={styles.primaryBtn}
+                                    {/* Primary CTA — Email Login or after OTP request */}
+                                    {((loginType === 'email' && !isSignUp) || showOTP || isForgotPassword || isAdminPortal) && (
+                                        <motion.button type="submit" className={styles.submitBtn}
                                             disabled={isLoading}
-                                            whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                            {isLoading ? <Spinner /> : null}
-                                            <span>
-                                                {isLoading ? 'Processing…'
-                                                    : isForgotPassword
-                                                        ? (resetStep === 1 ? 'Send Reset Code' : 'Reset Password')
-                                                        : isAdminPortal
-                                                            ? (isAdminForgot
-                                                                ? (adminResetStep === 1 ? 'Send Reset Code' : 'Reset Password')
-                                                                : 'Authorize Access')
-                                                            : isSignUp ? 'Create Account'
-                                                                : 'Sign In'}
+                                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                                            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                {isLoading ? <Spinner /> : null}
+                                                <span>
+                                                    {isLoading ? 'Processing…'
+                                                        : isForgotPassword
+                                                            ? (resetStep === 1 ? 'Send Reset Code' : 'Reset Password')
+                                                            : isAdminPortal
+                                                                ? (isAdminForgot
+                                                                    ? (adminResetStep === 1 ? 'Send Reset Code' : 'Reset Password')
+                                                                    : 'Authorize Access')
+                                                                : isSignUp ? 'Create Account' : 'Sign In'}
+                                                </span>
+                                                {!isLoading && <ArrowRight size={17} />}
                                             </span>
-                                            {!isLoading && <ArrowRight size={17} className={styles.btnArrow} />}
                                         </motion.button>
                                     )}
                                 </form>
@@ -910,148 +558,232 @@ export default function Login() {
                                         {isAdminPortal ? '← Back to User Login' : 'Admin Portal →'}
                                     </button>
                                 </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
 
+                {/* ─── NEW INFO SECTION ─── */}
+                <section className={styles.infoSection}>
+                    <motion.div
+                        className={styles.infoContent}
+                        initial={{ opacity: 0, scale: 0.98, filter: "blur(12px)" }}
+                        whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                        viewport={{ margin: "-50px" }}
+                        transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                        <motion.div 
+                            className={styles.infoBadge}
+                            initial={{ opacity: 0, y: 15 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ margin: "0px" }}
+                            transition={{ duration: 0.8 }}
+                        >
+                            The Professional Standard
+                        </motion.div>
+                        <motion.h2 
+                            className={styles.infoTitle}
+                            initial={{ opacity: 0, scale: 0.98, y: 15, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ margin: "0px" }}
+                            transition={{ duration: 1, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            Expert Intelligence at Scale.
+                        </motion.h2>
+                        <motion.p
+                            className={styles.infoSummary}
+                            initial={{ opacity: 0, scale: 0.98, y: 15, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ margin: "0px" }}
+                            transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            Aranya AI provides the specialized infrastructure required for modern animal care.
+                            From individual pets to enterprise-scale herds, we ensure every life is protected.
+                        </motion.p>
+
+                        <div className={styles.infoGrid}>
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><HardDrive size={22} /></div>
+                                <h3>Medical Vault</h3>
+                                <p>A secure, encrypted archive for every lab report, prescription, and diagnostic scan. Access full health history, instantly.</p>
                             </motion.div>
-                        </AnimatePresence>
-                    </div>
 
-                    <p className={styles.copyright}>© 2026 Aranya AI Inc. All rights reserved.</p>
-                </div>
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><Syringe size={22} /></div>
+                                <h3>Arion CareCycle</h3>
+                                <p>Stay ahead of outbreaks with personalized vaccination roadmaps. AI-driven schedule optimization based on age, breed, and risk factor.</p>
+                            </motion.div>
 
-            </div>{/* end splitRow */}
-
-            {/* ══════════════════════════════════════════════
-                MEGA FOOTER — Twilio-inspired
-            ══════════════════════════════════════════════ */}
-            <footer className={styles.megaFooter}>
-                <div className={styles.footerGrid}>
-
-                    {/* Brand column */}
-                    <div className={styles.footerBrandCol}>
-                        <div className={styles.footerLogoWrap}>
-                            <span className={styles.brandMarkText}>
-                                Aranya<span className={styles.brandMarkAi}>Ai</span>
-                            </span>
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><Shield size={22} /></div>
+                                <h3>Smart Health Guard</h3>
+                                <p>Our 24/7 background monitoring system. Continuous vital analysis detects subtle physiological shifts before they manifest as illness.</p>
+                            </motion.div>
                         </div>
-                        <p className={styles.footerTagline}>
-                            AI-powered precision animal management trusted by 500+ high-performance farms across India.
-                        </p>
-                        <div className={styles.footerSocials}>
-                            <Facebook size={18} /><Twitter size={18} /><Linkedin size={18} /><Youtube size={18} /><Github size={18} />
+                    </motion.div>
+                </section>
+
+                {/* ══════════════════════════════════════════
+                    MEGA FOOTER
+                ══════════════════════════════════════════ */}
+                <footer className={styles.megaFooter}>
+                    <div className={styles.footerGrid}>
+                        <motion.div
+                            className={styles.footerBrandCol}
+                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ amount: 0.05 }}
+                            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            <div className={styles.footerLogoWrap}>
+                                <span className={styles.footerBrandText}>
+                                    Aranya<span className={styles.brandMarkAi}>Ai</span>
+                                </span>
+                            </div>
+                            <p className={styles.footerTagline}>
+                                Caring for every animal, from farm to home.
+                                Powered by our Arion Assistant and Smart Health Guard.
+                            </p>
+                            <div className={styles.footerSocials}>
+                                <div className={styles.socialIcon}><Facebook size={18} /></div>
+                                <div className={styles.socialIcon}><Twitter size={18} /></div>
+                                <div className={styles.socialIcon}><Linkedin size={18} /></div>
+                                <div className={styles.socialIcon}><Youtube size={18} /></div>
+                                <div className={styles.socialIcon}><Github size={18} /></div>
+                            </div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ amount: 0.05 }}
+                            transition={{ duration: 1, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            <h4 className={styles.footerColTitle}>Platform</h4>
+                            <ul className={styles.footerList}>
+                                <li>Animal Health Monitoring</li>
+                                <li>Yield Prediction AI</li>
+                                <li>Precision Breeding</li>
+                                <li>IoT Device Sync</li>
+                                <li>Disease Diagnostics</li>
+                                <li className={styles.footerListAccent}>All Solutions <ChevronRight size={13} /></li>
+                            </ul>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ amount: 0.05 }}
+                            transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            <h4 className={styles.footerColTitle}>Industry</h4>
+                            <ul className={styles.footerList}>
+                                <li>Dairy Farming</li>
+                                <li>Animal Export</li>
+                                <li>Research Institutions</li>
+                                <li>Government Oversight</li>
+                                <li>Sustainable Agriculture</li>
+                                <li className={styles.footerListAccent}>Use Cases <ChevronRight size={13} /></li>
+                            </ul>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
+                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+                            viewport={{ amount: 0.05 }}
+                            transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            <h4 className={styles.footerColTitle}>Developers</h4>
+                            <ul className={styles.footerList}>
+                                <li>API Documentation</li>
+                                <li>SDKs & Mock Data</li>
+                                <li>Webhooks</li>
+                                <li>Open Source</li>
+                                <li>Status Page</li>
+                                <li className={styles.footerListAccent}>All Docs <ChevronRight size={13} /></li>
+                            </ul>
+                        </motion.div>
+                    </div>
+
+                    <motion.div
+                        className={styles.footerBottom}
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ amount: 0.05 }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                    >
+                        <div className={styles.footerBottomLinks}>
+                            <span>Privacy Policy</span>
+                            <span>Terms of Service</span>
+                            <span>Cookie Policy</span>
+                            <span>Security</span>
                         </div>
-                    </div>
-
-                    {/* Platform */}
-                    <div>
-                        <h4 className={styles.footerColTitle}>Platform</h4>
-                        <ul className={styles.footerList}>
-                            <li>Animal Health Monitoring</li>
-                            <li>Yield Prediction AI</li>
-                            <li>Precision Breeding</li>
-                            <li>IoT Device Sync</li>
-                            <li>Disease Diagnostics</li>
-                            <li className={styles.footerListAccent}>All Solutions <ChevronRight size={13} /></li>
-                        </ul>
-                    </div>
-
-                    {/* Industry */}
-                    <div>
-                        <h4 className={styles.footerColTitle}>Industry</h4>
-                        <ul className={styles.footerList}>
-                            <li>Dairy Farming</li>
-                            <li>Animal Export</li>
-                            <li>Research Institutions</li>
-                            <li>Government Oversight</li>
-                            <li>Sustainable Agriculture</li>
-                            <li className={styles.footerListAccent}>Use Cases <ChevronRight size={13} /></li>
-                        </ul>
-                    </div>
-
-                    {/* Developers */}
-                    <div>
-                        <h4 className={styles.footerColTitle}>Developers</h4>
-                        <ul className={styles.footerList}>
-                            <li>API Documentation</li>
-                            <li>SDKs &amp; Mock Data</li>
-                            <li>Webhooks</li>
-                            <li>Open Source</li>
-                            <li>Status Page</li>
-                            <li className={styles.footerListAccent}>All Docs <ChevronRight size={13} /></li>
-                        </ul>
-                    </div>
-
-                </div>
-
-                <div className={styles.footerBottom}>
-                    <div className={styles.footerBottomLinks}>
-                        <span>Privacy Policy</span>
-                        <span>Terms of Service</span>
-                        <span>Cookie Policy</span>
-                        <span>Security</span>
-                    </div>
-                    <span className={styles.footerCopyText}>© 2026 Aranya AI Inc. All rights reserved.</span>
-                </div>
-            </footer>
-
-        </div >
+                        <div className={styles.copyright}>
+                            © 2026 Aranya AI Inc. All rights reserved.
+                        </div>
+                    </motion.div>
+                </footer>
+            </div>
+        </div>
     );
 }
 
-
-/* ── Reusable input field ── */
-function Field({ icon, type, isPhone, countryCode, onCountryChange, isOTP, progress, ...props }) {
+/* ── Floating Label Field ── */
+function Field({ label, type, isOTP, progress, ...props }) {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
 
     return (
-        <div className={`${styles.field} ${isPhone ? styles.fieldPhone : ''}`}>
-            {isPhone ? (
-                <div className={styles.countryPicker}>
-                    <select value={countryCode} onChange={onCountryChange} className={styles.countrySelect}>
-                        {COUNTRY_CODES.map(c => (
-                            <option key={c.code} value={c.code}>
-                                {c.flag} {c.code}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            ) : (
-                <span className={styles.fieldIcon}>{icon}</span>
-            )}
+        <div className={styles.field}>
             <input
-                className={`${styles.fieldInput} ${isPhone ? styles.fieldInputPhone : ''}`}
-                placeholder=" "
+                className={styles.fieldInput}
                 type={isPassword ? (showPassword ? 'text' : 'password') : type}
+                placeholder=" "
                 {...props}
             />
+            <label className={styles.fieldLabel}>{label}</label>
             {isPassword && (
-                <button
-                    type="button"
-                    className={styles.fieldViewBtn}
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex="-1"
-                >
+                <button type="button" className={styles.fieldViewBtn} onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
             )}
-
             {isOTP && progress > 0 && (
                 <div className={styles.fieldProgressWrap}>
-                    <motion.div
-                        className={styles.fieldProgress}
-                        initial={{ width: '100%' }}
-                        animate={{ width: `${progress}%` }}
-                        style={{
-                            background: progress < 30 ? '#ef4444' : progress < 60 ? '#f59e0b' : '#22c55e'
-                        }}
-                    />
+                    <motion.div className={styles.fieldProgress} initial={{ width: '100%' }} animate={{ width: `${progress}%` }}
+                        style={{ background: progress < 30 ? '#ef4444' : progress < 60 ? '#f59e0b' : '#22c55e' }} />
                 </div>
             )}
         </div>
     );
 }
 
-/* ── Button spinner ── */
 function Spinner() {
-    return <span className={styles.spinner} />;
+    return (
+        <motion.span
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+            style={{ display: 'inline-block', width: 16, height: 16, border: '2.5px solid rgba(255,255,255,0.25)', borderTopColor: '#fff', borderRadius: '50%', flexShrink: 0 }}
+        />
+    );
 }
