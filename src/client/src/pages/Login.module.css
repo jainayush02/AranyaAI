@@ -745,6 +745,17 @@
     cursor: not-allowed;
 }
 
+/* Chrome Autofill fix — prevent blue background and ensure text is white */
+.fieldInput:-webkit-autofill,
+.fieldInput:-webkit-autofill:hover,
+.fieldInput:-webkit-autofill:focus {
+    -webkit-text-fill-color: #ffffff !important;
+    -webkit-box-shadow: 0 0 0px 1000px #021a0e inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
 .fieldLabel {
     position: absolute;
     left: 1.25rem;
@@ -755,20 +766,23 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 0.95rem;
     font-weight: 600;
+    z-index: 5;
 }
 
 .fieldInput:focus~.fieldLabel,
-.fieldInput:not(:placeholder-shown)~.fieldLabel {
+.fieldInput:not(:placeholder-shown)~.fieldLabel,
+.fieldInput:-webkit-autofill~.fieldLabel {
     top: 0;
     left: 0.75rem;
     font-size: 0.7rem;
     font-weight: 800;
     color: #8dc63f;
-    background: rgba(2, 26, 14, 0.95);
+    background: #021a0e;
     padding: 0 0.5rem;
     border-radius: 4px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    z-index: 10;
 }
 
 .fieldViewBtn {
