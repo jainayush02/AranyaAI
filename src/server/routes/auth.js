@@ -654,17 +654,10 @@ router.post('/send-report', authMiddleware, async (req, res) => {
 // @desc  Upload profile picture (Memory Storage + Base64 for Vercel/Cloud compatibility)
 router.post('/profile/upload', authMiddleware, upload.single('profilePic'), async (req, res) => {
     try {
-        const { email, mobile } = req.body;
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
-
-        let user = await User.findOne({
-            $or: [
-                email ? { email } : null,
-                mobile ? { mobile } : null
-            ].filter(Boolean)
-        });
+        let user = await User.findById(req.user.id);
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });

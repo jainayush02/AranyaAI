@@ -116,28 +116,31 @@ const connectDB = async () => {
         }
     }
 
-    // Initialize new connection with serverless-optimized options
+    // Initialize new connection with stability-optimized options
     console.log('🔄 MongoDB: Initializing new connection...');
     const options = {
-        serverSelectionTimeoutMS: 15000, // Timeout after 15s if no server found
-        socketTimeoutMS: 45000,
-        maxPoolSize: 10,                 // Sufficient for serverless concurrency
-        minPoolSize: 0,                  // Crucial for serverless: don't keep idle connections
-        heartbeatFrequencyMS: 10000,
-        connectTimeoutMS: 15000,
-        dbName: 'aranya_db'              // Explicitly specify DB name
+        serverSelectionTimeoutMS: 20000, // Increased to 20s for higher latency tolerance
+        socketTimeoutMS: 60000,          // Extended socket timeout for slow networks
+        maxPoolSize: 50,                 // Raised limit to handle higher local concurrency
+        minPoolSize: process.env.NODE_ENV === 'production' ? 0 : 5, // Local: Keep 5 connections hot
+        heartbeatFrequencyMS: 30000,     // Atlas standard heartbeat frequency
+        connectTimeoutMS: 20000,
+        dbName: 'aranya_db',
+        family: 4,                       // Force IPv4 to avoid resolution issues on local machines
+        maxIdleTimeMS: 60000,            // Release inactive connections after 1 minute
+        waitQueueTimeoutMS: 30000        // Time to wait for a pool connection
     };
 
     cached.promise = mongoose.connect(process.env.MONGO_URI, options).then((m) => {
-        console.log('✅ MongoDB: Successfully established connection.');
+        console.log('✅ MongoDB: Successfully established connection (Pool Ready)');
         return m;
     }).catch((err) => {
         console.error(`❌ MongoDB: Connection Error: ${err.message}`);
-        // Log common reasons for failure on Vercel
+        // Log common reasons for failure
         if (err.message.includes('selection timeout')) {
-            console.error('👉 Tip: Check if your IP is whitelisted in MongoDB Atlas (allow 0.0.0.0/0 for Vercel).');
+            console.error('👉 Tip: Check your network/firewall or if your IP is whitelisted in MongoDB Atlas.');
         } else if (err.message.includes('authentication failed')) {
-            console.error('👉 Tip: Double check your MONGO_URI password and username.');
+            console.error('👉 Tip: Review your auth credentials in the .env MONGO_URI.');
         }
         cached.promise = null;
         throw err;

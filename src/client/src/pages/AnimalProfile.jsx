@@ -552,29 +552,15 @@ export default function AnimalProfile() {
 
             const { alreadyCompleted = [], futureNeeded = [], conclusion = "" } = res.data;
 
-            // Map both lists into one but preserve group info or just handle in UI
-            const completed = alreadyCompleted.map(v => {
-                const suggestedDate = new Date(animal.dob);
-                suggestedDate.setDate(suggestedDate.getDate() + (v.recommendationAgeWeeks * 7));
-                const lastDateStr = suggestedDate.toISOString().split('T')[0];
-                return {
+            const allVaccines = [...alreadyCompleted, ...futureNeeded]
+                .map(v => ({
                     ...v,
-                    status: 'Completed',
-                    lastDate: lastDateStr,
-                    dueDate: calculateDueDate(v, lastDateStr),
-                    isHistorical: true
-                };
-            });
-
-            const future = futureNeeded.map(v => ({
-                ...v,
-                status: 'Pending',
-                lastDate: '',
-                dueDate: calculateDueDate(v, ''),
-                isHistorical: false
-            }));
-
-            const allVaccines = [...completed, ...future].sort((a, b) => (a.recommendationAgeWeeks || 0) - (b.recommendationAgeWeeks || 0));
+                    status: 'Pending',
+                    lastDate: '',
+                    dueDate: calculateDueDate(v, ''),
+                    isHistorical: false
+                }))
+                .sort((a, b) => (a.recommendationAgeWeeks || 0) - (b.recommendationAgeWeeks || 0));
 
             setVaccineSchedule(allVaccines);
             setAiConclusion(conclusion);

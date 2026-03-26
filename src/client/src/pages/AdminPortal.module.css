@@ -195,7 +195,7 @@
     box-sizing: border-box;
     background: #2d5f3f;
     background: linear-gradient(105deg, #1a2e23 0%, #2d5f3f 100%);
-    padding: 1.5rem 2.5rem;
+    padding: 2rem 2.5rem 1.5rem; /* Increased top padding */
     display: flex;
     align-items: center;
     gap: 1.5rem;

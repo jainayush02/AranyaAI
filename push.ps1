@@ -1,5 +1,5 @@
 git add .
-git commit -m "Initialize project with Vercel architecture and Admin UI"
+git commit -m "bug fixed by ayush jain"
 git branch -M main
-git remote add origin https://github.com/jainayush02/AranyaAI.git
-git push -u origin main
+git remote set-url origin https://github.com/jainayush02/AranyaAI.git
+git push origin main

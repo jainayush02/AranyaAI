@@ -435,7 +435,6 @@ export default function AdminPortal() {
     const [plans, setPlans] = useState([]);
     const [planModal, setPlanModal] = useState(null);
     const [editingPlan, setEditingPlan] = useState({ name: '', code: '', price: 0, maxAnimals: 3, dailyChatMessages: 5, dailyImageUploads: 0, medicalVaultStorageMB: 10, maxCareCircleMembers: 0, allowExport: false, allowBulkImport: false, allowAdvancedAI: false, isDefault: false, isRecommended: false });
-    const [settingsLoading, setSettingsLoading] = useState(false);
     // Animal Taxonomy Management
     const DEFAULT_CATEGORIES = {
         Cow: ["Holstein", "Jersey", "Angus", "Hereford", "Brahman"],
@@ -451,7 +450,7 @@ export default function AdminPortal() {
 
     // AI Config
     const [aiConfig, setAiConfig] = useState(null);
-    const [aiConfigLoading, setAiConfigLoading] = useState(false);
+    const [aiConfigLoading, setAiConfigLoading] = useState(initialTab === 'infrastructure');
     const [aiConfigSaving, setAiConfigSaving] = useState(false);
     const [isEditingAi, setIsEditingAi] = useState(false);
     const [showPromptModal, setShowPromptModal] = useState(false);
@@ -460,8 +459,8 @@ export default function AdminPortal() {
     const [showFbKey, setShowFbKey] = useState(false);
     const [showVPriKey, setShowVPriKey] = useState(false);
     const [showVFbKey, setShowVFbKey] = useState(false);
-    const [chatRoutingTab, setChatRoutingTab] = useState('primary');
-    const [vaxRoutingTab, setVaxRoutingTab] = useState('primary');
+    // (Routing tab states removed as they are now displayed in a single focused column)
+    const [routingMode, setRoutingMode] = useState('chatbot'); // 'chatbot' or 'cyclecare'
     const addModel = (engine) => {
         setAiConfig(p => {
             const existingModels = p[engine]?.models || [];
@@ -1334,10 +1333,11 @@ export default function AdminPortal() {
                     <div className={s.sideHead}>
                         <div className={s.brandWrap}>
                             <motion.div
-                                animate={{ rotate: isSidebarOpen ? 0 : 360 }}
-                                transition={{ duration: 0.5, ease: "anticipate" }}
+                                animate={{ scale: isSidebarOpen ? 1 : 1.15, opacity: 1 }}
+                                transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+                                style={{ display: 'flex', alignItems: 'center' }}
                             >
-                                <Crown size={18} color="#2d5f3f" />
+                                <ShieldCheck size={19} color="#166534" />
                             </motion.div>
                             <AnimatePresence>
                                 {isSidebarOpen && (
@@ -1417,9 +1417,9 @@ export default function AdminPortal() {
                             {/* ── OVERVIEW ── */}
                             {activeTab === 'overview' && (
                                 <motion.div key="ov" className={s.section}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 0.3 }}>
                                     {/* Header with Poll Controls */}
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
@@ -2287,9 +2287,9 @@ export default function AdminPortal() {
                             {/* ── ACTIVITY LOGS ── */}
                             {activeTab === 'logs' && (
                                 <motion.div key="lg" className={s.section}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
@@ -2349,7 +2349,7 @@ export default function AdminPortal() {
 
                             {/* ── CONTENT (FAQs + Docs link) ── */}
                             {activeTab === 'content' && (
-                                <motion.div key="ct" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
+                                <motion.div key="ct" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
                                         <button className={s.addBtn} onClick={openFaqCreate} style={{ padding: '0.7rem 1.4rem', borderRadius: '12px' }}>
@@ -2401,7 +2401,7 @@ export default function AdminPortal() {
 
                             {/* ── DOCUMENTATION ── */}
                             {tab === 'docs' && (
-                                <motion.div key="docs" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
+                                <motion.div key="docs" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                                     <div className={s.sectionHead}>
                                         <div />
                                     </div>
@@ -2524,13 +2524,8 @@ export default function AdminPortal() {
 
                             {/* ── ARION CONFIGURATION ── */}
                             {activeTab === 'infrastructure' && (
-                                <motion.div key="st" className={s.section} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
-                                    <div className={s.sectionHead}>
-                                        <div />
-                                        <button className={s.primaryBtn} onClick={() => navigate('/settings?tab=advanced')}><SettingsIcon size={16} /> Advanced Config</button>
-                                    </div>
-
-                                    {settingsLoading ? (
+                                <motion.div key="st" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                                    {(aiConfigLoading || !aiConfig) ? (
                                         <AdvancedLoader type="settings" compact={false} fullScreen={false} />
                                     ) : (
                                         <div className={s.contentGrid}>
@@ -2583,74 +2578,75 @@ export default function AdminPortal() {
 
                                             {aiConfig && (
                                                 <div className={s.contentCard} style={{ gridColumn: '1 / -1' }}>
-                                                    <div className={s.contentCardHead}>
+                                                    <div className={s.contentCardHead} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', width: '100%', gap: '1rem', position: 'relative' }}>
                                                         <div className={s.contentCardTitle}>
-                                                            <div style={{ width: 42, height: 42, borderRadius: '14px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <Zap size={22} color="#f59e0b" />
-                                                            </div>
-                                                            <div>
-                                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1.1rem' }}>AI Model Routing Architecture</div>
-                                                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>Configure independent routing for Chat and Vaccines</div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(45, 95, 63, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                    <ShieldCheck size={20} color="#2d5f3f" />
+                                                                </div>
+                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.05rem' }}>AI Model Routing System</div>
                                                             </div>
                                                         </div>
-                                                        {!isEditingAi ? (
-                                                            <button
-                                                                className={`${s.premiumButton} ${s.btnSecondary}`}
-                                                                onClick={() => setIsEditingAi(true)}
-                                                                style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
-                                                            >
-                                                                <Pencil size={15} /> Edit Routing
-                                                            </button>
-                                                        ) : (
-                                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                        <div>
+                                                            {/* ── CENTRAL SEGMENTED NAVIGATION ── */}
+                                                            <div className={s.pillTabs} style={{ padding: '3px', minWidth: '320px' }}>
+                                                                <button
+                                                                    className={`${s.pillTab} ${routingMode === 'chatbot' ? s.pillTabActive : ''}`}
+                                                                    onClick={() => setRoutingMode('chatbot')}
+                                                                    style={{ flex: 1, padding: '5px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                                                                >
+                                                                    Arion Chatbot
+                                                                </button>
+                                                                <button
+                                                                    className={`${s.pillTab} ${routingMode === 'cyclecare' ? s.pillTabActive : ''}`}
+                                                                    onClick={() => setRoutingMode('cyclecare')}
+                                                                    style={{ flex: 1, padding: '5px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                                                                >
+                                                                    Arion Cyclecare
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                                            {!isEditingAi ? (
                                                                 <button
                                                                     className={`${s.premiumButton} ${s.btnSecondary}`}
-                                                                    onClick={() => { setIsEditingAi(false); fetchAiConfig(); }}
-                                                                    disabled={aiConfigSaving}
-                                                                    style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
+                                                                    onClick={() => setIsEditingAi(true)}
+                                                                    style={{ padding: '0.55rem 1.1rem', fontSize: '0.82rem' }}
                                                                 >
-                                                                    Cancel
+                                                                    <Pencil size={14} /> Edit Routing
                                                                 </button>
-                                                                <button
-                                                                    className={`${s.premiumButton} ${s.btnPrimary}`}
-                                                                    onClick={async () => { await saveAiConfig(); setIsEditingAi(false); }}
-                                                                    disabled={aiConfigSaving}
-                                                                    style={{ padding: '0.6rem 1.5rem', fontSize: '0.85rem' }}
-                                                                >
-                                                                    {aiConfigSaving ? <Loader2 size={16} className={s.spin} /> : <Save size={16} />}
-                                                                    {aiConfigSaving ? ' Saving...' : ' Save Architecture'}
-                                                                </button>
-                                                            </div>
-                                                        )}
+                                                            ) : (
+                                                                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                                                    <button
+                                                                        className={`${s.premiumButton} ${s.btnSecondary}`}
+                                                                        onClick={() => { setIsEditingAi(false); fetchAiConfig(); }}
+                                                                        disabled={aiConfigSaving}
+                                                                        style={{ padding: '0.55rem 1.1rem', fontSize: '0.82rem' }}
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        className={`${s.premiumButton} ${s.btnPrimary}`}
+                                                                        onClick={async () => { await saveAiConfig(); setIsEditingAi(false); }}
+                                                                        disabled={aiConfigSaving}
+                                                                        style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem' }}
+                                                                    >
+                                                                        {aiConfigSaving ? <Loader2 size={16} className={s.spin} /> : <Save size={15} />}
+                                                                        {aiConfigSaving ? ' Saving...' : ' Save Changes'}
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
 
-                                                    <div className={s.dualColumnGrid}>
-                                                        {/* ── CHATBOT ROUTING ── */}
-                                                        <div>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', marginBottom: '1.25rem', padding: '0 0.5rem' }}>
-                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                    <MessageSquare size={18} color="#2d5f3f" /> Chatbot AI Routing
-                                                                </div>
-                                                                <div className={s.pillTabs}>
-                                                                    <button
-                                                                        className={`${s.pillTab} ${chatRoutingTab === 'primary' ? s.pillTabActive : ''}`}
-                                                                        onClick={() => setChatRoutingTab('primary')}
-                                                                    >
-                                                                        <Crown size={14} /> Primary
-                                                                    </button>
-                                                                    <button
-                                                                        className={`${s.pillTab} ${chatRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
-                                                                        onClick={() => setChatRoutingTab('fallback')}
-                                                                    >
-                                                                        <ShieldCheck size={14} /> Recovery
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className={s.aiConfigSingle}>
-                                                                {chatRoutingTab === 'primary' ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '0.5rem' }}>
+                                                        {/* ── FOCUSED ROUTING GRID ── */}
+                                                        <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+                                                            {routingMode === 'chatbot' ? (
+                                                                <>
                                                                     <AiGatewayConfig
-                                                                        title=""
+                                                                        title="Primary Model"
                                                                         icon={Crown}
                                                                         config={aiConfig.primary}
                                                                         isEditing={isEditingAi}
@@ -2660,15 +2656,14 @@ export default function AdminPortal() {
                                                                         removeModel={removeModel}
                                                                         toggleEngine={toggleEngine}
                                                                         engineKey="primary"
-                                                                        activeColor="#2d5f3f"
+                                                                        activeColor="#15803d"
                                                                         aiConfigSaving={aiConfigSaving}
                                                                         showKey={showPriKey}
                                                                         setShowKey={setShowPriKey}
                                                                         s={s}
                                                                     />
-                                                                ) : (
                                                                     <AiGatewayConfig
-                                                                        title=""
+                                                                        title="Fallback Model"
                                                                         icon={ShieldCheck}
                                                                         config={aiConfig.fallback}
                                                                         isEditing={isEditingAi}
@@ -2678,42 +2673,17 @@ export default function AdminPortal() {
                                                                         removeModel={removeModel}
                                                                         toggleEngine={toggleEngine}
                                                                         engineKey="fallback"
-                                                                        activeColor="#6366f1"
+                                                                        activeColor="#1e40af"
                                                                         aiConfigSaving={aiConfigSaving}
                                                                         showKey={showFbKey}
                                                                         setShowKey={setShowFbKey}
                                                                         s={s}
                                                                     />
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* ── VACCINATION ROUTING ── */}
-                                                        <div>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', marginBottom: '1.25rem', padding: '0 0.5rem' }}>
-                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                    <Activity size={18} color="#8b5cf6" /> Vaccination AI Routing
-                                                                </div>
-                                                                <div className={s.pillTabs}>
-                                                                    <button
-                                                                        className={`${s.pillTab} ${vaxRoutingTab === 'primary' ? s.pillTabActive : ''}`}
-                                                                        onClick={() => setVaxRoutingTab('primary')}
-                                                                    >
-                                                                        <Zap size={14} /> Primary
-                                                                    </button>
-                                                                    <button
-                                                                        className={`${s.pillTab} ${vaxRoutingTab === 'fallback' ? s.pillTabActive : ''}`}
-                                                                        onClick={() => setVaxRoutingTab('fallback')}
-                                                                    >
-                                                                        <ShieldAlert size={14} /> Recovery
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className={s.aiConfigSingle}>
-                                                                {vaxRoutingTab === 'primary' ? (
+                                                                </>
+                                                            ) : (
+                                                                <>
                                                                     <AiGatewayConfig
-                                                                        title=""
+                                                                        title="Primary Model"
                                                                         icon={Zap}
                                                                         config={aiConfig.vaccinePrimary}
                                                                         isEditing={isEditingAi}
@@ -2723,15 +2693,14 @@ export default function AdminPortal() {
                                                                         removeModel={removeModel}
                                                                         toggleEngine={toggleEngine}
                                                                         engineKey="vaccinePrimary"
-                                                                        activeColor="#8b5cf6"
+                                                                        activeColor="#15803d"
                                                                         aiConfigSaving={aiConfigSaving}
                                                                         showKey={showVPriKey}
                                                                         setShowKey={setShowVPriKey}
                                                                         s={s}
                                                                     />
-                                                                ) : (
                                                                     <AiGatewayConfig
-                                                                        title=""
+                                                                        title="Fallback Model"
                                                                         icon={ShieldAlert}
                                                                         config={aiConfig.vaccineFallback}
                                                                         isEditing={isEditingAi}
@@ -2741,14 +2710,14 @@ export default function AdminPortal() {
                                                                         removeModel={removeModel}
                                                                         toggleEngine={toggleEngine}
                                                                         engineKey="vaccineFallback"
-                                                                        activeColor="#ef4444"
+                                                                        activeColor="#1e40af"
                                                                         aiConfigSaving={aiConfigSaving}
                                                                         showKey={showVFbKey}
                                                                         setShowKey={setShowVFbKey}
                                                                         s={s}
                                                                     />
-                                                                )}
-                                                            </div>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2851,8 +2820,8 @@ export default function AdminPortal() {
                             {/* ── ANIMAL TAXONOMY ── */}
                             {activeTab === 'taxonomy' && (
                                 <motion.div key="tx" className={s.section}
-                                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
 
                                     {/* Two-column layout */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
@@ -3012,7 +2981,7 @@ export default function AdminPortal() {
 
                             {/* ── PRICING PLANS ── */}
                             {activeTab === 'pricing' && (
-                                <motion.div key="pricing" className={s.section} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                                <motion.div key="pricing" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
 
                                     {planModal && (
                                         <div className={s.overlay}>

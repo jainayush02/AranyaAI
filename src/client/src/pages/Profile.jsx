@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck, Calendar, Users as UsersIcon, CheckCircle } from 'lucide-react';
+import { User, Mail, Camera, Loader2, Check, X, Phone, ShieldCheck, Calendar, Users as UsersIcon, CheckCircle, RotateCcw, Plus, Minus } from 'lucide-react';
+import Cropper from 'react-easy-crop';
+import 'react-easy-crop/react-easy-crop.css';
+import { getCroppedImgFile } from '../utils/cropImage';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdvancedLoader from '../components/AdvancedLoader';
@@ -62,6 +65,12 @@ export default function Profile() {
     // Delete account state
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Cropping states
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [isCropping, setIsCropping] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -132,21 +141,52 @@ export default function Profile() {
         window.dispatchEvent(new Event('userUpdated'));
     };
 
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
     const handleImageSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
             setPendingImage(file);
             setPreviewUrl(URL.createObjectURL(file));
+            setIsCropping(true);
+            setZoom(1);
+            setCrop({ x: 0, y: 0 });
         }
+    };
+
+    const handleApplyCrop = async () => {
+        try {
+            const croppedImageBlob = await getCroppedImgFile(previewUrl, croppedAreaPixels);
+            const croppedFile = new File([croppedImageBlob], pendingImage.name, { type: 'image/jpeg' });
+            
+            setPendingImage(croppedFile);
+            setPreviewUrl(URL.createObjectURL(croppedImageBlob));
+            setIsCropping(false);
+        } catch (e) {
+            console.error(e);
+            showToast("Failed to crop image.", "error");
+        }
+    };
+
+    const cancelCrop = () => {
+        setIsCropping(false);
+        setPendingImage(null);
+        setPreviewUrl('');
     };
 
     const handlePhotoSave = async () => {
         if (!pendingImage) return;
 
+        // Frontend validation: 2MB limit
+        if (pendingImage.size > 2 * 1024 * 1024) {
+            showToast('Image size exceeds 2MB limit.', 'error');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('profilePic', pendingImage);
-        formData.append('email', user.email || '');
-        formData.append('mobile', user.mobile || '');
 
         setIsUploading(true);
         try {
@@ -160,9 +200,11 @@ export default function Profile() {
             syncUser(res.data.user);
             setPendingImage(null);
             setPreviewUrl('');
+            showToast('Profile picture updated successfully!', 'success');
         } catch (error) {
             console.error('Upload failed', error);
-            showToast('Failed to upload image.', 'error');
+            const msg = error.response?.data?.message || 'Failed to upload image.';
+            showToast(msg, 'error');
         } finally {
             setIsUploading(false);
         }
@@ -627,6 +669,59 @@ export default function Profile() {
                     confirmText={isDeleting ? "Deleting..." : "Yes, Delete Everything"}
                     type="danger"
                 />
+
+                {/* ── IMAGE CROP MODAL ── */}
+                <AnimatePresence>
+                    {isCropping && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className={styles.cropOverlay}
+                        >
+                            <div className={styles.cropModalContainer}>
+                                <div className={styles.cropHeader}>
+                                    <button className={styles.cropHeaderBtn} onClick={cancelCrop}>
+                                        <X size={20} />
+                                    </button>
+                                    <span className={styles.cropTitle}>Drag to adjust</span>
+                                    <button className={styles.cropHeaderBtn} onClick={() => fileInputRef.current?.click()}>
+                                        <RotateCcw size={18} /> Upload
+                                    </button>
+                                </div>
+
+                                <div className={styles.cropperContainer}>
+                                    <Cropper
+                                        image={previewUrl}
+                                        crop={crop}
+                                        zoom={zoom}
+                                        aspect={1}
+                                        cropShape="round"
+                                        showGrid={false}
+                                        onCropChange={setCrop}
+                                        onCropComplete={onCropComplete}
+                                        onZoomChange={setZoom}
+                                    />
+
+                                    <div className={styles.cropControls}>
+                                        <button className={styles.controlBtn} onClick={() => setZoom(z => Math.min(3, z + 0.2))}>
+                                            <Plus size={20} />
+                                        </button>
+                                        <button className={styles.controlBtn} onClick={() => setZoom(z => Math.max(1, z - 0.2))}>
+                                            <Minus size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className={styles.cropFooter}>
+                                    <button className={styles.applyCropBtn} onClick={handleApplyCrop}>
+                                        <Check size={32} />
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
     );
 }

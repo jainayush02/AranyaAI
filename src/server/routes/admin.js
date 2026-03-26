@@ -920,8 +920,12 @@ Generate a comprehensive lifecycle vaccination roadmap...`;
 
 router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
     try {
-        // Use a spread to keep all keys including vaccinePrimary and vaccineFallback
-        const newValue = { ...req.body };
+        // Fetch the current config first to perform a merge
+        const currentSettings = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        const existingValue = currentSettings?.value || {};
+
+        // Merge existing values with the new values from req.body
+        const newValue = { ...existingValue, ...req.body };
 
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },
@@ -929,7 +933,8 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
             { upsert: true, new: true }
         );
 
-        await log('admin', req.user, `Updated AI Model Configuration (Vax Routing: ${newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF'})`);
+        const vaxStatus = newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF';
+        await log('admin', req.user, `Updated AI Model Configuration (Hybrid Vax Routing: ${vaxStatus})`);
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
