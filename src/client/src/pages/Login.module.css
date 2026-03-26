@@ -285,7 +285,7 @@
 }
 
 .visualContent {
-    max-width: 540px;
+    max-width: 780px;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -337,7 +337,7 @@
 /* Hero */
 .heroBlock h1 {
     font-family: 'Manrope', sans-serif;
-    font-size: clamp(1.8rem, 3.5vw, 2.75rem);
+    font-size: clamp(1.6rem, 3.2vw, 2.5rem);
     font-weight: 800;
     line-height: 1.1;
     margin-bottom: 0.75rem;
@@ -346,12 +346,15 @@
 
 .heroLine1 {
     display: block;
-    background: linear-gradient(90deg, #ffffff 0%, #e2e8f0 40%, #bbf7d0 100%);
+    white-space: nowrap;
+    opacity: 0.8;
+    font-weight: 600;
+    font-size: 0.9em;
+    background: linear-gradient(90deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    background-size: 250% 100%;
-    animation: shimmerText 6s ease-in-out infinite;
+    margin-bottom: 0.25rem;
 }
 
 @keyframes shimmerText {
@@ -368,7 +371,10 @@
 
 .heroLine2 {
     display: block;
+    white-space: nowrap;
     color: #8dc63f;
+    font-weight: 900;
+    text-shadow: 0 0 35px rgba(141, 198, 63, 0.45), 0 0 70px rgba(141, 198, 63, 0.15);
     position: relative;
 }
 

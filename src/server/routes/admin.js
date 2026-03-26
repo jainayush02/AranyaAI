@@ -894,40 +894,34 @@ Format:
             });
         }
 
+        // --- Ensure Defaults for Vaccine Routing if missing ---
+        if (!settings.value.vaccinePrimary) {
+            settings.value.vaccinePrimary = {
+                enabled: false, provider: 'Hugging Face', customProvider: '',
+                baseURL: 'https://router.huggingface.co/v1', apiKey: '', models: []
+            };
+        }
+        if (!settings.value.vaccineFallback) {
+            settings.value.vaccineFallback = {
+                enabled: false, provider: 'OpenRouter', customProvider: '',
+                baseURL: 'https://openrouter.ai/api/v1', apiKey: '', models: []
+            };
+        }
         if (!settings.value.vaccinePrompt) {
             settings.value.vaccinePrompt = `You are a career veterinary consultant for Arion CareCycle. 
 Analyze a \${animal.category} of breed \${animal.breed} and current age \${ageYears} years.
 
-Generate a comprehensive lifecycle vaccination roadmap. Divide the vaccines into two categories based on the animal's current age (\${ageYears} years):
-1. 'alreadyCompleted': Vaccines that should have been administered from birth up to this current age.
-2. 'futureNeeded': Vaccines that will be due from this age onwards and across the animal's lifetime.
-
-For each vaccine include:
-- name: Specific vaccine name.
-- type: 'Core' or 'Optional'.
-- frequencyMonths: Interval between doses (integer).
-- ageRange: String representing when this is needed.
-- clinicalCycle: String representing the recurring cycle.
-- recommendationAgeWeeks: When it typically starts (integer).
-- description: 1-sentence medical detail.
-
-CRITICAL: Provide your ENTIRE response as a SINGLE, VALID JSON object. Do not wrap in markdown blocks. Do not add explanations. ONLY return the JSON.
-
-Format:
-{
-  "alreadyCompleted": [],
-  "futureNeeded": [],
-  "conclusion": "A 2-3 line summary."
-}`;
+Generate a comprehensive lifecycle vaccination roadmap...`;
         }
+
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
     try {
-        const { primary, fallback, systemPrompt, vaccinePrompt, vaccinePrimary, vaccineFallback } = req.body;
-        const newValue = { primary, fallback, systemPrompt, vaccinePrompt, vaccinePrimary, vaccineFallback };
+        // Use a spread to keep all keys including vaccinePrimary and vaccineFallback
+        const newValue = { ...req.body };
 
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },
@@ -935,7 +929,7 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
             { upsert: true, new: true }
         );
 
-        await log('admin', req.user, `Updated AI Model Configuration & Prompts`);
+        await log('admin', req.user, `Updated AI Model Configuration (Vax Routing: ${newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF'})`);
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });

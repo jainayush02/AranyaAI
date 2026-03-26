@@ -718,8 +718,8 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
         }
 
         // Decide which configuration to use for Vaccines (Specialized vs Global)
-        const vPri = (aiConfig.vaccinePrimary && aiConfig.vaccinePrimary.enabled) ? aiConfig.vaccinePrimary : aiConfig.primary;
-        const vFb = (aiConfig.vaccineFallback && aiConfig.vaccineFallback.enabled) ? aiConfig.vaccineFallback : aiConfig.fallback;
+        const vPri = aiConfig.vaccinePrimary || aiConfig.primary;
+        const vFb = aiConfig.vaccineFallback || aiConfig.fallback;
 
         // ── 1. Determine model mapping ──
         const primaryTextModel = (vPri.models || []).find(m => m.type === 'text' || m.type === 'text+vision');

@@ -267,8 +267,8 @@ export default function Login() {
 
                             <div className={styles.heroBlock}>
                                 <h1>
-                                    <span className={styles.heroLine1}>Because They Can't Tell You</span>
-                                    <span className={styles.heroLine2}>Before it Happens.</span>
+                                    <span className={styles.heroLine1}>Because Instinct is Hidden.</span>
+                                    <span className={styles.heroLine2}>Protect Every Life, Before it Fails.</span>
                                 </h1>
                                 <p className={styles.heroP}>
                                     Predict health risks before they manifest.
@@ -572,7 +572,7 @@ export default function Login() {
                         viewport={{ margin: "-50px" }}
                         transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
                     >
-                        <motion.div 
+                        <motion.div
                             className={styles.infoBadge}
                             initial={{ opacity: 0, y: 15 }}
                             whileInView={{ opacity: 1, y: 0 }}
@@ -581,7 +581,7 @@ export default function Login() {
                         >
                             The Professional Standard
                         </motion.div>
-                        <motion.h2 
+                        <motion.h2
                             className={styles.infoTitle}
                             initial={{ opacity: 0, scale: 0.98, y: 15, filter: "blur(12px)" }}
                             whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}

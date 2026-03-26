@@ -10,9 +10,13 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
-import { Paperclip } from 'lucide-react'; // Added Paperclip
+import { Paperclip, FileText } from 'lucide-react'; // Added Paperclip and FileText
 import { useToast } from '../components/ToastProvider';
 
 const AILogo = ({ size = 24, className }) => (
@@ -68,7 +72,7 @@ const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
     return (
         <div className={styles.typewriterWrapper}>
             <div className={styles.markdownContent}>
-                <ReactMarkdown>{displayedText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{displayedText}</ReactMarkdown>
             </div>
             {currentIndex < text.length && (
                 <div className={styles.writingSpinnerWrapper}>
@@ -574,6 +578,93 @@ export default function ChatBot() {
         setTimeout(() => setCopiedId(null), 2000);
     };
 
+    const handleDownloadPDF = (content, title = 'Arion-Report') => {
+        const doc = new jsPDF();
+        
+        // Engineer's Sanitizer: Strips Unicode, Brackets, and MD artifacts
+        const sanitize = (text) => {
+            if (!text) return '';
+            return text
+                .replace(/<br\s*\/?>/gi, '\n') // Newlines
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') // Zero-width spaces
+                .replace(/[^\x00-\x7F]/g, '') // Force Standard ASCII (Removes AI hidden bold chars)
+                .replace(/\*|_|`|~|#|\[|\]/g, '') // Strip MD symbols
+                .replace(/\s+/g, ' ') // Collapse extra spaces
+                .trim();
+        };
+
+        const lines = content.split('\n');
+        let tables = [];
+        let currentTable = null;
+
+        lines.forEach(line => {
+            if (line.includes('|') && line.includes('---')) return;
+            if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+                const cells = line.split('|').map(c => sanitize(c)).filter(c => c !== '');
+                if (cells.length > 0) {
+                    if (!currentTable) {
+                        currentTable = [cells];
+                    } else {
+                        currentTable.push(cells);
+                    }
+                }
+            } else if (currentTable) {
+                tables.push(currentTable);
+                currentTable = null;
+            }
+        });
+        if (currentTable) tables.push(currentTable);
+
+        if (tables.length === 0) {
+            showToast('No table found to export.', 'info');
+            return;
+        }
+
+        // Global Font Setup
+        doc.setFont('helvetica', 'normal');
+        
+        // Header Core
+        doc.setFontSize(22);
+        doc.setTextColor(26, 74, 56);
+        doc.text('Arion Health Assistant Report', 14, 22);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Official Medical Schedule | ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, 34, 196, 34);
+
+        tables.forEach((table, i) => {
+            const head = [table[0]];
+            const body = table.slice(1);
+            
+            autoTable(doc, {
+                head: head,
+                body: body,
+                startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 40,
+                theme: 'striped',
+                styles: { 
+                    font: 'helvetica',
+                    fontSize: 9, 
+                    cellPadding: 6,
+                    textColor: [51, 65, 85],
+                    overflow: 'linebreak'
+                },
+                headStyles: { 
+                    fillColor: [45, 95, 63], 
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 10
+                },
+                alternateRowStyles: { fillColor: [248, 250, 248] },
+                margin: { left: 14, right: 14 }
+            });
+        });
+
+        doc.save(`${title.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.pdf`);
+        showToast('Official PDF Report generated!', 'success');
+    };
+
     const toggleSelectChat = (e, id) => {
         e.stopPropagation();
         setSelectedChatIds(prev =>
@@ -1004,7 +1095,7 @@ export default function ChatBot() {
                                                                     />
                                                                 ) : (
                                                                     <div className={styles.markdownContent}>
-                                                                        <ReactMarkdown>{cleanContent}</ReactMarkdown>
+                                                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{cleanContent}</ReactMarkdown>
                                                                     </div>
                                                                 )}
                                                             </>
@@ -1063,9 +1154,21 @@ export default function ChatBot() {
                                                             </button>
 
                                                             <div className={styles.actionDivider} />
-                                                            <button className={styles.messageActionBtn} onClick={() => handleExport(msg.content)} title="Export">
+                                                            <button className={styles.messageActionBtn} onClick={() => handleExport(msg.content)} title="Export TXT">
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                                             </button>
+
+                                                            {msg.content.includes('|') && (
+                                                                <button 
+                                                                    className={`${styles.messageActionBtn} ${styles.pdfDownloadBtn}`}
+                                                                    onClick={() => handleDownloadPDF(msg.content, msg.conversationTitle || 'Arion-Report')} 
+                                                                    title="Download Official PDF Report"
+                                                                >
+                                                                    <FileText size={14} />
+                                                                    <span className={styles.pdfBtnLabel}>PDF</span>
+                                                                </button>
+                                                            )}
+                                                            
                                                             <button className={styles.messageActionBtn} onClick={() => handleRegenerate(i)} disabled={isGenerating} title="Regenerate">
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
                                                             </button>

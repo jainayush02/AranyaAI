@@ -368,7 +368,6 @@ If the question is outside animal-related topics, reply only with:
                 }
             }
 
-            // Fetch previous 15 messages EXCLUDING the current one to prevent duplication
             const previousMessages = await ChatMessage.find({
                 conversation_id: req.params.id,
                 _id: { $ne: userMsg._id }
@@ -376,36 +375,24 @@ If the question is outside animal-related topics, reply only with:
                 .sort({ createdAt: -1 })
                 .limit(15);
 
-            const chatMemory = previousMessages.reverse().map(m => {
-                // Critical: Reconstruct multi-modal message if images exist in history
-                const mImages = m.image_urls && m.image_urls.length > 0 ? m.image_urls : (m.image_url ? [m.image_url] : []);
-                const mappedRole = m.role === 'ai' ? 'assistant' : (m.role || 'user');
-
-                if (mImages.length > 0) {
-                    const contentArray = [{ type: "text", text: m.content || "Image Analysis" }];
-                    mImages.forEach(url => {
-                        contentArray.push({ type: "image_url", image_url: { url } });
-                    });
-                    return {
-                        role: mappedRole,
-                        content: contentArray
-                    };
-                }
-                return {
-                    role: mappedRole,
-                    content: m.content
-                };
-            });
+            // AI Engineer Optimization: TOON Context Consolidation
+            // Instead of separate JSON objects, merge history into a single efficient string
+            const toonHistory = previousMessages.reverse().map(m => {
+                const prefix = m.role === 'ai' ? 'a: ' : 'u: ';
+                return `${prefix}${m.content || "[Image Sent]"}`;
+            }).join('\n');
 
             const finalMessages = [
-                { role: "system", content: systemPrompt },
-                ...chatMemory,
+                { 
+                    role: "system", 
+                    content: `${systemPrompt}\n\n## ACTIVE_CONVERSATION_STATE\n${toonHistory || "New conversation started."}\n\n[INSTRUCTION]: Stay in context. If the user asks for clarification or simpler words, fulfill the request within the animal health scope.` 
+                },
                 { role: "user", content: userMessageContent }
             ];
 
             // Determine if ANY message in the entire context (history + current) contains images
-            const contextHasImage = hasImage || chatMemory.some(m =>
-                Array.isArray(m.content) && m.content.some(item => item.type === 'image_url')
+            const contextHasImage = hasImage || previousMessages.some(m => 
+                (m.image_url && m.image_url.length > 0) || (m.image_urls && m.image_urls.length > 0)
             );
 
             let response;

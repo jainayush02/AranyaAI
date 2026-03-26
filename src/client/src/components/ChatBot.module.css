@@ -1966,3 +1966,86 @@
         display: block !important;
     }
 }
+
+/* --- Markdown Table Styling (Elite) --- */
+.markdownContent table {
+    width: 100%;
+    margin: 1.5rem 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid rgba(45, 95, 63, 0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    font-size: 0.9rem;
+}
+
+.markdownContent th {
+    background: rgba(242, 247, 244, 0.82);
+    color: #1a4a38;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 14px 18px;
+    text-align: left;
+    border-bottom: 2px solid rgba(45, 95, 63, 0.1);
+}
+
+.markdownContent td {
+    padding: 14px 18px;
+    color: #475569;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    line-height: 1.5;
+}
+
+.markdownContent tr:last-child td {
+    border-bottom: none;
+}
+
+.markdownContent tr:hover td {
+    background: #fdfdfd;
+}
+
+.markdownContent p code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+}
+
+@media (max-width: 768px) {
+    .markdownContent table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+    }
+}
+
+/* --- PDF Export Button --- */
+.pdfDownloadBtn {
+    background: rgba(45, 95, 63, 0.05) !important;
+    border: 1px solid rgba(45, 95, 63, 0.1) !important;
+    color: var(--primary) !important;
+    padding: 4px 8px !important;
+    margin-left: 8px;
+    gap: 4px;
+}
+
+.pdfDownloadBtn:hover {
+    background: var(--primary) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(45, 95, 63, 0.2);
+}
+
+.pdfBtnLabel {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
