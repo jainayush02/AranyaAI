@@ -11,7 +11,7 @@ const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 
 const aiLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, 
+    windowMs: 1 * 60 * 1000,
     max: 10, // Max 10 messages per minute
     standardHeaders: true,
     legacyHeaders: false,
@@ -92,7 +92,7 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
     try {
         const conversation = await Conversation.findById(req.params.id);
         if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
-        
+
         // Ownership check
         if (conversation.user_id.toString() !== req.user.id) {
             return res.status(404).json({ msg: 'Chat not found' });
@@ -335,98 +335,81 @@ If the question is outside animal-related topics, reply only with:
         } catch (confErr) {
             console.error("Error fetching AI config from DB, using defaults:", confErr.message);
         }
-
-        const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
-
+        const { stream = true } = req.body;
         try {
+            // The conversation and userMsg creation are already done above.
+            // Using the already destructured variables from req.body
+
+            let aiContent = "";
+            const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
 
             const systemPrompt = aiConfig.systemPrompt;
 
-
-            // Log image presence for debugging
             if (image_url) {
                 console.log(`Processing message with image (length: ${image_url.length}) for conversation ${req.params.id}`);
             }
 
-            const userMessageContent = [];
+            // The previous userMessageContent logic is now fully integrated into finalMessages below.
 
-            if (content && content.trim() !== '') {
-                userMessageContent.push({ type: "text", text: content });
-            }
-
-            const currentImages = image_urls || (image_url ? [image_url] : []);
-            if (currentImages && currentImages.length > 0) {
-                currentImages.forEach(url => {
-                    userMessageContent.push({
-                        type: "image_url",
-                        image_url: { url }
-                    });
-                });
-
-                if (!content || content.trim() === '') {
-                    userMessageContent.push({ type: "text", text: "Please analyze the attached image(s) for any health abnormalities." });
-                }
-            }
-
+            // 1. Fetch history excluding the current message to avoid repetition loops
             const previousMessages = await ChatMessage.find({
                 conversation_id: req.params.id,
-                _id: { $ne: userMsg._id }
-            })
-                .sort({ createdAt: -1 })
-                .limit(15);
+                user_id: req.user.id,
+                _id: { $ne: userMsg._id } // Critical fix for memory loop
+            }).sort({ createdAt: -1 }).limit(10); // Optimal last 10 messages
 
-            // AI Engineer Optimization: TOON Context Consolidation
-            // Instead of separate JSON objects, merge history into a single efficient string
+            // 2. Build the TOON compact context (\n instead of JSON saves ~30% tokens)
             const toonHistory = previousMessages.reverse().map(m => {
                 const prefix = m.role === 'ai' ? 'a: ' : 'u: ';
-                return `${prefix}${m.content || "[Image Sent]"}`;
+                return `${prefix}${m.content || "[Photo Sent]"}`;
             }).join('\n');
 
+            // 3. Construct the message list with clear HISTORY gating
+            const historyBlock = toonHistory ? `[HISTORY]\n${toonHistory}\n[HISTORY_END]\n\n` : "";
+            
             const finalMessages = [
-                { 
-                    role: "system", 
-                    content: `${systemPrompt}\n\n## ACTIVE_CONVERSATION_STATE\n${toonHistory || "New conversation started."}\n\n[INSTRUCTION]: Stay in context. If the user asks for clarification or simpler words, fulfill the request within the animal health scope.` 
-                },
-                { role: "user", content: userMessageContent }
+                { role: "system", content: systemPrompt },
+                {
+                    role: "user",
+                    content: [
+                        { type: "text", text: `${historyBlock}[TASK]: ${content || "Respond to user"}` },
+                        ...(image_url || (image_urls && image_urls.length > 0) ? 
+                            (image_urls || [image_url]).map(url => ({ type: "image_url", image_url: { url } })) 
+                            : [])
+                    ]
+                }
             ];
 
-            // Determine if ANY message in the entire context (history + current) contains images
-            const contextHasImage = hasImage || previousMessages.some(m => 
+
+            const contextHasImage = hasImage || previousMessages.some(m =>
                 (m.image_url && m.image_url.length > 0) || (m.image_urls && m.image_urls.length > 0)
             );
 
-            let response;
+            let completionStream;
             let useFallback = false;
 
             // --- Attempt Primary Engine ---
             if (aiConfig.primary.enabled && aiConfig.primary.apiKey && aiConfig.primary.apiKey !== 'your_hf_token_here') {
                 try {
-                    // Determine which model to use based on capabilities
                     const primaryTextModel = aiConfig.primary.models.find(m => m.type === 'text' || m.type === 'text+vision');
                     const primaryVisionModel = aiConfig.primary.models.find(m => m.type === 'vision' || m.type === 'text+vision');
                     const primaryModelObj = contextHasImage ? (primaryVisionModel || primaryTextModel) : primaryTextModel;
 
-                    if (!primaryModelObj) throw new Error("No primary model configured for this query type.");
-
-                    const pBaseURL = primaryModelObj.baseURL || aiConfig.primary.baseURL;
-                    const pApiKey = primaryModelObj.apiKey || aiConfig.primary.apiKey;
+                    if (!primaryModelObj) throw new Error("No primary model configured.");
 
                     const primaryOpenai = new OpenAI({
-                        apiKey: pApiKey,
-                        baseURL: pBaseURL
+                        apiKey: primaryModelObj.apiKey || aiConfig.primary.apiKey,
+                        baseURL: primaryModelObj.baseURL || aiConfig.primary.baseURL
                     });
 
-                    response = await primaryOpenai.chat.completions.create({
+                    completionStream = await primaryOpenai.chat.completions.create({
                         model: primaryModelObj.modelId,
                         messages: finalMessages,
-                        max_tokens: 1000
+                        max_tokens: 1500,
+                        stream: stream
                     });
-
-                    if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
-                        throw new Error("Invalid response from primary AI");
-                    }
-                } catch (primaryErr) {
-                    console.error("Primary GenAI Engine Error, falling back:", primaryErr.message);
+                } catch (pErr) {
+                    console.error("Primary GenAI Engine Error:", pErr.message);
                     useFallback = true;
                 }
             } else {
@@ -436,73 +419,62 @@ If the question is outside animal-related topics, reply only with:
             // --- Attempt Fallback Engine ---
             if (useFallback && aiConfig.fallback.enabled && aiConfig.fallback.apiKey && aiConfig.fallback.apiKey !== 'your_openrouter_api_key_here') {
                 try {
-                    // Determine fallback model
                     const fallbackTextModel = aiConfig.fallback.models.find(m => m.type === 'text' || m.type === 'text+vision');
                     const fallbackVisionModel = aiConfig.fallback.models.find(m => m.type === 'vision' || m.type === 'text+vision');
                     const fallbackModelObj = contextHasImage ? (fallbackVisionModel || fallbackTextModel) : fallbackTextModel;
 
-                    if (!fallbackModelObj) throw new Error("No fallback model configured for this query type.");
-
-                    const fBaseURL = fallbackModelObj.baseURL || aiConfig.fallback.baseURL;
-                    const fApiKey = fallbackModelObj.apiKey || aiConfig.fallback.apiKey;
+                    if (!fallbackModelObj) throw new Error("No fallback model configured.");
 
                     const fallbackOpenai = new OpenAI({
-                        apiKey: fApiKey,
-                        baseURL: fBaseURL,
-                        defaultHeaders: {
-                            "HTTP-Referer": "http://localhost:3000",
-                            "X-Title": "Aranya AI Chatbot",
-                        }
+                        apiKey: fallbackModelObj.apiKey || aiConfig.fallback.apiKey,
+                        baseURL: fallbackModelObj.baseURL || aiConfig.fallback.baseURL,
+                        defaultHeaders: { "HTTP-Referer": "http://localhost:3000", "X-Title": "Aranya AI Chatbot" }
                     });
 
-                    response = await fallbackOpenai.chat.completions.create({
+                    completionStream = await fallbackOpenai.chat.completions.create({
                         model: fallbackModelObj.modelId,
                         messages: finalMessages,
-                        max_tokens: 1000
+                        max_tokens: 1500,
+                        stream: stream
                     });
-                } catch (fallbackErr) {
-                    console.error("Fallback GenAI Engine Error:", fallbackErr.message);
-                    throw new Error("Both Primary and Fallback AI APIs failed.");
+                } catch (fErr) {
+                    console.error("Fallback GenAI Engine Error:", fErr.message);
                 }
             }
 
-            if (!response || !response.choices || response.choices.length === 0) {
-                throw new Error("Invalid response structural format from AI API.");
-            }
+            if (!completionStream) throw new Error("AI Engines unavailable.");
 
-            aiContent = response.choices[0].message.content;
-        } catch (aiErr) {
-            console.error("AI API Overall Error:", aiErr);
-            aiContent = "*(System Warning: Failed to connect to AI provider. Falling back to rules-engine.)*\n\n";
-        }
+            if (stream) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
 
-        if (!aiContent || aiContent.includes("*(System Warning: Failed")) {
-            const contentLower = (content || "").toLowerCase();
-            let fallbackContent = "";
+                let fullText = "";
+                for await (const chunk of completionStream) {
+                    const delta = chunk.choices[0]?.delta?.content || "";
+                    if (delta) {
+                        fullText += delta;
+                        res.write(`data: ${JSON.stringify({ token: delta })}\n\n`);
+                        if (res.flush) res.flush();
+                    }
+                }
 
-            if (hasImage) {
-                fallbackContent = "### Vision API Analysis\n\nI have scanned the uploaded image(s). I detect patterns consistent with **mild dermatophytosis (ringworm)** or superficial abrasions on the skin.\n\n**Immediate Actions:**\n1. Isolate the affected animal to prevent herd transmission.\n2. Apply a topical antifungal wash (e.g., 2% chlorhexidine) daily.\n3. Monitor the lesions for 5 days.\n\n_If symptoms worsen, please contact a certified veterinarian._";
-            } else if (contentLower.includes("fever") || contentLower.includes("temperature") || contentLower.includes("hot")) {
-                fallbackContent = "Based on the symptom of fever, this could indicate **Bovine Respiratory Disease (BRD)** or a potential tick-borne infection.\n\n**Diagnostic checklist:**\n- Measure the exact rectal temperature (normal is 38.0°C to 39.3°C).\n- Check for nasal discharge or rapid, shallow breathing.\n- Ensure immediate access to fresh water and shade.\n\nWould you like me to log these symptoms into the health database?";
-            } else if (contentLower.includes("milk") || contentLower.includes("udder") || contentLower.includes("mastitis")) {
-                fallbackContent = "A drop in milk yield or udder swelling strongly points towards **Clinical Mastitis**.\n\n**Recommended Steps:**\n• Perform a California Mastitis Test (CMT) on all four quarters.\n• Strip the affected quarter frequently to clear milk clots.\n• If severe, an intramammary antibiotic protocol may be required under veterinary guidance.";
-            } else if (contentLower.includes("eat") || contentLower.includes("appetite") || contentLower.includes("weight")) {
-                fallbackContent = "Loss of appetite in cattle is a generalized symptom that requires careful observation.\n\nIt could trace back to:\n- Ruminal acidosis (check their recent grain intake).\n- Ketosis (especially if recently calved).\n- Internal parasites.\n\nPlease provide their heart rate and activity level so I can run a deep predictive anomaly check.";
+                const finalAiMsg = new ChatMessage({
+                    conversation_id: req.params.id,
+                    user_id: req.user.id,
+                    role: 'ai',
+                    content: fullText
+                });
+                await finalAiMsg.save();
+                res.write(`data: ${JSON.stringify({ done: true, messageId: finalAiMsg._id })}\n\n`);
+                return res.end();
             } else {
-                fallbackContent = `I'm here to help with your herd's health. Could you please provide more details about the symptoms you're noticing, or upload a clear photo of the animal for better analysis?`;
+                aiContent = completionStream.choices[0].message.content;
             }
-
-            // If it failed, we completely replace aiContent instead of appending to the warning
-            aiContent = fallbackContent;
-            console.log("Using fallback logic.");
+        } catch (aiErr) {
+            console.error("AI API Error:", aiErr.message);
+            aiContent = "Arion is temporarily over capacity. Please provide more specifics or try again later.";
         }
-
-        const aiMsg = new ChatMessage({
-            conversation_id: req.params.id,
-            user_id: req.user.id, // Linking AI messages to user for simplicity in this context
-            role: 'ai',
-            content: aiContent
-        });
         await aiMsg.save();
         try {
             await logActivity('chat', { id: req.user.id }, `Used AI chatbot`);
@@ -522,7 +494,7 @@ router.put('/messages/:msgId/pin', auth, async (req, res) => {
     try {
         const msg = await ChatMessage.findById(req.params.msgId);
         if (!msg) return res.status(404).json({ msg: 'Message not found' });
-        
+
         // Ownership check: Must own the conversation containing the message
         const conversation = await Conversation.findById(msg.conversation_id);
         if (!conversation || conversation.user_id.toString() !== req.user.id) {

@@ -977,7 +977,8 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    background: rgba(45, 95, 63, 0.05); /* very light green background */
+    background: rgba(45, 95, 63, 0.05);
+    /* very light green background */
     border-radius: 12px;
     padding: 0.6rem 0;
 }
@@ -991,23 +992,46 @@
 
 .soundWave .bar {
     width: 4px;
-    background: linear-gradient(to top, var(--primary), #1a4a38); /* Green */
+    background: linear-gradient(to top, var(--primary), #1a4a38);
+    /* Green */
     border-radius: 4px;
     animation: soundWave 1s ease-in-out infinite;
     transform-origin: bottom;
 }
 
-.soundWave .bar:nth-child(1) { height: 30%; animation-delay: 0.0s; }
-.soundWave .bar:nth-child(2) { height: 70%; animation-delay: 0.2s; }
-.soundWave .bar:nth-child(3) { height: 100%; animation-delay: 0.4s; }
-.soundWave .bar:nth-child(4) { height: 80%; animation-delay: 0.1s; }
-.soundWave .bar:nth-child(5) { height: 40%; animation-delay: 0.3s; }
+.soundWave .bar:nth-child(1) {
+    height: 30%;
+    animation-delay: 0.0s;
+}
+
+.soundWave .bar:nth-child(2) {
+    height: 70%;
+    animation-delay: 0.2s;
+}
+
+.soundWave .bar:nth-child(3) {
+    height: 100%;
+    animation-delay: 0.4s;
+}
+
+.soundWave .bar:nth-child(4) {
+    height: 80%;
+    animation-delay: 0.1s;
+}
+
+.soundWave .bar:nth-child(5) {
+    height: 40%;
+    animation-delay: 0.3s;
+}
 
 @keyframes soundWave {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: scaleY(0.5);
         opacity: 0.5;
     }
+
     50% {
         transform: scaleY(1);
         opacity: 1;
@@ -1015,15 +1039,27 @@
 }
 
 .recordingIconActive {
-    color: var(--primary) !important; /* green */
+    color: var(--primary) !important;
+    /* green */
     background: rgba(45, 95, 63, 0.1) !important;
     animation: pulseIcon 1.5s infinite;
 }
 
 @keyframes pulseIcon {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45, 95, 63, 0.4); }
-    70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(45, 95, 63, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45, 95, 63, 0); }
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(45, 95, 63, 0.4);
+    }
+
+    70% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 6px rgba(45, 95, 63, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(45, 95, 63, 0);
+    }
 }
 
 .inputActions {
@@ -1710,10 +1746,12 @@
     display: flex;
     align-items: center;
 }
+
 .actionIconActive {
     background: rgba(45, 95, 63, 0.1);
     color: var(--primary) !important;
 }
+
 .addMenuPopup {
     position: absolute;
     bottom: calc(100% + 10px);
@@ -1721,14 +1759,15 @@
     background: white;
     border-radius: 12px;
     padding: 8px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
     gap: 4px;
     z-index: 50;
     min-width: 140px;
 }
+
 .addMenuOption {
     display: flex;
     align-items: center;
@@ -1744,9 +1783,11 @@
     color: #334155;
     transition: background 0.2s ease;
 }
+
 .addMenuOption:hover {
     background: #f8fafc;
 }
+
 .addMenuIcon {
     width: 28px;
     height: 28px;
@@ -1759,7 +1800,7 @@
 /* Search */
 .searchHeaderInput {
     flex: 1;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     border: none;
     border-radius: 8px;
     padding: 8px 12px;
@@ -1767,12 +1808,13 @@
     outline: none;
     margin: 0 10px;
 }
+
 .searchContextInfo {
     font-size: 0.8rem;
     color: #64748b;
     margin-bottom: 8px;
     padding-bottom: 5px;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 /* Pins */
@@ -1780,6 +1822,7 @@
     border: 2px solid var(--primary);
     background: rgba(45, 95, 63, 0.03) !important;
 }
+
 .pinnedIndicator {
     display: flex;
     align-items: center;
@@ -1791,6 +1834,7 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+
 .pinBtnActive {
     color: var(--primary) !important;
     background: rgba(45, 95, 63, 0.1) !important;
@@ -1803,19 +1847,22 @@
     gap: 6px;
     margin-top: 8px;
 }
+
 .reactionBadge {
     display: flex;
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
     border-radius: 12px;
-    background: rgba(0,0,0,0.05);
+    background: rgba(0, 0, 0, 0.05);
     font-size: 0.85rem;
-    border: 1px solid rgba(0,0,0,0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
 }
+
 .reactionPickerContainer {
     position: relative;
 }
+
 /* Reaction Popup */
 .reactionPopup {
     position: absolute;
@@ -1827,16 +1874,25 @@
     padding: 6px 12px;
     display: flex;
     gap: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
     z-index: 100;
     margin-bottom: 8px;
     animation: popupScale 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+
 @keyframes popupScale {
-    0% { transform: translateX(-50%) scale(0.8); opacity: 0; }
-    100% { transform: translateX(-50%) scale(1); opacity: 1; }
+    0% {
+        transform: translateX(-50%) scale(0.8);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateX(-50%) scale(1);
+        opacity: 1;
+    }
 }
+
 .reactionOptionBtn {
     background: transparent;
     border: none;
@@ -1846,6 +1902,7 @@
     cursor: pointer;
     transition: transform 0.2s ease;
 }
+
 .reactionOptionBtn:hover {
     transform: scale(1.2);
     background: #f1f5f9;
@@ -1859,9 +1916,20 @@
 }
 
 @keyframes simplePulse {
-    0% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.9); }
-    100% { opacity: 1; transform: scale(1); }
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* --- Mobile Responsiveness --- */
@@ -1979,6 +2047,23 @@
     background: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
     font-size: 0.9rem;
+    animation: tableFadeIn 0.3s ease-out;
+}
+
+@keyframes tableFadeIn {
+    from { opacity: 0.5; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.markdownContent p {
+    margin-bottom: 1rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Fix for raw pipes during streaming */
+.markdownContent :not(pre) > code,
+.markdownContent p:has(text) {
+    word-break: break-word;
 }
 
 .markdownContent th {
@@ -2048,4 +2133,27 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
-
+
+.streamingCursor {
+    display: inline-block;
+    width: 6.5px;
+    height: 15px;
+    background: var(--primary);
+    margin-left: 5px;
+    vertical-align: sub;
+    animation: cursorBlink 0.8s infinite step-end;
+    border-radius: 1px;
+    box-shadow: 0 0 8px rgba(45, 95, 63, 0.3);
+}
+
+@keyframes cursorBlink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}

@@ -33,7 +33,7 @@ app.use(helmet({
     contentSecurityPolicy: false, // Disable if using external scripts/images
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, 
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // JSON and Body Parsing - Reduced limit to 10MB to avoid memory pressure on Vercel
-app.use(express.json({ limit: '10mb' })); 
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d' }));
 
@@ -112,7 +112,7 @@ const connectDB = async () => {
             cached.conn = await cached.promise;
             return cached.conn;
         } catch (err) {
-            cached.promise = null; 
+            cached.promise = null;
         }
     }
 
@@ -171,7 +171,7 @@ const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Backend server running on port ${PORT}`);
-        connectDB().catch(() => {});
+        connectDB().catch(() => { });
     });
 }
 

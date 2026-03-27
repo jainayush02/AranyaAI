@@ -85,10 +85,26 @@ const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
     );
 };
 
-const parseMessage = (content) => {
+const parseMessage = (content, isStreaming = false) => {
     if (typeof content !== 'string') return { cleanContent: '' };
-    // Replace the hidden attachment text with a clean file UI representation
+    
+    // 1. Standard cleaning for attachments
     let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
+
+    // 2. Table-Healer: If we see a line starting with '|' but no table separator row '|---|' yet
+    // we append a fake separator to "trick" ReactMarkdown into rendering the table early during streaming.
+    if (isStreaming && clean.includes('|') && !clean.includes('|--')) {
+        const lastLine = clean.trim().split('\n').pop();
+        if (lastLine.startsWith('|')) {
+            const pipeCount = (lastLine.match(/\|/g) || []).length;
+            if (pipeCount > 1) {
+                // Pre-render a virtual separator row to force table mode
+                const virtualSeparator = '\n|' + Array(pipeCount - 1).fill('---|').join('');
+                clean += virtualSeparator;
+            }
+        }
+    }
+
     return { cleanContent: clean.trim() };
 };
 
@@ -135,13 +151,13 @@ export default function ChatBot() {
     useEffect(() => {
         const handleClickOutside = (e) => {
             setMenuOpenId(null);
-            
+
             // Close input menu when clicking outside
             if (isInputMenuOpen && !e.target.closest(`.${styles.inputMenuContainer}`)) {
                 setIsInputMenuOpen(false);
             }
         };
-        
+
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [menuOpenId, isInputMenuOpen]);
@@ -190,8 +206,8 @@ export default function ChatBot() {
         };
 
         recognition.onspeechstart = () => {
-             // Clear the timeout once they start speaking
-             if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+            // Clear the timeout once they start speaking
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
         };
 
         recognition.onresult = (event) => {
@@ -218,16 +234,20 @@ export default function ChatBot() {
 
     // Header Animation States
     const [headerVisible, setHeaderVisible] = useState(true);
-    const [lastChatScroll, setLastChatScroll] = useState(0);
+    const isAtBottomRef = useRef(true);
+    const lastChatScrollRef = useRef(0);
 
     const handleChatScroll = (e) => {
-        const currentScroll = e.target.scrollTop;
-        if (currentScroll > lastChatScroll && currentScroll > 50) {
-            setHeaderVisible(false); // Scrolling down
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        isAtBottomRef.current = isNearBottom;
+
+        if (scrollTop > lastChatScrollRef.current && scrollTop > 50) {
+            setHeaderVisible(false);
         } else {
-            setHeaderVisible(true);  // Scrolling up
+            setHeaderVisible(true);
         }
-        setLastChatScroll(currentScroll);
+        lastChatScrollRef.current = scrollTop;
     };
 
     const messagesEndRef = useRef(null);
@@ -239,11 +259,8 @@ export default function ChatBot() {
 
     const scrollToBottom = (force = false) => {
         if (!chatContainerRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-
-        if (isNearBottom || force) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (isAtBottomRef.current || force) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     };
 
@@ -321,9 +338,9 @@ export default function ChatBot() {
             await axios.put(`/api/chat/messages/${msgId}/pin`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             // Update local state without re-fetching
-            setMessages(prev => prev.map(m => 
+            setMessages(prev => prev.map(m =>
                 m._id === msgId ? { ...m, isPinned: !m.isPinned } : m
             ));
         } catch (err) {
@@ -338,7 +355,7 @@ export default function ChatBot() {
             await axios.put(`/api/chat/messages/${msgId}/react`, { emoji }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             // Actually, best to fetch the exact new msg or manually toggle locally
             setActiveReactionId(null);
             fetchMessages(activeChatId); // Safest route to get correct user reaction mapping
@@ -440,7 +457,7 @@ export default function ChatBot() {
 
         setIsExtractingText(true);
         // We use isUploadingImage here just to show the loading spinner in the UI
-        setIsUploadingImage(true); 
+        setIsUploadingImage(true);
         setIsInputMenuOpen(false);
 
         for (const file of files) {
@@ -460,7 +477,7 @@ export default function ChatBot() {
 
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    
+
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
@@ -474,7 +491,7 @@ export default function ChatBot() {
                         reader.readAsText(file);
                     });
                 }
-                
+
                 if (extractedText) {
                     setFileAttachments(prev => [...prev, {
                         id: Date.now() + Math.random(),
@@ -580,7 +597,7 @@ export default function ChatBot() {
 
     const handleDownloadPDF = (content, title = 'Arion-Report') => {
         const doc = new jsPDF();
-        
+
         // Engineer's Sanitizer: Strips Unicode, Brackets, and MD artifacts
         const sanitize = (text) => {
             if (!text) return '';
@@ -622,12 +639,12 @@ export default function ChatBot() {
 
         // Global Font Setup
         doc.setFont('helvetica', 'normal');
-        
+
         // Header Core
         doc.setFontSize(22);
         doc.setTextColor(26, 74, 56);
         doc.text('Arion Health Assistant Report', 14, 22);
-        
+
         doc.setFontSize(10);
         doc.setTextColor(100, 116, 139);
         doc.text(`Official Medical Schedule | ${new Date().toLocaleDateString()}`, 14, 30);
@@ -637,21 +654,21 @@ export default function ChatBot() {
         tables.forEach((table, i) => {
             const head = [table[0]];
             const body = table.slice(1);
-            
+
             autoTable(doc, {
                 head: head,
                 body: body,
                 startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 40,
                 theme: 'striped',
-                styles: { 
+                styles: {
                     font: 'helvetica',
-                    fontSize: 9, 
+                    fontSize: 9,
                     cellPadding: 6,
                     textColor: [51, 65, 85],
                     overflow: 'linebreak'
                 },
-                headStyles: { 
-                    fillColor: [45, 95, 63], 
+                headStyles: {
+                    fillColor: [45, 95, 63],
                     textColor: [255, 255, 255],
                     fontStyle: 'bold',
                     fontSize: 10
@@ -711,7 +728,7 @@ export default function ChatBot() {
 
     const handleSend = async (query = null) => {
         const messageText = query || input;
-        
+
         let finalContent = messageText;
         if (fileAttachments.length > 0) {
             const attachmentsStr = fileAttachments.map(f => `<aranya-attachment name="${f.name}">\n${f.text}\n</aranya-attachment>`).join('\n\n');
@@ -766,38 +783,116 @@ export default function ChatBot() {
         setSelectedImages([]);
         setFileAttachments([]);
 
+        let displayContent = "";
+        let tokenQueue = [];
+        let isProcessingQueue = false;
+        const signal = abortControllerRef.current.signal;
+        const isAborted = () => signal.aborted;
+
+        // NEW: Hard kill for UI generation - empty the queue immediately on abort
+        const handleAbort = () => {
+            tokenQueue.length = 0;
+            setIsGenerating(false);
+            setIsTyping(false);
+        };
+        signal.addEventListener('abort', handleAbort, { once: true });
+
+        const processQueue = async () => {
+            if (isProcessingQueue) return;
+            isProcessingQueue = true;
+            while (tokenQueue.length > 0 && !isAborted()) {
+                const char = tokenQueue.shift();
+                displayContent += char;
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const last = newMsgs[newMsgs.length - 1];
+                    if (last && last.isStreaming) last.content = displayContent;
+                    return newMsgs;
+                });
+                scrollToBottom();
+                await new Promise(r => setTimeout(r, 5));
+            }
+            isProcessingQueue = false;
+        };
+
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`/api/chat/conversations/${chatId}/messages`, {
-                content: userMsg.content,
-                image_url: userMsg.image_url,
-                image_urls: userMsg.image_urls
-            }, {
-                headers: { Authorization: `Bearer ${token}` },
-                signal: abortControllerRef.current.signal
+            const response = await fetch(`/api/chat/conversations/${chatId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ content: userMsg.content, image_urls: userMsg.image_urls, stream: true }),
+                signal: signal
             });
 
-            const aiMsg = { ...res.data.aiMessage, isNew: true };
-            setMessages(prev => {
-                // Remove the optimistic message and replace with official ones
-                return [...prev.filter(m => m.tempId !== tempMsgId), res.data.userMessage, aiMsg];
-            });
+            if (!response.ok) throw new Error('Failed to send message');
 
+            const aiMsgId = Date.now() + 1;
+            const initialAiMsg = { _id: aiMsgId, role: 'ai', content: '', isStreaming: true, createdAt: new Date() };
+            setMessages(prev => [...prev.filter(m => m.tempId !== tempMsgId), userMsg, initialAiMsg]);
+            setIsTyping(false);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done || isAborted()) {
+                    while (tokenQueue.length > 0 && !isAborted()) await new Promise(r => setTimeout(r, 2));
+                    break;
+                }
+                const chunk = decoder.decode(value, { stream: true });
+                for (let line of chunk.split('\n')) {
+                    line = line.trim();
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.substring(6).trim());
+                        if (data.token && !isAborted()) {
+                            tokenQueue.push(...data.token.split(''));
+                            processQueue();
+                        }
+                        if (data.done && !isAborted()) {
+                            const finalizeInterval = setInterval(() => {
+                                if (tokenQueue.length === 0 || isAborted()) {
+                                    clearInterval(finalizeInterval);
+                                    if (isAborted()) return;
+                                    setMessages(prev => {
+                                        const newMsgs = [...prev];
+                                        const last = newMsgs[newMsgs.length - 1];
+                                        if (last && last.isStreaming) {
+                                            last._id = data.messageId;
+                                            last.isStreaming = false;
+                                            last.isNew = false;
+                                        }
+                                        return newMsgs;
+                                    });
+                                }
+                            }, 50);
+                        }
+                    } catch (e) { }
+                }
+            }
             fetchConversations();
-            // setIsGenerating(false); // DO NOT set here, let Typewriter.onFinish handle it
+            setIsGenerating(false);
         } catch (err) {
-            if (axios.isCancel(err)) {
-                console.log('Request canceled');
+            if (err.name === 'AbortError' || err.message === 'AbortError' || isAborted()) {
+                console.log('Interrupted');
+                setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const last = newMsgs[newMsgs.length - 1];
+                    if (last && last.isStreaming) { 
+                        last.isStreaming = false; 
+                        last.isNew = false; 
+                    }
+                    return newMsgs;
+                });
             } else {
-                console.error('Send failed', err);
-                const errorMsg = err.response?.data?.msg || 'Failed to send message. Please try again.';
-                showToast(errorMsg, 'error');
-                
-                // CRITICAL: Filter out the failed messages so the UI is correct
-                setMessages(prev => prev.filter(m => m.tempId !== tempMsgId && m._id !== tempMsgId && m._id !== (tempMsgId + 1)));
+                console.error('Streaming fail:', err);
+                showToast(err.message || 'Connection failed', 'error');
+                setMessages(prev => prev.filter(m => m.tempId !== tempMsgId && !m.isStreaming));
             }
             setIsGenerating(false);
         } finally {
+            signal.removeEventListener('abort', handleAbort);
             setIsTyping(false);
             isSendingRef.current = false;
         }
@@ -998,16 +1093,16 @@ export default function ChatBot() {
                                             </button>
                                             <h2>
                                                 {isGlobalSearch ? 'Search Results'
-                                                : activeChatId
-                                                    ? conversations.find(c => c._id === activeChatId)?.title
-                                                    : 'Aranya Assistant'}
+                                                    : activeChatId
+                                                        ? conversations.find(c => c._id === activeChatId)?.title
+                                                        : 'Aranya Assistant'}
                                             </h2>
                                         </div>
                                         {isGlobalSearch ? (
-                                            <input 
+                                            <input
                                                 className={styles.searchHeaderInput}
-                                                type="text" 
-                                                placeholder="Search across all chats..." 
+                                                type="text"
+                                                placeholder="Search across all chats..."
                                                 value={searchQuery}
                                                 onChange={(e) => handleGlobalSearch(e.target.value)}
                                                 autoFocus
@@ -1017,8 +1112,8 @@ export default function ChatBot() {
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button 
-                                            className={styles.closeMainBtn} 
+                                        <button
+                                            className={styles.closeMainBtn}
                                             onClick={() => {
                                                 if (isGlobalSearch) {
                                                     setIsGlobalSearch(false);
@@ -1058,7 +1153,7 @@ export default function ChatBot() {
                                                 </div>
                                             )}
                                             <div className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble} ${msg.isPinned ? styles.pinnedBubble : ''}`}>
-                                                
+
                                                 {msg.isPinned && (
                                                     <div className={styles.pinnedIndicator}>
                                                         <Pin size={12} fill="currentColor" />
@@ -1074,7 +1169,7 @@ export default function ChatBot() {
                                                     )}
                                                     <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
-                                                        const { cleanContent } = parseMessage(msg.content);
+                                                        const { cleanContent } = parseMessage(msg.content, msg.isStreaming);
                                                         return (
                                                             <>
                                                                 {msg.role === 'ai' && msg.isNew ? (
@@ -1112,7 +1207,7 @@ export default function ChatBot() {
                                                         </div>
                                                     )}
 
-                                                    {msg.role === 'ai' && !msg.isNew && !isGlobalSearch && (
+                                                    {msg.role === 'ai' && !msg.isNew && !msg.isStreaming && !isGlobalSearch && (
                                                         <div className={styles.messageActionRow}>
                                                             <button
                                                                 className={styles.messageActionBtn}
@@ -1121,7 +1216,7 @@ export default function ChatBot() {
                                                             >
                                                                 {copiedId === (msg._id || i) ? <Check size={14} color="#10b981" /> : <Copy size={16} />}
                                                             </button>
-                                                            
+
                                                             <div className={styles.reactionPickerContainer}>
                                                                 <button
                                                                     className={`${styles.messageActionBtn} ${activeReactionId === (msg._id || i) ? styles.actionBtnActive : ''}`}
@@ -1133,8 +1228,8 @@ export default function ChatBot() {
                                                                 {activeReactionId === (msg._id || i) && (
                                                                     <div className={styles.reactionPopup}>
                                                                         {['🐾', '❤️', '👍', '🔥', '💡'].map(emoji => (
-                                                                            <button 
-                                                                                key={emoji} 
+                                                                            <button
+                                                                                key={emoji}
                                                                                 className={styles.reactionOptionBtn}
                                                                                 onClick={() => handleToggleReaction(msg._id, emoji)}
                                                                             >
@@ -1159,16 +1254,16 @@ export default function ChatBot() {
                                                             </button>
 
                                                             {msg.content.includes('|') && (
-                                                                <button 
+                                                                <button
                                                                     className={`${styles.messageActionBtn} ${styles.pdfDownloadBtn}`}
-                                                                    onClick={() => handleDownloadPDF(msg.content, msg.conversationTitle || 'Arion-Report')} 
+                                                                    onClick={() => handleDownloadPDF(msg.content, msg.conversationTitle || 'Arion-Report')}
                                                                     title="Download Official PDF Report"
                                                                 >
                                                                     <FileText size={14} />
                                                                     <span className={styles.pdfBtnLabel}>PDF</span>
                                                                 </button>
                                                             )}
-                                                            
+
                                                             <button className={styles.messageActionBtn} onClick={() => handleRegenerate(i)} disabled={isGenerating} title="Regenerate">
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
                                                             </button>
@@ -1268,7 +1363,7 @@ export default function ChatBot() {
                                                 multiple
                                                 onChange={handleDocumentSelect}
                                             />
-                                            
+
                                             <div className={styles.inputMenuContainer}>
                                                 <button
                                                     className={`${styles.actionIcon} ${isInputMenuOpen ? styles.actionIconActive : ''}`}
@@ -1278,17 +1373,17 @@ export default function ChatBot() {
                                                 >
                                                     <Plus size={20} className={isExtractingText ? styles.pulsingIcon : ''} />
                                                 </button>
-                                                
+
                                                 <AnimatePresence>
                                                     {isInputMenuOpen && (
-                                                        <motion.div 
+                                                        <motion.div
                                                             className={styles.addMenuPopup}
                                                             initial={{ opacity: 0, scale: 0.9, y: 10 }}
                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                             exit={{ opacity: 0, scale: 0.9, y: 10 }}
                                                             transition={{ duration: 0.15 }}
                                                         >
-                                                            <button 
+                                                            <button
                                                                 className={styles.addMenuOption}
                                                                 onClick={() => {
                                                                     setIsInputMenuOpen(false);
@@ -1300,8 +1395,8 @@ export default function ChatBot() {
                                                                 </div>
                                                                 <span>Document</span>
                                                             </button>
-                                                            
-                                                            <button 
+
+                                                            <button
                                                                 className={styles.addMenuOption}
                                                                 onClick={() => {
                                                                     setIsInputMenuOpen(false);
@@ -1379,7 +1474,7 @@ export default function ChatBot() {
                                                 </button>
                                             )}
                                         </div>
-                                     </div>
+                                    </div>
                                     <div className={styles.disclaimerText}>
                                         <span className={styles.pingEffect}></span>
                                         Arion is an artificial intelligence and can make mistakes. Please consult a licensed veterinarian for confirmation.

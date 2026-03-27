@@ -89,31 +89,31 @@ router.get('/llm-stats', authenticate, adminOnly, async (req, res) => {
         if (!settings) return res.json([]);
         const config = settings.value;
 
-/* In-memory cache for recent metrics to speed up real-time polling */
-let recentHistory = []; 
+        /* In-memory cache for recent metrics to speed up real-time polling */
+        let recentHistory = [];
 
-// ── Smart model-to-vendor detector ──────────────────────────────────
-const inferModelVendor = (modelId = '') => {
-    const m = modelId.toLowerCase();
-    if (m.startsWith('gpt-') || m.includes('openai') || m.startsWith('o1') || m.startsWith('o3'))               return { vendor: 'OpenAI',     color: '#10a37f', icon: '🤖' };
-    if (m.startsWith('claude'))                                                                                    return { vendor: 'Anthropic',  color: '#d97706', icon: '🧠' };
-    if (m.includes('gemini') || m.includes('gemma') || m.startsWith('google/'))                                   return { vendor: 'Google',     color: '#4285f4', icon: '✨' };
-    if (m.startsWith('mistralai/') || m.startsWith('mistral') || m.startsWith('mixtral') || m.includes('codestral')) return { vendor: 'Mistral',  color: '#ff6b35', icon: '🌀' };
-    if (m.startsWith('meta-llama/') || m.startsWith('llama') || m.includes('meta-llama'))                         return { vendor: 'Meta / Llama', color: '#0668e1', icon: '🦙' };
-    if (m.startsWith('nvidia/') || m.includes('nemotron'))                                                         return { vendor: 'NVIDIA',    color: '#76b900', icon: '🔷' };
-    if (m.includes('deepseek'))                                                                                    return { vendor: 'DeepSeek',  color: '#5b5ea6', icon: '🔍' };
-    if (m.startsWith('qwen') || m.includes('alibaba'))                                                             return { vendor: 'Alibaba',   color: '#ff6a00', icon: '🔮' };
-    if (m.startsWith('command') || m.includes('cohere'))                                                           return { vendor: 'Cohere',    color: '#39594d', icon: '⚡' };
-    if (m.includes('falcon'))                                                                                      return { vendor: 'TII',       color: '#c0392b', icon: '🦅' };
-    if (m.startsWith('phi') || m.includes('microsoft'))                                                            return { vendor: 'Microsoft', color: '#00a4ef', icon: '💎' };
-    if (m.startsWith('solar') || m.includes('upstage'))                                                            return { vendor: 'Upstage',   color: '#f59e0b', icon: '☀️' };
-    if (m.includes('wizard') || m.includes('nous'))                                                                return { vendor: 'Nous',      color: '#7c3aed', icon: '🧙' };
-    if (m.startsWith('databricks') || m.includes('dbrx'))                                                          return { vendor: 'Databricks',color: '#ff3621', icon: '🧱' };
-    if (m.includes('yi-') || m.includes('01-ai'))                                                                  return { vendor: '01.AI',     color: '#06b6d4', icon: '🌐' };
-    if (m.includes('groq'))                                                                                        return { vendor: 'Groq',      color: '#f55036', icon: '⚡' };
-    if (m.includes('huggingface') || m.includes('hf'))                                                             return { vendor: 'Hugging Face', color: '#ffbd2e', icon: '🤗' };
-    return { vendor: 'Unknown', color: '#94a3b8', icon: '❓' };
-};
+        // ── Smart model-to-vendor detector ──────────────────────────────────
+        const inferModelVendor = (modelId = '') => {
+            const m = modelId.toLowerCase();
+            if (m.startsWith('gpt-') || m.includes('openai') || m.startsWith('o1') || m.startsWith('o3')) return { vendor: 'OpenAI', color: '#10a37f', icon: '🤖' };
+            if (m.startsWith('claude')) return { vendor: 'Anthropic', color: '#d97706', icon: '🧠' };
+            if (m.includes('gemini') || m.includes('gemma') || m.startsWith('google/')) return { vendor: 'Google', color: '#4285f4', icon: '✨' };
+            if (m.startsWith('mistralai/') || m.startsWith('mistral') || m.startsWith('mixtral') || m.includes('codestral')) return { vendor: 'Mistral', color: '#ff6b35', icon: '🌀' };
+            if (m.startsWith('meta-llama/') || m.startsWith('llama') || m.includes('meta-llama')) return { vendor: 'Meta / Llama', color: '#0668e1', icon: '🦙' };
+            if (m.startsWith('nvidia/') || m.includes('nemotron')) return { vendor: 'NVIDIA', color: '#76b900', icon: '🔷' };
+            if (m.includes('deepseek')) return { vendor: 'DeepSeek', color: '#5b5ea6', icon: '🔍' };
+            if (m.startsWith('qwen') || m.includes('alibaba')) return { vendor: 'Alibaba', color: '#ff6a00', icon: '🔮' };
+            if (m.startsWith('command') || m.includes('cohere')) return { vendor: 'Cohere', color: '#39594d', icon: '⚡' };
+            if (m.includes('falcon')) return { vendor: 'TII', color: '#c0392b', icon: '🦅' };
+            if (m.startsWith('phi') || m.includes('microsoft')) return { vendor: 'Microsoft', color: '#00a4ef', icon: '💎' };
+            if (m.startsWith('solar') || m.includes('upstage')) return { vendor: 'Upstage', color: '#f59e0b', icon: '☀️' };
+            if (m.includes('wizard') || m.includes('nous')) return { vendor: 'Nous', color: '#7c3aed', icon: '🧙' };
+            if (m.startsWith('databricks') || m.includes('dbrx')) return { vendor: 'Databricks', color: '#ff3621', icon: '🧱' };
+            if (m.includes('yi-') || m.includes('01-ai')) return { vendor: '01.AI', color: '#06b6d4', icon: '🌐' };
+            if (m.includes('groq')) return { vendor: 'Groq', color: '#f55036', icon: '⚡' };
+            if (m.includes('huggingface') || m.includes('hf')) return { vendor: 'Hugging Face', color: '#ffbd2e', icon: '🤗' };
+            return { vendor: 'Unknown', color: '#94a3b8', icon: '❓' };
+        };
 
         // ── Smart hosting platform detector ─────────────────────────────────
         // Detects WHERE the model is actually served, not who created it.
@@ -153,16 +153,16 @@ const inferModelVendor = (modelId = '') => {
             let latency = 'Unknown';
 
             // Annotate each model with its inferred vendor AND hosting platform
-        const annotatedModels = (conf.models || []).map(m => {
-            const info = inferModelVendor(m.modelId);
-            return {
-                ...m,
-                vendor: info.vendor,
-                vendorColor: info.color,
-                vendorIcon: info.icon,
-                host: inferModelHost(m.modelId, conf.provider)
-            };
-        });
+            const annotatedModels = (conf.models || []).map(m => {
+                const info = inferModelVendor(m.modelId);
+                return {
+                    ...m,
+                    vendor: info.vendor,
+                    vendorColor: info.color,
+                    vendorIcon: info.icon,
+                    host: inferModelHost(m.modelId, conf.provider)
+                };
+            });
 
             try {
                 const providerKey = (conf.provider || '').trim().toLowerCase().replace(/[\s_-]/g, '');
@@ -282,7 +282,7 @@ const inferModelVendor = (modelId = '') => {
                     status = resp.data?.length > 0 ? 'Active' : 'Warning';
                     try {
                         const bal = await axios.get('https://api.together.xyz/v1/billing/balance', {
-                             headers: { Authorization: `Bearer ${conf.apiKey}` }, timeout: 3000
+                            headers: { Authorization: `Bearer ${conf.apiKey}` }, timeout: 3000
                         });
                         limitRemaining = bal.data?.balance ? `$${bal.data.balance.toFixed(2)}` : 'Check Dashboard';
                     } catch { limitRemaining = 'Check Dashboard'; }
@@ -344,7 +344,7 @@ const inferModelVendor = (modelId = '') => {
                                         if (baseUrl.includes('googleapis.com')) {
                                             pingUrl = `https://generativelanguage.googleapis.com/v1/models?key=${conf.apiKey}`;
                                         } else {
-                                             pingUrl += (pingUrl.includes('?') ? '&' : '?') + `key=${conf.apiKey}`;
+                                            pingUrl += (pingUrl.includes('?') ? '&' : '?') + `key=${conf.apiKey}`;
                                         }
                                     } else {
                                         headers.Authorization = `Bearer ${conf.apiKey}`;
@@ -411,9 +411,9 @@ const inferModelVendor = (modelId = '') => {
             });
         };
 
-        if (config.primary)  await fetchStats('Primary Chat',  config.primary);
+        if (config.primary) await fetchStats('Primary Chat', config.primary);
         if (config.fallback) await fetchStats('Fallback Chat', config.fallback);
-        if (config.vaccinePrimary)  await fetchStats('Vaccine Primary',  config.vaccinePrimary);
+        if (config.vaccinePrimary) await fetchStats('Vaccine Primary', config.vaccinePrimary);
         if (config.vaccineFallback) await fetchStats('Vaccine Fallback', config.vaccineFallback);
 
         // Record metrics to history asynchronously
@@ -438,15 +438,15 @@ router.get('/ping-model/:modelId', authenticate, adminOnly, async (req, res) => 
 
         const provider = allProviders.find(p => p.models.includes(targetModel));
         const providerKey = (provider.provider || '').toLowerCase();
-        
+
         let latency = 0;
         const start = Date.now();
         try {
             if (providerKey.includes('openai')) {
                 await axios.get('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${provider.apiKey}` }, timeout: 5000 });
             } else if (providerKey.includes('nvidia') || providerKey.includes('mistral') || providerKey.includes('hugging')) {
-                const url = providerKey.includes('nvidia') ? 'https://integrate.api.nvidia.com/v1/models' : 
-                            providerKey.includes('mistral') ? 'https://api.mistral.ai/v1/models' : 'https://api-inference.huggingface.co/models';
+                const url = providerKey.includes('nvidia') ? 'https://integrate.api.nvidia.com/v1/models' :
+                    providerKey.includes('mistral') ? 'https://api.mistral.ai/v1/models' : 'https://api-inference.huggingface.co/models';
                 await axios.get(url, { headers: { Authorization: `Bearer ${provider.apiKey}` }, timeout: 5000 });
             } else if (providerKey.includes('google') || providerKey.includes('gemini')) {
                 await axios.get(`https://generativelanguage.googleapis.com/v1/models?key=${provider.apiKey}`, { timeout: 5000 });
@@ -454,9 +454,9 @@ router.get('/ping-model/:modelId', authenticate, adminOnly, async (req, res) => 
                 await axios.get('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${provider.apiKey}` }, timeout: 5000 });
             }
             latency = Date.now() - start;
-        } catch(e) { latency = Date.now() - start; }
-        
-        res.json({ success: true, latency: latency + Math.floor(Math.random()*20), timestamp: new Date().toISOString() });
+        } catch (e) { latency = Date.now() - start; }
+
+        res.json({ success: true, latency: latency + Math.floor(Math.random() * 20), timestamp: new Date().toISOString() });
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
@@ -479,9 +479,9 @@ async function recordLlmMetrics() {
                 else if (pKey.includes('google')) await axios.get(`https://generativelanguage.googleapis.com/v1/models?key=${p.apiKey}`, { timeout: 5000 });
                 else if (pKey.includes('groq')) await axios.get('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${p.apiKey}` }, timeout: 5000 });
                 latency = Date.now() - s;
-            } catch(e) { latency = 500; }
-            
-            p.models.forEach(m => { metricData[m.modelId] = latency + Math.floor(Math.random()*15); });
+            } catch (e) { latency = 500; }
+
+            p.models.forEach(m => { metricData[m.modelId] = latency + Math.floor(Math.random() * 15); });
         }
         if (Object.keys(metricData).length > 0) {
             await SystemMetrics.create({ type: 'llm_latency', data: metricData });
@@ -499,24 +499,24 @@ router.get('/llm-history', authenticate, adminOnly, async (req, res) => {
         if (!modelId) return res.status(400).json({ message: 'modelId required' });
         const timeRange = parseInt(hours) || 24;
         const cutoff = new Date(Date.now() - timeRange * 60 * 60 * 1000);
-        
-        const metrics = await SystemMetrics.find({ 
-            type: 'llm_latency', 
+
+        const metrics = await SystemMetrics.find({
+            type: 'llm_latency',
             timestamp: { $gte: cutoff },
             [`data.${modelId.replace(/\./g, '_')}`]: { $exists: true } // MongoDB doesn't like dots in keys, but here they might be values or keys. If they are keys in the object, handle accordingly.
         }).sort({ timestamp: 1 }).limit(100);
-        
+
         // Simpler approach: find any llm_latency and filter in memory if modelId has dots
-        const allMetrics = await SystemMetrics.find({ 
-            type: 'llm_latency', 
+        const allMetrics = await SystemMetrics.find({
+            type: 'llm_latency',
             timestamp: { $gte: cutoff }
         }).sort({ timestamp: 1 }).limit(1000).select('timestamp data').lean();
-        
+
         const history = allMetrics.map(m => ({
             timestamp: m.timestamp,
             latency: m.data[modelId]
         })).filter(h => h.latency !== undefined);
-        
+
         res.json(history);
     } catch (err) {
         res.status(500).json({ message: err.message });
