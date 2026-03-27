@@ -133,7 +133,7 @@ mongoose.connection.on('disconnected', () => {
 const connectDB = async () => {
     if (!process.env.MONGO_URI) {
         console.error("❌ CRITICAL: MONGO_URI missing.");
-        return null;
+        throw new Error("MONGO_URI environment variable is not defined.");
     }
 
     if (cached.conn && mongoose.connection.readyState === 1) {
@@ -151,12 +151,12 @@ const connectDB = async () => {
 
     // Optimization: Balanced pool size and timeouts for robustness
     const options = {
-        serverSelectionTimeoutMS: 30000,  // Increased from 5s to 30s
+        serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
         maxPoolSize: 10,
         minPoolSize: 0,
         heartbeatFrequencyMS: 30000,
-        connectTimeoutMS: 30000,          // Increased from 10s to 30s
+        connectTimeoutMS: 30000,
         dbName: 'aranya_db',
         family: 4,
         maxIdleTimeMS: 60000,
@@ -175,9 +175,34 @@ const connectDB = async () => {
         cached.conn = await cached.promise;
     } catch (err) {
         cached.conn = null;
+        throw err;
     }
     return cached.conn;
 };
+
+// ── Serverless DB Connection Middleware ──
+const ensureDB = async (req, res, next) => {
+    try {
+        if (!process.env.JWT_SECRET) {
+            console.error("❌ CRITICAL: JWT_SECRET missing.");
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(500).json({ message: 'Server configuration error: JWT_SECRET missing.' });
+            }
+        }
+        await connectDB();
+        next();
+    } catch (err) {
+        console.error("[DB_MIDDLEWARE_ERROR]", err.message);
+        res.status(500).json({ 
+            message: 'Database connection failed. Check MONGO_URI and IP whitelist.',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        });
+    }
+};
+
+// Apply to all API and Upload routes to ensure DB is connected before handling logic
+app.use('/api', ensureDB);
+app.use('/uploads', ensureDB);
 
 // ── Routes ──
 app.use('/api/auth', require('./routes/auth'));
