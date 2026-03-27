@@ -5,8 +5,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const compression = require('compression'); // Performance: Compress responses
-const { logActivity } = require('./utils/logger'); // Move require to top for performance
+const compression = require('compression');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const xss = require('xss-clean');
+const { logActivity } = require('./utils/logger');
 
 const app = express();
 
@@ -15,12 +18,29 @@ app.use(compression());
 
 // ── Global Rate Limiting (Abuse Protection) ──
 const globalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per window
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { message: 'Too many requests from this IP, please try again after 15 minutes.' },
-    skip: (req) => process.env.NODE_ENV !== 'production' // Skip in dev for testing
+    message: { message: 'Too many requests, please try again later.' },
+    skip: (req) => process.env.NODE_ENV !== 'production'
+});
+
+// ── Auth & Sensitive Route Limiting (Brute Force Protection) ──
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20, // Strict limit for login/OTP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many login attempts, please try again after 15 minutes.' }
+});
+
+const adminLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 50,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Admin rate limit exceeded.' }
 });
 
 // App-wide production protection
@@ -68,15 +88,28 @@ app.use((req, res, next) => {
 // JSON and Body Parsing - Reduced limit to 10MB to avoid memory pressure on Vercel
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d' }));
+
+// ── Security Middleware: Input Sanitization & Protection (DEBUG: Temporarily disabled) ──
+// app.use(mongoSanitize());
+// app.use(xss());
+// app.use(hpp());
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { 
+    maxAge: '1d',
+    setHeaders: (res, path) => {
+        res.set('X-Content-Type-Options', 'nosniff'); // Prevent MIME type sniffing
+        res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"); // Restricted CSP for uploads
+    }
+}));
 
 // ── Global Audit Middleware (Optimized) ──
 app.use((req, res, next) => {
     res.on('finish', () => {
         if (res.statusCode >= 400) {
             const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+            const ua = req.headers['user-agent'];
             // Fire and forget logging (not awaited)
-            logActivity('security_audit', null, `[${res.statusCode}] ${req.method} ${req.url} from IP: ${ip}`);
+            logActivity('security_audit', null, `[${res.statusCode}] ${req.method} ${req.url} from IP: ${ip}`, { ip, userAgent: ua });
         }
     });
     next();
@@ -116,14 +149,14 @@ const connectDB = async () => {
         }
     }
 
-    // Optimization: Reduced pool size and timeouts for faster serverless response
+    // Optimization: Balanced pool size and timeouts for robustness
     const options = {
-        serverSelectionTimeoutMS: 5000,  // Reduced from 20s to 5s
+        serverSelectionTimeoutMS: 30000,  // Increased from 5s to 30s
         socketTimeoutMS: 45000,
-        maxPoolSize: 10,                // Reduced from 50 to 10 (ideal for Vercel)
+        maxPoolSize: 10,
         minPoolSize: 0,
         heartbeatFrequencyMS: 30000,
-        connectTimeoutMS: 10000,
+        connectTimeoutMS: 30000,          // Increased from 10s to 30s
         dbName: 'aranya_db',
         family: 4,
         maxIdleTimeMS: 60000,
@@ -145,17 +178,6 @@ const connectDB = async () => {
     }
     return cached.conn;
 };
-
-// ── Middleware: ensure DB is connected ──
-app.use('/api', async (req, res, next) => {
-    try {
-        const conn = await connectDB();
-        if (!conn) throw new Error('DB Connection Failed');
-        next();
-    } catch (err) {
-        res.status(503).json({ message: 'Database busy. Retrying...' });
-    }
-});
 
 // ── Routes ──
 app.use('/api/auth', require('./routes/auth'));

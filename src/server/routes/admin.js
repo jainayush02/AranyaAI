@@ -28,8 +28,10 @@ const adminOnly = (req, res, next) => {
     next();
 };
 
-const log = async (type, adminUser, detail) => {
-    await logActivity(type, adminUser, detail);
+const log = async (req, type, detail) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ua = req.headers['user-agent'];
+    await logActivity(type, req.user, detail, { ip, userAgent: ua });
 };
 
 // ═══════════════════════════════════════════════════════
@@ -596,7 +598,7 @@ router.put('/users/:id/block', authenticate, adminOnly, async (req, res) => {
         const { blocked } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { blocked }, { new: true }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
-        await log('admin', req.user, `${blocked ? 'Blocked' : 'Unblocked'} user: ${user.full_name || user.email}`);
+        await log(req, 'admin', `${blocked ? 'Blocked' : 'Unblocked'} user: ${user.full_name || user.email}`);
         res.json(user);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -608,7 +610,7 @@ router.put('/users/:id/role', authenticate, adminOnly, async (req, res) => {
         if (!['user', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
         const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
-        await log('admin', req.user, `Changed ${user.full_name || user.email}'s role to ${role}`);
+        await log(req, 'admin', `Changed ${user.full_name || user.email}'s role to ${role}`);
         res.json(user);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -619,7 +621,7 @@ router.put('/users/:id/plan', authenticate, adminOnly, async (req, res) => {
         const { plan } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { plan }, { new: true }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
-        await log('admin', req.user, `Updated ${user.full_name || user.email}'s plan to ${plan}`);
+        await log(req, 'admin', `Updated ${user.full_name || user.email}'s plan to ${plan}`);
         res.json(user);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -630,7 +632,7 @@ router.put('/users/:id/overrides', authenticate, adminOnly, async (req, res) => 
         const { overrides } = req.body;
         const user = await User.findByIdAndUpdate(req.params.id, { planOverrides: overrides }, { new: true }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
-        await log('admin', req.user, `Updated limit overrides for ${user.full_name || user.email}`);
+        await log(req, 'admin', `Updated limit overrides for ${user.full_name || user.email}`);
         res.json(user);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -642,7 +644,7 @@ router.delete('/users/:id', authenticate, adminOnly, async (req, res) => {
         const user = await User.findByIdAndDelete(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
         await Animal.deleteMany({ user_id: req.params.id });
-        await log('admin', req.user, `Deleted user: ${user.full_name || user.email}`);
+        await log(req, 'admin', `Deleted user: ${user.full_name || user.email}`);
         res.json({ message: 'Deleted' });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -688,7 +690,7 @@ router.post('/faqs', authenticate, adminOnly, async (req, res) => {
         const { question, answer, category, order, published } = req.body;
         if (!question || !answer) return res.status(400).json({ message: 'question and answer required' });
         const faq = await Faq.create({ question, answer, category: category || 'General', order: order || 0, published: published !== false });
-        await log('admin', req.user, `Added FAQ: "${question}"`);
+        await log(req, 'admin', `Added FAQ: "${question}"`);
         res.status(201).json(faq);
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
@@ -697,7 +699,7 @@ router.put('/faqs/:id', authenticate, adminOnly, async (req, res) => {
     try {
         const faq = await Faq.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!faq) return res.status(404).json({ message: 'FAQ not found' });
-        await log('admin', req.user, `Updated FAQ: "${faq.question}"`);
+        await log(req, 'admin', `Updated FAQ: "${faq.question}"`);
         res.json(faq);
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
@@ -706,7 +708,7 @@ router.delete('/faqs/:id', authenticate, adminOnly, async (req, res) => {
     try {
         const faq = await Faq.findByIdAndDelete(req.params.id);
         if (!faq) return res.status(404).json({ message: 'FAQ not found' });
-        await log('admin', req.user, `Deleted FAQ: "${faq.question}"`);
+        await log(req, 'admin', `Deleted FAQ: "${faq.question}"`);
         res.json({ message: 'Deleted' });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -934,7 +936,7 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
         );
 
         const vaxStatus = newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF';
-        await log('admin', req.user, `Updated AI Model Configuration (Hybrid Vax Routing: ${vaxStatus})`);
+        await log(req, 'admin', `Updated AI Model Configuration (Hybrid Vax Routing: ${vaxStatus})`);
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -963,7 +965,7 @@ router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
             { upsert: true, new: true }
         );
         console.log(`[AI_ENGINE] Successfully switched to: ${engine}`);
-        await log('admin', req.user, `Switched AI Health Engine to: ${engine}`);
+        await log(req, 'admin', `Switched AI Health Engine to: ${engine}`);
         res.json({ message: 'AI Engine updated successfully', engine });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });

@@ -5,6 +5,8 @@ const ActivityLogSchema = new mongoose.Schema({
     user: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     detail: { type: String, required: true },
+    ip: { type: String },
+    userAgent: { type: String }
 }, { timestamps: true });
 
 // Auto-delete records older than 10 days (864,000 seconds)
