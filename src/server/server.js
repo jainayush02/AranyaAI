@@ -5,16 +5,22 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression'); // Performance: Compress responses
+const { logActivity } = require('./utils/logger'); // Move require to top for performance
 
 const app = express();
+
+// ── Performance: Enable Gzip Compression ──
+app.use(compression());
 
 // ── Global Rate Limiting (Abuse Protection) ──
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per window
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    message: { message: 'Too many requests from this IP, please try again after 15 minutes.' }
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes.' },
+    skip: (req) => process.env.NODE_ENV !== 'production' // Skip in dev for testing
 });
 
 // App-wide production protection
@@ -27,23 +33,23 @@ app.use(helmet({
     contentSecurityPolicy: false, // Disable if using external scripts/images
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, // Allow Google SSO popups
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, 
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
-// Tightened CORS - ONLY allow trusted origins
-const allowedOrigins = [
+// Optimized CORS - Using a Set for O(1) lookups
+const allowedOrigins = new Set([
     'http://localhost:5173',
     'http://localhost:5000',
     'https://aranya-ai-five.vercel.app',
     'https://aranya.ai'
-];
+]);
+
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.has(origin)) {
             callback(null, true);
         } else {
-            // Log suspicious origin attempts
             console.warn(`[SECURITY] Blocked CORS request from untrusted origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
@@ -51,29 +57,28 @@ app.use(cors({
     credentials: true
 }));
 
-// Middleware: Enforce HTTPS in production
+// Middleware: Enforce HTTPS in production (Vercel usually does this, but keeping for safety)
 app.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
-        return res.redirect(`https://${req.headers.host}${req.url}`);
+        return res.redirect(301, `https://${req.headers.host}${req.url}`);
     }
     next();
 });
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// JSON and Body Parsing - Reduced limit to 10MB to avoid memory pressure on Vercel
+app.use(express.json({ limit: '10mb' })); 
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d' }));
 
-// ── Global Audit Middleware ──
+// ── Global Audit Middleware (Optimized) ──
 app.use((req, res, next) => {
-    const originalSend = res.send;
-    res.send = function (content) {
+    res.on('finish', () => {
         if (res.statusCode >= 400) {
-            const { logActivity } = require('./utils/logger');
             const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+            // Fire and forget logging (not awaited)
             logActivity('security_audit', null, `[${res.statusCode}] ${req.method} ${req.url} from IP: ${ip}`);
         }
-        return originalSend.apply(res, arguments);
-    };
+    });
     next();
 });
 
@@ -85,63 +90,50 @@ if (!cached) {
 
 // Global connection state monitoring
 mongoose.connection.on('connected', () => console.log('✅ MongoDB: Connected to Cluster'));
-mongoose.connection.on('reconnected', () => console.log('🟢 MongoDB: Connection Restored'));
 mongoose.connection.on('error', (err) => console.error('❌ MongoDB: Connection Error:', err));
 mongoose.connection.on('disconnected', () => {
-    console.warn('⚠️ MongoDB: Disconnected. Attempting to restore...');
+    console.warn('⚠️ MongoDB: Disconnected. Cache cleared.');
     cached.conn = null;
     cached.promise = null;
 });
 
 const connectDB = async () => {
     if (!process.env.MONGO_URI) {
-        console.error("❌ CRITICAL: MONGO_URI not found in environment variables.");
+        console.error("❌ CRITICAL: MONGO_URI missing.");
         return null;
     }
 
-    // Return existing connection if healthy
     if (cached.conn && mongoose.connection.readyState === 1) {
         return cached.conn;
     }
 
-    // If currently connecting, wait for the existing promise to avoid multiple simultaneous attempts
     if (cached.promise) {
-        console.log('⏳ MongoDB: Waiting for existing connection promise...');
         try {
             cached.conn = await cached.promise;
             return cached.conn;
         } catch (err) {
-            console.error('🔄 MongoDB: Existing connection promise failed, resetting...');
             cached.promise = null; 
         }
     }
 
-    // Initialize new connection with stability-optimized options
-    console.log('🔄 MongoDB: Initializing new connection...');
+    // Optimization: Reduced pool size and timeouts for faster serverless response
     const options = {
-        serverSelectionTimeoutMS: 20000, // Increased to 20s for higher latency tolerance
-        socketTimeoutMS: 60000,          // Extended socket timeout for slow networks
-        maxPoolSize: 50,                 // Raised limit to handle higher local concurrency
-        minPoolSize: process.env.NODE_ENV === 'production' ? 0 : 5, // Local: Keep 5 connections hot
-        heartbeatFrequencyMS: 30000,     // Atlas standard heartbeat frequency
-        connectTimeoutMS: 20000,
+        serverSelectionTimeoutMS: 5000,  // Reduced from 20s to 5s
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,                // Reduced from 50 to 10 (ideal for Vercel)
+        minPoolSize: 0,
+        heartbeatFrequencyMS: 30000,
+        connectTimeoutMS: 10000,
         dbName: 'aranya_db',
-        family: 4,                       // Force IPv4 to avoid resolution issues on local machines
-        maxIdleTimeMS: 60000,            // Release inactive connections after 1 minute
-        waitQueueTimeoutMS: 30000        // Time to wait for a pool connection
+        family: 4,
+        maxIdleTimeMS: 60000,
+        waitQueueTimeoutMS: 10000
     };
 
     cached.promise = mongoose.connect(process.env.MONGO_URI, options).then((m) => {
-        console.log('✅ MongoDB: Successfully established connection (Pool Ready)');
         return m;
     }).catch((err) => {
-        console.error(`❌ MongoDB: Connection Error: ${err.message}`);
-        // Log common reasons for failure
-        if (err.message.includes('selection timeout')) {
-            console.error('👉 Tip: Check your network/firewall or if your IP is whitelisted in MongoDB Atlas.');
-        } else if (err.message.includes('authentication failed')) {
-            console.error('👉 Tip: Review your auth credentials in the .env MONGO_URI.');
-        }
+        console.error(`❌ MongoDB Error: ${err.message}`);
         cached.promise = null;
         throw err;
     });
@@ -150,22 +142,18 @@ const connectDB = async () => {
         cached.conn = await cached.promise;
     } catch (err) {
         cached.conn = null;
-        console.error('❌ MongoDB: Failed to await connection promise.');
     }
     return cached.conn;
 };
 
-// ── Middleware: ensure DB is connected before ANY API request ──
+// ── Middleware: ensure DB is connected ──
 app.use('/api', async (req, res, next) => {
     try {
         const conn = await connectDB();
         if (!conn) throw new Error('DB Connection Failed');
         next();
     } catch (err) {
-        console.error(`[RESTORE] Middleware caught DB failure: ${err.message}`);
-        res.status(503).json({
-            message: 'Database connection lost. We are automatically attempting to restore it.'
-        });
+        res.status(503).json({ message: 'Database busy. Retrying...' });
     }
 });
 
@@ -178,15 +166,13 @@ app.use('/api/docs', require('./routes/docs'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/plans', require('./routes/plans'));
 
-// Start local server (not on Vercel)
+// Start local server
 const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Backend server running on port ${PORT}`);
-        // Attempt background connection; middleware will handle the rest
-        connectDB().catch(err => console.error('Initial DB connect trial failed:', err.message));
+        connectDB().catch(() => {});
     });
 }
 
-// Export for Vercel
 module.exports = app;
