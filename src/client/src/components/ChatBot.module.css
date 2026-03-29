@@ -29,6 +29,26 @@
     flex-direction: column;
     background: #ffffff;
     position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.modeGlow {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    background: radial-gradient(circle at 100% 0%, rgba(45, 95, 63, 0.05) 0%, transparent 70%),
+                radial-gradient(circle at 0% 100%, rgba(139, 92, 246, 0.03) 0%, transparent 70%);
+}
+
+.aranyaActiveGlow {
+    opacity: 1;
+    background: radial-gradient(circle at 90% 10%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
+                radial-gradient(circle at 10% 90%, rgba(245, 158, 11, 0.05) 0%, transparent 60%),
+                rgba(139, 92, 246, 0.015);
 }
 
 @keyframes chatBorderPulse {
@@ -919,24 +939,36 @@
 }
 
 .modeAranyaActive {
-    color: #1e293b;
-    background: #ffffff;
-    border-color: #cbd5e1;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.2);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
 }
 
 .modeAranyaActive svg {
-    opacity: 0.7;
+    animation: aranyaPulse 2s ease-in-out infinite;
+}
+
+@keyframes aranyaPulse {
+    0%, 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 0 rgba(139, 92, 246, 0)); }
+    50% { transform: scale(1.1) rotate(5deg); filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.5)); }
 }
 
 .modeSearchActive {
     color: var(--primary);
     background: rgba(45, 95, 63, 0.08);
-    border-color: rgba(45, 95, 63, 0.15);
+    border-color: rgba(45, 95, 63, 0.2);
+    box-shadow: 0 4px 12px rgba(45, 95, 63, 0.1);
 }
 
 .modeSearchActive svg {
     animation: breathingFloat 3s ease-in-out infinite;
+}
+
+.modeSwitchContent {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
 .inputWrapper {

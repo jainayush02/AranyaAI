@@ -740,11 +740,7 @@ router.get('/:id/vaccine-recommendations', auth, async (req, res) => {
             });
         }
 
-        const rawPrompt = aiConfig.vaccinePrompt || `[TOON_V3] Arion CareCycle Vet bot. 
-        Lifecycle vax roadmap for ${animal.category} (${animal.breed}), Age: ${ageString}. 
-        Output: JSON object {alreadyCompleted:[], futureNeeded:[], conclusion:str}. 
-        Vax Schema: {name, type:'Core'|'Optional', frequencyMonths:int, frequencyLabel, ageRange, ageRangeLabel, clinicalCycle, recommendationAgeWeeks:int, description, isOneTime:bool}. 
-        Rule: Pure JSON. No markdown. No chatter.`;
+        const rawPrompt = aiConfig.vaccinePrompt || "";
 
         // Perform dynamic variable substitution
         const prompt = rawPrompt

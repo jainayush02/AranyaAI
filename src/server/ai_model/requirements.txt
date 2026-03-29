@@ -7,3 +7,5 @@ joblib
 keras
 tensorflow-cpu
 gunicorn
+duckduckgo-search
+requests

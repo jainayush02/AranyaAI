@@ -10,7 +10,7 @@ import {
     Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
     ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes, Shield,
     ZoomIn, ZoomOut, Check, Info, Rocket, Gem, Briefcase, Zap as ZapIcon, Terminal, Share2, Database,
-    MessageSquare, Server, PlusCircle, RefreshCcw
+    MessageSquare, Server, PlusCircle, RefreshCcw, Brain
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -459,6 +459,8 @@ export default function AdminPortal() {
     const [showFbKey, setShowFbKey] = useState(false);
     const [showVPriKey, setShowVPriKey] = useState(false);
     const [showVFbKey, setShowVFbKey] = useState(false);
+    const [showTinyFishKey, setShowTinyFishKey] = useState(false);
+    const [isEditingIntel, setIsEditingIntel] = useState(false);
     // (Routing tab states removed as they are now displayed in a single focused column)
     const [routingMode, setRoutingMode] = useState('chatbot'); // 'chatbot' or 'cyclecare'
     const addModel = (engine) => {
@@ -651,6 +653,18 @@ export default function AdminPortal() {
             }
             if (!data.vaccineFallback) {
                 data.vaccineFallback = { ...defaultGateway };
+            }
+
+            if (!data.intelligence) {
+                data.intelligence = {
+                    duckduckgo: { enabled: true, targetDomains: [] },
+                    opensearch: { enabled: false, endpoint: '', apiKey: '' },
+                    tinyfish: { enabled: false, endpoint: '', apiKey: '' }
+                };
+            } else if (data.intelligence.duckduckgo && typeof data.intelligence.duckduckgo.targetDomains === 'undefined') {
+                data.intelligence.duckduckgo.targetDomains = [];
+            } else if (typeof data.intelligence.duckduckgo.targetDomains === 'string') {
+                data.intelligence.duckduckgo.targetDomains = data.intelligence.duckduckgo.targetDomains.split(',').map(d => d.trim()).filter(d => !!d);
             }
 
             setAiConfig(data);
@@ -1098,7 +1112,7 @@ export default function AdminPortal() {
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
         pricing: { title: 'SUBSCRIPTION', subtitle: 'CENTER', desc: 'Manage tiers and subscription framework', icon: Zap },
         taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
-        infrastructure: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
+        intelligence: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
     const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
@@ -2767,29 +2781,53 @@ export default function AdminPortal() {
                                                                 <Shield size={16} />
                                                                 Vaccination Roadmap
                                                             </button>
+                                                            <button
+                                                                className={`${s.pillTab} ${promptTab === 'aranya' ? s.pillTabActive : ''}`}
+                                                                onClick={() => setPromptTab('aranya')}
+                                                            >
+                                                                <Brain size={16} />
+                                                                Aranya Mode Intelligence
+                                                            </button>
                                                         </div>
                                                     </div>
 
                                                     <div style={{ flex: 1, padding: '1.25rem 2rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                             <label className={s.inputLabel} style={{ fontSize: '0.85rem' }}>
-                                                                {promptTab === 'assistant' ? 'Global Chatbot Guardrails' : 'Medical Logic & JSON Structure'}
+                                                                {promptTab === 'assistant' ? 'Global Chatbot Guardrails' : 
+                                                                 promptTab === 'vaccine' ? 'Medical Logic & JSON Structure' : 
+                                                                 'Aranya Orchestration Logic'}
                                                             </label>
                                                             <div className={`${s.badge} ${s.badgeSuccess}`} style={{ fontSize: '0.65rem' }}>Active Configuration</div>
                                                         </div>
                                                         <textarea
                                                             className={s.premiumTextarea}
-                                                            value={promptTab === 'assistant' ? aiConfig.systemPrompt : (aiConfig.vaccinePrompt || '')}
-                                                            onChange={e => setAiConfig(p => ({
-                                                                ...p,
-                                                                [promptTab === 'assistant' ? 'systemPrompt' : 'vaccinePrompt']: e.target.value
-                                                            }))}
-                                                            placeholder={promptTab === 'assistant' ? "Define rules, tone, and clinical protocols..." : "Specify how vaccines should be categorized and formatted..."}
-                                                            style={{ flex: 1, fontFamily: promptTab === 'vaccine' ? 'monospace' : 'inherit' }}
+                                                            value={
+                                                                promptTab === 'assistant' ? aiConfig.systemPrompt : 
+                                                                promptTab === 'vaccine' ? (aiConfig.vaccinePrompt || '') : 
+                                                                (aiConfig.aranyaPrompt || '')
+                                                            }
+                                                            onChange={e => {
+                                                                const field = promptTab === 'assistant' ? 'systemPrompt' : 
+                                                                              promptTab === 'vaccine' ? 'vaccinePrompt' : 
+                                                                              'aranyaPrompt';
+                                                                setAiConfig(p => ({ ...p, [field]: e.target.value }));
+                                                            }}
+                                                            placeholder={
+                                                                promptTab === 'assistant' ? "Define rules, tone, and clinical protocols..." : 
+                                                                promptTab === 'vaccine' ? "Specify how vaccines should be categorized and formatted..." :
+                                                                "Define orchestration rules, search triggers, and veterinary deep-thinking..."
+                                                            }
+                                                            style={{ flex: 1, fontFamily: (promptTab === 'vaccine' || promptTab === 'aranya') ? 'monospace' : 'inherit' }}
                                                         />
                                                         {promptTab === 'vaccine' && (
                                                             <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
                                                                 <strong>Pro Tip:</strong> Use <code>{"${animal.category}"}</code>, <code>{"${animal.breed}"}</code>, and <code>{"${ageYears}"}</code> as dynamic placeholders.
+                                                            </div>
+                                                        )}
+                                                        {promptTab === 'aranya' && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+                                                                <strong>Pro Tip:</strong> Ensure the <code>[SEARCH_NEEDED]</code> and <code>[PRODUCT_SEARCH]</code> tags are explicitly allowed to maintain real-time capabilities.
                                                             </div>
                                                         )}
                                                     </div>
@@ -3184,6 +3222,7 @@ export default function AdminPortal() {
                                     )}
                                 </motion.div>
                             )}
+
 
                             {/* ── ADMIN ACCESS ── */}
                             {activeTab === 'adminaccess' && (

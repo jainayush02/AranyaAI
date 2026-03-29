@@ -6,7 +6,9 @@ const ChatMessage = require('../models/ChatMessage');
 const SystemSettings = require('../models/SystemSettings');
 const User = require('../models/User');
 const Plan = require('../models/Plan');
+const Animal = require('../models/Animal');
 const { OpenAI } = require('openai');
+const axios = require('axios');
 const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 
@@ -128,7 +130,7 @@ router.get('/daily-count', auth, async (req, res) => {
 // @desc    Send a message & get AI response
 // @access  Private
 router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) => {
-    const { content, image_url, image_urls } = req.body;
+    const { content, image_url, image_urls, chatMode } = req.body;
     try {
         const conversation = await Conversation.findById(req.params.id);
         if (!conversation) return res.status(404).json({ msg: 'Chat not found' });
@@ -182,131 +184,16 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
         await conversation.save();
 
         let aiContent = "";
+        let intelligenceType = 'arion';
 
         // Fetch dynamic AI configuration — exclusively from Admin Portal
         let aiConfig = {
-            primary: {
-                provider: 'Hugging Face',
-                customProvider: '',
-                baseURL: 'https://router.huggingface.co/v1',
-                apiKey: '',
-                models: [],
-                enabled: true
-            },
-            fallback: {
-                provider: 'OpenRouter',
-                customProvider: '',
-                baseURL: 'https://openrouter.ai/api/v1',
-                apiKey: '',
-                models: [],
-                enabled: true
-            },
-            systemPrompt: `You are Arion, a multimodal animal health assistant.
-
-You only help with:
-- animal health
-- animal care
-- breed information
-- veterinary guidance
-- safe educational information about common veterinary medicines
-- general animal questions
-
-Hard restriction:
-- If a request is not about animals, animal health, animal care, breeds, veterinary guidance, or safe general veterinary medicine information, refuse it.
-- Do not answer any part of unrelated questions.
-- Do not provide extra help, explanations, facts, code, or general knowledge for unrelated topics.
-- Do not provide partial help for unrelated topics.
-- Do not say "however" and then continue answering.
-- Reply only with:
-"I only help with animal health, care, and veterinary topics."
-
-Default language is English.
-- If the user writes in another language, reply in that language when possible.
-- If the user mixes languages, reply in the language that best matches the user's message.
-
-Use the last 15 messages in the current session for continuity.
-- Use memory only to improve continuity and avoid repeated questions.
-- If memory conflicts with the latest user message, trust the latest message.
-
-Do not invent missing facts.
-- First extract details already provided by the user, image, or session memory, such as species, breed, age, sex, weight, main problem, and symptom duration.
-- Do not ask for details already given.
-- If the user already provides the important details in one message, use them directly and do not ask the same questions again.
-- If important details are missing, ask short and focused follow-up questions before giving guidance.
-- Do not assume missing facts.
-
-Case handling:
-- If the user gives multiple symptoms, focus first on the most serious or dangerous sign.
-- If the user gives multiple animals or multiple separate cases in one message, do not mix them together.
-- Separate them clearly and handle one case at a time.
-- If needed, ask which case should be handled first.
-
-Image behavior:
-- Use images as supporting information, not as final proof of a condition.
-- First decide whether the image is clear enough for a basic visual assessment.
-- If the affected area is reasonably visible, provide a helpful response based on visible findings.
-- If the image is clear enough for a basic assessment, do not ask for more images before helping.
-- If the image is partly clear, give a cautious answer and briefly mention what is visible and what is unclear.
-- Ask for 2 to 3 clearer images only when the image is too blurry, too dark, too far away, too cropped, or the affected area is not visible enough.
-- Never say the image is unclear if the affected area is reasonably visible.
-- Never claim you can see details that are not clearly visible.
-- If needed, ask for one full-body image, one close-up of the affected area, and one image in better light.
-- If the image is clearly unusable, say:
-"I cannot see the problem clearly in this image. Please upload 2 to 3 clearer images."
-
-Anti-hallucination rules:
-- Do not make up symptoms, image findings, history, diagnoses, or medicines.
-- Do not present guesses as facts.
-- If you are not sure, clearly say so.
-- Use careful wording such as:
-  - "This may be related to..."
-  - "One possible reason is..."
-  - "This needs a veterinarian to confirm."
-- Treat predicted disease labels as clues, not confirmed diagnoses.
-
-Response length control:
-- Keep the answer length proportional to the user's question.
-- For short or vague questions, give a short and focused reply.
-- For simple questions, keep the response brief.
-- For detailed or serious health questions, give a fuller answer only when needed.
-- Do not give long explanations unless the user asks for more detail.
-- Ask follow-up questions instead of giving a long generic answer when important details are missing.
-
-Emoji style:
-- Use a few relevant emojis when helpful.
-- Keep emojis minimal and professional.
-- Do not use too many emojis in one response.
-- Avoid emojis in serious emergency messages unless they improve clarity.
-
-For health questions:
-- If the user gives limited information, first ask 1 to 3 short follow-up questions.
-- Use the full structured format only when the case is detailed, serious, or the user asks for a full explanation.
-
-When using the full format, use these headings:
-- Assessment
-- What it might be
-- How serious it seems
-- Which animal doctor can help
-- Medicine or care notes
-- What you should do now
-
-Do not include a disclaimer in every response if the interface already shows a permanent veterinary safety notice below the chatbox.
-- Only include a brief warning when the case is urgent, emergency-level, high-risk, or when medication safety needs special caution.
-
-Use simple urgency levels:
-- Mild
-- Needs a vet visit
-- Urgent
-- Emergency
-
-Medicine safety:
-- Only provide general educational information about common veterinary medicines.
-- Do not provide exact prescriptions, exact doses, frequency, duration, or drug combinations unless the user only wants help understanding a veterinarian's written prescription.
-- Do not suggest risky self-medication.
-- If medicine safety is uncertain, advise veterinary consultation.
-
-If the question is outside animal-related topics, reply only with:
-"I only help with animal health, care, and veterinary topics."`
+            primary: { enabled: false, provider: '', baseURL: '', apiKey: '', models: [] },
+            fallback: { enabled: false, provider: '', baseURL: '', apiKey: '', models: [] },
+            intelligence: { duckduckgo: { enabled: false }, opensearch: { enabled: false }, tinyfish: { enabled: false } },
+            systemPrompt: "",
+            aranyaPrompt: "",
+            vaccinePrompt: ""
         };
 
         try {
@@ -340,46 +227,74 @@ If the question is outside animal-related topics, reply only with:
             // The conversation and userMsg creation are already done above.
             // Using the already destructured variables from req.body
 
-            let aiContent = "";
             const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
 
-            const systemPrompt = aiConfig.systemPrompt;
+            let systemPrompt = aiConfig.systemPrompt;
 
-            if (image_url) {
-                console.log(`Processing message with image (length: ${image_url.length}) for conversation ${req.params.id}`);
+            // ── Parallel DB fetch: pet profiles + chat history ──
+            const [userAnimals, previousMessages] = await Promise.all([
+                chatMode === 'aranya'
+                    ? Animal.find({ user_id: req.user.id }).lean().catch(() => [])
+                    : Promise.resolve([]),
+                ChatMessage.find({
+                    conversation_id: req.params.id,
+                    user_id: req.user.id,
+                    _id: { $ne: userMsg._id }
+                }).sort({ createdAt: -1 }).limit(15).lean() // Increased to 15 for deeper memory context
+            ]);
+
+            // ── ARANYA AI MODE: Pet Context Injection ──
+            let petContextBlock = "";
+            if (chatMode === 'aranya' && userAnimals.length > 0) {
+                const calcAge = (dob) => {
+                    if (!dob) return 'Unknown';
+                    const ms = Date.now() - new Date(dob).getTime();
+                    const yrs = Math.floor(ms / (365.25 * 24 * 60 * 60 * 1000));
+                    const mos = Math.floor((ms % (365.25 * 24 * 60 * 60 * 1000)) / (30.44 * 24 * 60 * 60 * 1000));
+                    return yrs > 0 ? `${yrs}y ${mos}m` : `${mos}m`;
+                };
+                const petLines = userAnimals.map(a => {
+                    const age = calcAge(a.dob);
+                    const vax = a.vaccinated ? 'Yes' : 'No';
+                    const temp = a.recentVitals?.temperature ?? '—';
+                    const hr = a.recentVitals?.heartRate ?? '—';
+                    const wt = a.recentVitals?.weight ? `${a.recentVitals.weight}kg` : '—';
+                    return `• ${a.name} | ${a.category} | ${a.breed} | ${a.gender} | Age:${age} | Status:${a.status} | Vax:${vax} | Temp:${temp}°C HR:${hr}bpm Wt:${wt}`;
+                }).join('\n');
+                const petInst = aiConfig.petContextInstruction || "";
+                petContextBlock = `\n\n[PET_PROFILES]\n${petInst}\n${petLines}\n[PET_PROFILES_END]\n`;
             }
 
-            // The previous userMessageContent logic is now fully integrated into finalMessages below.
+            if (chatMode === 'aranya') {
+                const aranyaPrompt = aiConfig.aranyaPrompt || "";
+                systemPrompt += petContextBlock;
+                systemPrompt += `\n\n[ARANYA_AI_MODE]\n${aranyaPrompt}\n[ARANYA_AI_MODE_END]`;
+            }
 
-            // 1. Fetch history excluding the current message to avoid repetition loops
-            const previousMessages = await ChatMessage.find({
-                conversation_id: req.params.id,
-                user_id: req.user.id,
-                _id: { $ne: userMsg._id } // Critical fix for memory loop
-            }).sort({ createdAt: -1 }).limit(10); // Optimal last 10 messages
+            if (image_url) {
+                console.log(`Processing message with image for conversation ${req.params.id}`);
+            }
 
-            // 2. Build the TOON compact context (\n instead of JSON saves ~30% tokens)
-            const toonHistory = previousMessages.reverse().map(m => {
+            // Build TOON compact context
+            const toonHistory = [...previousMessages].reverse().map(m => {
                 const prefix = m.role === 'ai' ? 'a: ' : 'u: ';
                 return `${prefix}${m.content || "[Photo Sent]"}`;
             }).join('\n');
 
-            // 3. Construct the message list with clear HISTORY gating
             const historyBlock = toonHistory ? `[HISTORY]\n${toonHistory}\n[HISTORY_END]\n\n` : "";
-            
+
             const finalMessages = [
                 { role: "system", content: systemPrompt },
                 {
                     role: "user",
                     content: [
                         { type: "text", text: `${historyBlock}[TASK]: ${content || "Respond to user"}` },
-                        ...(image_url || (image_urls && image_urls.length > 0) ? 
-                            (image_urls || [image_url]).map(url => ({ type: "image_url", image_url: { url } })) 
+                        ...(image_url || (image_urls && image_urls.length > 0)
+                            ? (image_urls || [image_url]).map(url => ({ type: "image_url", image_url: { url } }))
                             : [])
                     ]
                 }
             ];
-
 
             const contextHasImage = hasImage || previousMessages.some(m =>
                 (m.image_url && m.image_url.length > 0) || (m.image_urls && m.image_urls.length > 0)
@@ -405,7 +320,7 @@ If the question is outside animal-related topics, reply only with:
                     completionStream = await primaryOpenai.chat.completions.create({
                         model: primaryModelObj.modelId,
                         messages: finalMessages,
-                        max_tokens: 1500,
+                        max_tokens: 900,
                         stream: stream
                     });
                 } catch (pErr) {
@@ -434,7 +349,7 @@ If the question is outside animal-related topics, reply only with:
                     completionStream = await fallbackOpenai.chat.completions.create({
                         model: fallbackModelObj.modelId,
                         messages: finalMessages,
-                        max_tokens: 1500,
+                        max_tokens: 900,
                         stream: stream
                     });
                 } catch (fErr) {
@@ -450,6 +365,7 @@ If the question is outside animal-related topics, reply only with:
                 res.setHeader('Connection', 'keep-alive');
 
                 let fullText = "";
+                let sourceMeta = [];
                 for await (const chunk of completionStream) {
                     const delta = chunk.choices[0]?.delta?.content || "";
                     if (delta) {
@@ -459,11 +375,141 @@ If the question is outside animal-related topics, reply only with:
                     }
                 }
 
+
+                // ── ARANYA AI: Smart Web Search (Latest Info Only) ──
+                if (chatMode === 'aranya') {
+                    const searchMatch = fullText.match(/\[SEARCH_NEEDED:\s*(.+?)\]/i);
+
+                    if (searchMatch) {
+                        const searchQuery = searchMatch[1].trim();
+                        intelligenceType = 'web';
+                        console.log(`[ARANYA_AI] Web search triggered by Node: "${searchQuery}"`);
+
+                        // Strip the search tag from the initial response
+                        const cleanedText = fullText
+                            .replace(/\[SEARCH_NEEDED:\s*.+?\]/gi, '')
+                            .trim();
+
+                        let searchResults = [];
+                        const intelligenceConfig = aiConfig.intelligence || {};
+
+                        // ── Delegate Search to Python AI Microservice (port 8005) ──
+                        // We always attempt the Python search for Aranya mode now as it has internal fallbacks.
+                        try {
+                            console.log(`[ARANYA_AI] Delegating search to Python Service (port 8005)... Query: "${searchQuery}"`);
+                            const response = await axios.post('http://localhost:8005/api/search', {
+                                query: searchQuery,
+                                max_results: 4
+                            }, { timeout: 8000 });
+
+                            searchResults = response.data.results || [];
+                            console.log(`[ARANYA_AI] Python Search Engine returned ${searchResults.length} results.`);
+                        } catch (searchErr) {
+                            console.error('[ARANYA_AI] Python Search Error:', searchErr.message);
+                            // Fallback: if Python fails, we use internal medical training
+                            searchResults = [];
+                        }
+
+                        // Build source metadata for frontend display (favicon + link on click)
+                        sourceMeta = searchResults.slice(0, 3).map(r => {
+                            let domain = '';
+                            try { domain = new URL(r.url).hostname.replace('www.', ''); } catch (_) {}
+                            return { title: r.title, url: r.url, domain };
+                        });
+
+                        // Build TOON context from search results (or fallback if empty)
+                        const searchContext = searchResults.length > 0
+                            ? searchResults.map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}`).join('\n\n')
+                            : 'NO_LATEST_SEARCH_RESULTS_FOUND: Please provide the best answer using your internal medical intelligence.';
+
+                        // Re-prompt the LLM with search context — synthesize a clean, personalized answer (no links)
+                        // We strictly include historyMessages here so Aranya MAINTAINS its context window and memory.
+                        const searchAugmentedMessages = [
+                            { role: 'system', content: systemPrompt },
+                            ...historyMessages.map(m => ({ 
+                                role: m.role, 
+                                content: m.content || "" 
+                            })),
+                            {
+                                role: 'user',
+                                content: (aiConfig.searchAugmentationTask || '')
+                                    .replace(/\$\{content\}/g, content)
+                                    .replace(/\$\{cleanedText\}/g, cleanedText)
+                                    .replace(/\$\{searchContext\}/g, searchContext)
+                                    || `Based on our previous conversation and this new web context:\n\n${searchContext}\n\nUser Question: "${content}"\n\nPlease provide a synthesized, expert answer. Maintain the personality established in our history. Do NOT include URLs.`
+                            }
+                        ];
+
+                        // Re-use the same LLM engine for the augmented response
+                        let augStream = null;
+                        try {
+                            const primaryTextModel = aiConfig.primary.models.find(m => m.type === 'text' || m.type === 'text+vision') || aiConfig.primary.models[0];
+                            if (aiConfig.primary.enabled && aiConfig.primary.apiKey && primaryTextModel) {
+                                const pClient = new OpenAI({
+                                    apiKey: primaryTextModel.apiKey || aiConfig.primary.apiKey,
+                                    baseURL: primaryTextModel.baseURL || aiConfig.primary.baseURL
+                                });
+                                augStream = await pClient.chat.completions.create({
+                                    model: primaryTextModel.modelId,
+                                    messages: searchAugmentedMessages,
+                                    max_tokens: 1500,
+                                    stream: true
+                                });
+                            }
+                        } catch (_) {}
+
+                        if (!augStream) {
+                            try {
+                                const fallbackTextModel = aiConfig.fallback.models.find(m => m.type === 'text' || m.type === 'text+vision') || aiConfig.fallback.models[0];
+                                if (aiConfig.fallback.enabled && aiConfig.fallback.apiKey && fallbackTextModel) {
+                                    const fClient = new OpenAI({
+                                        apiKey: fallbackTextModel.apiKey || aiConfig.fallback.apiKey,
+                                        baseURL: fallbackTextModel.baseURL || aiConfig.fallback.baseURL,
+                                        defaultHeaders: { 'HTTP-Referer': 'http://localhost:3000', 'X-Title': 'Aranya AI Chatbot' }
+                                    });
+                                    augStream = await fClient.chat.completions.create({
+                                        model: fallbackTextModel.modelId,
+                                        messages: searchAugmentedMessages,
+                                        max_tokens: 1500,
+                                        stream: true
+                                    });
+                                }
+                            } catch (_) {}
+                        }
+
+                        if (augStream) {
+                            // Emit search metadata (type + sources) BEFORE starting the synthesis stream
+                            const metadata = {
+                                intelligenceType,
+                                sources: sourceMeta.map(s => ({
+                                    ...s,
+                                    domain: s.domain || (s.url ? new URL(s.url).hostname.replace('www.', '') : 'Web Result')
+                                }))
+                            };
+                            res.write(`data: ${JSON.stringify({ metadata })}\n\n`);
+                            if (res.flush) res.flush();
+
+                            let augText = '';
+                            for await (const chunk of augStream) {
+                                const delta = chunk.choices[0]?.delta?.content || '';
+                                if (delta) {
+                                    augText += delta;
+                                    res.write(`data: ${JSON.stringify({ token: delta })}\n\n`);
+                                    if (res.flush) res.flush();
+                                }
+                            }
+                            fullText = augText;
+                        }
+                    }
+                }
+
                 const finalAiMsg = new ChatMessage({
                     conversation_id: req.params.id,
                     user_id: req.user.id,
                     role: 'ai',
-                    content: fullText
+                    content: (fullText || aiContent).replace(/\[SEARCH_NEEDED:\s*.+?\]/gi, '').replace(/\[PRODUCT_SEARCH:\s*.+?\]/gi, '').trim(),
+                    sources: sourceMeta || [],
+                    intelligenceType: intelligenceType
                 });
                 await finalAiMsg.save();
                 res.write(`data: ${JSON.stringify({ done: true, messageId: finalAiMsg._id })}\n\n`);

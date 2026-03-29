@@ -38,6 +38,16 @@ const ChatMessageSchema = new mongoose.Schema({
             ref: 'user'
         }
     }],
+    sources: [{
+        title: String,
+        url: String,
+        domain: String
+    }],
+    intelligenceType: {
+        type: String,
+        enum: ['arion', 'web', 'product'],
+        default: 'arion'
+    },
     createdAt: {
         type: Date,
         default: Date.now

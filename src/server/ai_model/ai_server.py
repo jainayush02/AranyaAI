@@ -8,6 +8,8 @@ warnings.filterwarnings('ignore')
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from duckduckgo_search import DDGS
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -262,6 +264,81 @@ def health_check():
         "scaler_loaded": scaler is not None,
         "threshold": float(threshold) if threshold is not None else None
     })
+
+
+import wikipediaapi
+
+# Pre-defined high-quality veterinary sources for zero-result queries
+VERIFIED_VET_SOURCES = [
+    {"title": "Merck Veterinary Manual - Feline Health", "url": "https://www.merckvetmanual.com/cat-owners", "domain": "merckvetmanual.com"},
+    {"title": "Cornell Feline Health Center", "url": "https://www.vet.cornell.edu/departments-centers-and-institutes/cornell-feline-health-center", "domain": "cornell.edu"},
+    {"title": "WSAVA Global Veterinary Community", "url": "https://wsava.org/", "domain": "wsava.org"},
+    {"title": "AAHA - American Animal Hospital Association", "url": "https://www.aaha.org/", "domain": "aaha.org"}
+]
+
+@app.route('/api/search', methods=['POST'])
+def web_search():
+    try:
+        data = request.json
+        query = data.get("query", "").strip()
+        max_results = data.get("max_results", 4)
+
+        if not query:
+            return jsonify({"results": VERIFIED_VET_SOURCES[:max_results]})
+
+        print(f"  [Search Engine] Searching for: \"{query}\"...")
+        results = []
+
+        # 1. Primary: DuckDuckGo (Resilient params)
+        try:
+            with DDGS() as ddgs:
+                ddgs_gen = ddgs.text(query, region='wt-wt', safesearch='moderate', max_results=max_results)
+                for r in ddgs_gen:
+                    results.append({"title": r.get("title", ""), "snippet": r.get("body", ""), "url": r.get("href", "")})
+        except Exception as e:
+            print(f"  [DDG Blocked] {str(e)}")
+
+        # 2. Secondary Fallback: Wikipedia (Extremely reliable for medical/technical info)
+        if len(results) < 2:
+            try:
+                print("  [Search Engine] Falling back to Wikipedia...")
+                wiki = wikipediaapi.Wikipedia('AranyaBot/1.0 (contact: admin@aranya.ai)', 'en')
+                page = wiki.page(query)
+                if page.exists():
+                    results.append({
+                        "title": page.title + " (Wikipedia)",
+                        "snippet": page.summary[:300],
+                        "url": page.fullurl
+                    })
+            except Exception as e:
+                print(f"  [Wiki Error] {str(e)}")
+
+        # 3. Tertiary Fallback: Verified Veterinary Links (Ensure panel is never empty)
+        if len(results) == 0:
+            print("  [Search Engine] No results found. Injecting verified veterinary directory...")
+            results = VERIFIED_VET_SOURCES[:max_results]
+
+        # Cleanup: Ensure English and formatted domain
+        final_results = []
+        for r in results:
+            url = r.get("url", "")
+            domain = ""
+            try: domain = url.split("//")[-1].split("/")[0].replace("www.", "")
+            except: domain = "Web Result"
+            
+            final_results.append({
+                "title": r.get("title", "Verified Source"),
+                "snippet": r.get("snippet", ""),
+                "url": url,
+                "domain": domain
+            })
+
+        print(f"  [Search Engine] Finalized {len(final_results)} results.")
+        return jsonify({"results": final_results})
+
+    except Exception as e:
+        print(f"  [Search Engine Final Failure] {str(e)}")
+        return jsonify({"results": VERIFIED_VET_SOURCES[:2]})
 
 
 if __name__ == '__main__':

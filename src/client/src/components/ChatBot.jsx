@@ -5,7 +5,8 @@ import {
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
     CheckSquare, Square, StopCircle, Sparkles, CornerDownRight,
-    MoreVertical, Search, Pin, Smile, ThumbsUp // Added Pin, Smile, ThumbsUp
+    MoreVertical, Search, Pin, Smile, ThumbsUp, // Added Pin, Smile, ThumbsUp
+    Globe, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -52,38 +53,7 @@ const AILogo = ({ size = 24, className }) => (
     </svg>
 );
 
-const Typewriter = ({ text, speed = 5, onType, onFinish }) => {
-    const [displayedText, setDisplayedText] = useState('');
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    useEffect(() => {
-        if (currentIndex < text.length) {
-            const timeout = setTimeout(() => {
-                setDisplayedText(prev => prev + text[currentIndex]);
-                setCurrentIndex(prev => prev + 1);
-                if (onType) onType();
-            }, speed);
-            return () => clearTimeout(timeout);
-        } else if (onFinish) {
-            onFinish();
-        }
-    }, [currentIndex, text, speed, onType, onFinish]);
-
-    return (
-        <div className={styles.typewriterWrapper}>
-            <div className={styles.markdownContent}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{displayedText}</ReactMarkdown>
-            </div>
-            {currentIndex < text.length && (
-                <div className={styles.writingSpinnerWrapper}>
-                    <div className={styles.typingDot}></div>
-                    <div className={styles.typingDot}></div>
-                    <div className={styles.typingDot}></div>
-                </div>
-            )}
-        </div>
-    );
-};
+// Typewriter component removed in favor of direct high-speed streaming renderer
 
 const parseMessage = (content, isStreaming = false) => {
     if (typeof content !== 'string') return { cleanContent: '' };
@@ -91,21 +61,183 @@ const parseMessage = (content, isStreaming = false) => {
     // 1. Standard cleaning for attachments
     let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
 
-    // 2. Table-Healer: If we see a line starting with '|' but no table separator row '|---|' yet
-    // we append a fake separator to "trick" ReactMarkdown into rendering the table early during streaming.
+    // 2. Strict Table-Healer: Locks the table format as soon as a header is typed
     if (isStreaming && clean.includes('|') && !clean.includes('|--')) {
-        const lastLine = clean.trim().split('\n').pop();
-        if (lastLine.startsWith('|')) {
-            const pipeCount = (lastLine.match(/\|/g) || []).length;
-            if (pipeCount > 1) {
-                // Pre-render a virtual separator row to force table mode
-                const virtualSeparator = '\n|' + Array(pipeCount - 1).fill('---|').join('');
-                clean += virtualSeparator;
+        const lines = clean.split('\n');
+        // Find the first line that looks like a potential header
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('|')) {
+                const pipeCount = (line.match(/\|/g) || []).length;
+                if (pipeCount > 1) {
+                    // Inject a virtual separator with a trailing newline
+                    // This forces ReactMarkdown to recognize the header row even during streaming
+                    const virtualSeparator = '|' + Array(pipeCount - 1).fill('---|').join('') + '\n';
+                    lines.splice(i + 1, 0, virtualSeparator);
+                    clean = lines.join('\n');
+                    break; 
+                }
             }
         }
     }
 
+    // 3. Aranya Mode Tag Strip: Hide technical search tag from the UI (including partial tags during streaming)
+    clean = clean
+        .replace(/\[SEARCH_NEEDED:[\s\S]*?\]/gi, '') // Full tag
+        .replace(/\[SEARCH_NEEDED:[\s\S]*$/gi, '')  // Partial tag at end of current stream
+        .replace(/\[SEARCH_NEEDED:?$/gi, '');       // Just the start of the tag
+
+    // 4. Strict Markdown Stripper (Flicker-Free): Hides ALL markdown symbols durante streaming
+    // This allows for a 100% clean, non-technical "Normal" view during typing as requested.
+    if (isStreaming) {
+        // We strictly remove all markdown formatting characters from the stream
+        clean = clean.replace(/(\*\*|\*|`|\[|\]|_)+/g, '');
+    }
+
     return { cleanContent: clean.trim() };
+};
+
+const SourceBadges = ({ sources }) => {
+    const [open, setOpen] = React.useState(false);
+    if (!sources || sources.length === 0) return null;
+
+    const uniqueSources = [];
+    const seenDomains = new Set();
+    for (const s of sources) {
+        if (uniqueSources.length < 3 && !seenDomains.has(s.domain)) {
+            uniqueSources.push(s);
+            seenDomains.add(s.domain);
+        }
+    }
+
+    return (
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: '20px', padding: '4px 10px 4px 6px',
+                    cursor: 'pointer', transition: '0.15s',
+                    boxShadow: open ? '0 2px 8px rgba(0,0,0,0.10)' : 'none'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.07)'}
+                onMouseOut={e => e.currentTarget.style.background = open ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.04)'}
+            >
+                {/* Stacked favicons */}
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    {uniqueSources.map((s, i) => (
+                        <div
+                            key={i}
+                            title={s.domain}
+                            style={{
+                                width: '20px', height: '20px', borderRadius: '50%',
+                                background: '#fff', border: '1.5px solid rgba(255,255,255,0.9)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                overflow: 'hidden',
+                                marginLeft: i > 0 ? '-7px' : '0',
+                                zIndex: 10 - i,
+                                position: 'relative',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                            }}
+                        >
+                            <img
+                                src={`https://www.google.com/s2/favicons?domain=${s.domain}&sz=32`}
+                                alt={s.domain}
+                                style={{ width: '13px', height: '13px', objectFit: 'contain' }}
+                                onError={e => { e.target.style.display = 'none'; }}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', userSelect: 'none' }}>
+                    Sources
+                </span>
+            </button>
+
+            {/* Dropdown panel with clickable links */}
+            {open && (
+                <div style={{
+                    position: 'absolute', bottom: 'calc(100% + 8px)', left: 0,
+                    background: '#fff', borderRadius: '14px',
+                    border: '1px solid rgba(0,0,0,0.09)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    minWidth: '240px', maxWidth: '320px',
+                    padding: '0.5rem', zIndex: 100,
+                    animation: 'fadeInUp 0.15s ease'
+                }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', padding: '0.25rem 0.5rem 0.5rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        Web Sources
+                    </div>
+                    {uniqueSources.map((s, i) => (
+                        <a
+                            key={i}
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                                padding: '0.45rem 0.5rem', borderRadius: '10px',
+                                textDecoration: 'none', color: '#1e293b',
+                                transition: '0.15s'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <div style={{
+                                width: '24px', height: '24px', borderRadius: '6px',
+                                background: '#f1f5f9', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                <img
+                                    src={`https://www.google.com/s2/favicons?domain=${s.domain}&sz=32`}
+                                    alt={s.domain}
+                                    style={{ width: '14px', height: '14px', objectFit: 'contain' }}
+                                    onError={e => { e.target.style.display = 'none'; }}
+                                />
+                            </div>
+                            <div style={{ overflow: 'hidden' }}>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {s.title || s.domain}
+                                </div>
+                                <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 500 }}>
+                                    {s.domain}
+                                </div>
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const IntelligenceBadge = ({ type, mode }) => {
+    // Only show badge for web intelligence (search augmented answers)
+    if (!type || type === 'arion') return null;
+
+    const config = {
+        web: { label: 'Web Enhanced', color: '#10b981', icon: <Globe size={11} /> }
+    };
+    const conf = config[type];
+    if (!conf) return null;
+
+    return (
+        <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            background: `${conf.color}10`, color: conf.color,
+            padding: '2px 8px', borderRadius: '12px',
+            fontSize: '0.65rem', fontWeight: 600,
+            border: `1px solid ${conf.color}30`,
+            textTransform: 'uppercase', letterSpacing: '0.02em',
+            marginTop: '8px', marginBottom: '4px',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+        }}>
+            {conf.icon} {conf.label}
+        </div>
+    );
 };
 
 export default function ChatBot() {
@@ -128,6 +260,16 @@ export default function ChatBot() {
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [chatMode, setChatMode] = useState('search'); // Default to Search mode for general answers
     const [isRecording, setIsRecording] = useState(false);
+    
+    // NEW: Auto-New Chat when mode changes
+    useEffect(() => {
+        if (messages.length > 0 || activeChatId) {
+            setActiveChatId(null);
+            setMessages([]);
+            console.log(`[Aranya_AI] Mode switched to "${chatMode}", starting new conversation.`);
+        }
+    }, [chatMode]);
+
     const recognitionRef = useRef(null);
     const silenceTimeoutRef = useRef(null);
 
@@ -256,6 +398,7 @@ export default function ChatBot() {
     const abortControllerRef = useRef(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [feedback, setFeedback] = useState({});
+    const [activeSourcesId, setActiveSourcesId] = useState(null);
 
     const scrollToBottom = (force = false) => {
         if (!chatContainerRef.current) return;
@@ -800,17 +943,29 @@ export default function ChatBot() {
         const processQueue = async () => {
             if (isProcessingQueue) return;
             isProcessingQueue = true;
+            let lastUpdate = 0;
+            
             while (tokenQueue.length > 0 && !isAborted()) {
                 const char = tokenQueue.shift();
                 displayContent += char;
-                setMessages(prev => {
-                    const newMsgs = [...prev];
-                    const last = newMsgs[newMsgs.length - 1];
-                    if (last && last.isStreaming) last.content = displayContent;
-                    return newMsgs;
-                });
-                scrollToBottom();
-                await new Promise(r => setTimeout(r, 5));
+                
+                const now = Date.now();
+                // Standard Framerate Update (40ms): Prevents state-flooding and UI flickering
+                if (now - lastUpdate > 40 || tokenQueue.length === 0) {
+                    setMessages(prev => {
+                        const next = [...prev];
+                        const idx = next.length - 1;
+                        if (idx >= 0 && next[idx].isStreaming) {
+                            next[idx] = { ...next[idx], content: displayContent };
+                        }
+                        return next;
+                    });
+                    scrollToBottom();
+                    lastUpdate = now;
+                }
+                
+                // Elite Brisk Speed: Set to 8ms for a fast, snappy, and perfectly smooth experience
+                await new Promise(r => setTimeout(r, 8));
             }
             isProcessingQueue = false;
         };
@@ -820,7 +975,7 @@ export default function ChatBot() {
             const response = await fetch(`/api/chat/conversations/${chatId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: userMsg.content, image_urls: userMsg.image_urls, stream: true }),
+                body: JSON.stringify({ content: userMsg.content, image_urls: userMsg.image_urls, stream: true, chatMode }),
                 signal: signal
             });
 
@@ -849,6 +1004,20 @@ export default function ChatBot() {
                         if (data.token && !isAborted()) {
                             tokenQueue.push(...data.token.split(''));
                             processQueue();
+                        }
+                        if (data.metadata && !isAborted()) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                const idx = next.length - 1;
+                                if (idx >= 0 && (next[idx].isStreaming || next[idx].role === 'ai')) {
+                                    next[idx] = { 
+                                        ...next[idx], 
+                                        intelligenceType: data.metadata.intelligenceType,
+                                        sources: data.metadata.sources
+                                    };
+                                }
+                                return next;
+                            });
                         }
                         if (data.done && !isAborted()) {
                             const finalizeInterval = setInterval(() => {
@@ -1073,6 +1242,7 @@ export default function ChatBot() {
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>
+                                <div className={`${styles.modeGlow} ${chatMode === 'aranya' ? styles.aranyaActiveGlow : ''}`} />
                                 <header
                                     className={`${styles.chatHeader} ${!headerVisible ? styles.chatHeaderCompact : ''}`}
                                 >
@@ -1141,7 +1311,22 @@ export default function ChatBot() {
                                                     <AILogo size={32} />
                                                 </div>
                                                 <h3>How can I help today?</h3>
-                                                <p>I am in <strong>Search Mode</strong> for general answers. Aranya AI (Animal Data) mode is coming soon!</p>
+                                                <div className={styles.modeTextWrapper}>
+                                                    <AnimatePresence mode="wait">
+                                                        <motion.p
+                                                            key={chatMode}
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: -10 }}
+                                                            transition={{ duration: 0.3 }}
+                                                        >
+                                                            {chatMode === 'aranya'
+                                                                ? <>I am in <strong>Aranya AI Mode</strong> — I can access your pet profiles and give personalized health advice.</>
+                                                                : <>I am in <strong>Search Mode</strong> for general veterinary answers.</>
+                                                            }
+                                                        </motion.p>
+                                                    </AnimatePresence>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -1168,32 +1353,19 @@ export default function ChatBot() {
                                                         </div>
                                                     )}
                                                     <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
+                                                    
+                                                    <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
                                                         const { cleanContent } = parseMessage(msg.content, msg.isStreaming);
+                                                        
+                                                        // "Fluid Renderer" logic:
+                                                        // 1. If streaming, render directly for 100% smoothness (no stuttering)
+                                                        // 2. If finished and first view (isNew), use the smooth typewriter
+                                                        // 3. Otherwise, use standard Markdown
                                                         return (
-                                                            <>
-                                                                {msg.role === 'ai' && msg.isNew ? (
-                                                                    <Typewriter
-                                                                        text={cleanContent}
-                                                                        onType={scrollToBottom}
-                                                                        onFinish={() => {
-                                                                            setIsGenerating(false);
-                                                                            setMessages(prev => {
-                                                                                const newMsgs = [...prev];
-                                                                                const targetIndex = newMsgs.findIndex(m => m === msg);
-                                                                                if (targetIndex !== -1) {
-                                                                                    newMsgs[targetIndex] = { ...msg, isNew: false };
-                                                                                }
-                                                                                return newMsgs;
-                                                                            });
-                                                                        }}
-                                                                    />
-                                                                ) : (
-                                                                    <div className={styles.markdownContent}>
-                                                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{cleanContent}</ReactMarkdown>
-                                                                    </div>
-                                                                )}
-                                                            </>
+                                                            <div className={styles.markdownContent}>
+                                                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{cleanContent}</ReactMarkdown>
+                                                            </div>
                                                         );
                                                     })()}
 
@@ -1206,6 +1378,7 @@ export default function ChatBot() {
                                                             ))}
                                                         </div>
                                                     )}
+
 
                                                     {msg.role === 'ai' && !msg.isNew && !msg.isStreaming && !isGlobalSearch && (
                                                         <div className={styles.messageActionRow}>
@@ -1267,8 +1440,132 @@ export default function ChatBot() {
                                                             <button className={styles.messageActionBtn} onClick={() => handleRegenerate(i)} disabled={isGenerating} title="Regenerate">
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
                                                             </button>
+
+                                                            {msg.role === 'ai' && msg.intelligenceType === 'web' && (
+                                                                <>
+                                                                    <div className={styles.actionDivider} />
+                                                                    <button
+                                                                        className={`${styles.messageActionBtn} ${activeSourcesId === (msg._id || i) ? styles.actionBtnActive : ''}`}
+                                                                        onClick={() => setActiveSourcesId(activeSourcesId === (msg._id || i) ? null : (msg._id || i))}
+                                                                        title="View Search Sources"
+                                                                        style={{ 
+                                                                            width: 'auto', 
+                                                                            padding: '0 8px', 
+                                                                            fontSize: '0.75rem', 
+                                                                            fontWeight: 600, 
+                                                                            color: activeSourcesId === (msg._id || i) ? '#10b981' : '#64748b' 
+                                                                        }}
+                                                                    >
+                                                                        Sources
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
+
+                                                    {/* AI Enhanced Sources Panel (Gemini Style) */}
+                                                    <AnimatePresence>
+                                                        {msg.role === 'ai' && msg.intelligenceType === 'web' && activeSourcesId === (msg._id || i) && (
+                                                            <motion.div 
+                                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                                                style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}
+                                                            >
+                                                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <Search size={10} strokeWidth={3} /> Verified Search Sources
+                                                                </div>
+                                                                {msg.sources && msg.sources.length > 0 ? (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                        {msg.sources.map((src, idx) => (
+                                                                            <a 
+                                                                                key={idx} 
+                                                                                href={src.url} 
+                                                                                target="_blank" 
+                                                                                rel="noopener noreferrer"
+                                                                                style={{ 
+                                                                                    display: 'flex', 
+                                                                                    alignItems: 'center', 
+                                                                                    gap: '12px', 
+                                                                                    padding: '10px 12px', 
+                                                                                    background: '#f8fafc', 
+                                                                                    borderRadius: '12px', 
+                                                                                    textDecoration: 'none',
+                                                                                    border: '1px solid #f1f5f9',
+                                                                                    transition: '0.2s transform'
+                                                                                }}
+                                                                                onMouseOver={e => e.currentTarget.style.transform = 'translateX(2px)'}
+                                                                                onMouseOut={e => e.currentTarget.style.transform = 'translateX(0)'}
+                                                                            >
+                                                                                <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.03)', flexShrink: 0 }}>
+                                                                                    <img src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`} alt="favicon" style={{ width: '16px', height: '16px' }} onError={e => e.target.style.display = 'none'} />
+                                                                                </div>
+                                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{src.title || 'Web Result'}</div>
+                                                                                    <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>{src.domain}</div>
+                                                                                </div>
+                                                                                <ExternalLink size={14} color="#94a3b8" />
+                                                                            </a>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '10px' }}>
+                                                                        Synthesized from latest background crawl and internal medical training. No specific external URLs to list.
+                                                                    </div>
+                                                                )}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+
+                                                    {/* AI Enhanced Sources Panel (Gemini Style) */}
+                                                    <AnimatePresence>
+                                                        {msg.role === 'ai' && msg.sources && msg.sources.length > 0 && activeSourcesId === (msg._id || i) && (
+                                                            <motion.div 
+                                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                                                style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}
+                                                            >
+                                                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <Search size={10} strokeWidth={3} /> Verified Search Sources
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                    {msg.sources.map((src, idx) => (
+                                                                        <a 
+                                                                            key={idx} 
+                                                                            href={src.url} 
+                                                                            target="_blank" 
+                                                                            rel="noopener noreferrer"
+                                                                            style={{ 
+                                                                                display: 'flex', 
+                                                                                alignItems: 'center', 
+                                                                                gap: '12px', 
+                                                                                padding: '10px 12px', 
+                                                                                background: '#f8fafc', 
+                                                                                borderRadius: '12px', 
+                                                                                textDecoration: 'none',
+                                                                                border: '1px solid #f1f5f9',
+                                                                                transition: '0.2s transform'
+                                                                            }}
+                                                                            onMouseOver={e => e.currentTarget.style.transform = 'translateX(2px)'}
+                                                                            onMouseOut={e => e.currentTarget.style.transform = 'translateX(0)'}
+                                                                        >
+                                                                            <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.03)', flexShrink: 0 }}>
+                                                                                <img src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`} alt="favicon" style={{ width: '16px', height: '16px' }} onError={e => e.target.style.display = 'none'} />
+                                                                            </div>
+                                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{src.title || 'Web Result'}</div>
+                                                                                <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>{src.domain}</div>
+                                                                            </div>
+                                                                            <ExternalLink size={14} color="#94a3b8" />
+                                                                        </a>
+                                                                    ))}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </div>
                                             </div>
                                         </div>
@@ -1418,8 +1715,19 @@ export default function ChatBot() {
                                                 onClick={() => setChatMode(chatMode === 'aranya' ? 'search' : 'aranya')}
                                                 title={`Switch to ${chatMode === 'aranya' ? 'Search' : 'Aranya AI'} mode`}
                                             >
-                                                {chatMode === 'aranya' ? <Sparkles size={16} /> : <Search size={16} />}
-                                                <span>{chatMode === 'aranya' ? 'Aranya AI' : 'Search'}</span>
+                                                <AnimatePresence mode="wait">
+                                                    <motion.div
+                                                        key={chatMode}
+                                                        className={styles.modeSwitchContent}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: 10 }}
+                                                        transition={{ duration: 0.2 }}
+                                                    >
+                                                        {chatMode === 'aranya' ? <Sparkles size={16} /> : <Search size={16} />}
+                                                        <span>{chatMode === 'aranya' ? 'Aranya AI' : 'Search'}</span>
+                                                    </motion.div>
+                                                </AnimatePresence>
                                             </button>
                                         </div>
 
