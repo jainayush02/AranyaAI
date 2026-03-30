@@ -68,30 +68,26 @@ Most livestock health issues are caught only after physical symptoms appear—at
 
 ## 📂 Repository Architecture
 
-Understanding the layout of AranyaAi is key to navigating the platform's multi-layered intelligence.
+AranyaAi is structured to separate concerns between user experience, business logic, and predictive intelligence.
 
-```mermaid
-mindmap
-  root((AranyaAi))
-    Frontend[src/client]
-      UI_Components(React Components)
-      Route_Pages(Dashboard / Auth / Profile)
-      State_Logic(React Hooks / Context)
-      Build_Tools(Vite / Tailwind)
-    Backend[src/server]
-      Business_Logic(Express Controllers)
-      Data_Models(Mongoose Schemas)
-      API_Routes(REST Endpoints)
-      Middlewares(Auth / Security / Uploads)
-      Scripts(Admin Promotion / Seeds)
-    AI_Intelligence[ai_model]
-      Diagnostic_Core(LSTM Autoencoder)
-      Inference_Server(Flask REST API)
-      Model_Storage(Keras / Weights)
-    Cloud_Orchestration[root]
-      Deployment(Vercel / Render Logic)
-      Launcher(One-Click start_all.py)
-      Environment(Multi-environment .env)
+```text
+AranyaAi/
+├── src/
+│   ├── client/                  # React Frontend (Vite)
+│   │   ├── src/                 # Core logic: App.jsx, main.jsx
+│   │   │   ├── components/      # Reusable UI components
+│   │   │   └── pages/           # Route-specific views (Dashboard, Login)
+│   │   ├── vite.config.js       # Build & Proxy configuration
+│   │   └── package.json         # Frontend dependencies
+│   └── server/                  # Node.js Backend
+│       ├── routes/              # API Endpoints (auth.js, animals.js, chat.js)
+│       ├── models/              # Mongoose Schemas (User.js, Animal.js)
+│       ├── utils/               # Loggers, Vital Monitoring & Notifications
+│       ├── ai_model/            # Python/Flask LSTM Diagnostic Engine
+│       │   └── ai_server.py     # Main Flask server for LSTM inference
+│       └── server.js            # Express application entry point
+├── start_all.py                 # Integrated One-Click Launcher for dev
+└── vercel.json                  # Production-ready Deployment Config
 ```
 
 ---
