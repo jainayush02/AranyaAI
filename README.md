@@ -143,4 +143,4 @@ This project is for educational and portfolio purposes.
 
 ---
 
-<p align="center">Built with ❤️ by <strong>Ayush Jain, Anu Gudi, Ankit Verma, and Keya Goashande </strong></p>
+<p align="center">Built with ❤️ by <strong>Ayush Jain, Anu Gudi, Ankit Verma, and Keya Gaosandhe </strong></p>
