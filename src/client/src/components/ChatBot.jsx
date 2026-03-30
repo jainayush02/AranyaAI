@@ -1353,8 +1353,6 @@ export default function ChatBot() {
                                                         </div>
                                                     )}
                                                     <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
-                                                    
-                                                    <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
                                                         const { cleanContent } = parseMessage(msg.content, msg.isStreaming);
                                                         

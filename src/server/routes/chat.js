@@ -426,7 +426,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         // We strictly include historyMessages here so Aranya MAINTAINS its context window and memory.
                         const searchAugmentedMessages = [
                             { role: 'system', content: systemPrompt },
-                            ...historyMessages.map(m => ({ 
+                            ...previousMessages.map(m => ({ 
                                 role: m.role, 
                                 content: m.content || "" 
                             })),
@@ -521,12 +521,21 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             console.error("AI API Error:", aiErr.message);
             aiContent = "Arion is temporarily over capacity. Please provide more specifics or try again later.";
         }
-        await aiMsg.save();
+
+        const finalAiMsg = new ChatMessage({
+            conversation_id: req.params.id,
+            user_id: req.user.id,
+            role: 'ai',
+            content: (aiContent).replace(/\[SEARCH_NEEDED:\s*.+?\]/gi, '').replace(/\[PRODUCT_SEARCH:\s*.+?\]/gi, '').trim(),
+            intelligenceType: intelligenceType
+        });
+        await finalAiMsg.save();
+
         try {
             await logActivity('chat', { id: req.user.id }, `Used AI chatbot`);
         } catch (_) { }
 
-        res.json({ userMessage: userMsg, aiMessage: aiMsg, conversation });
+        res.json({ userMessage: userMsg, aiMessage: finalAiMsg, conversation });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
