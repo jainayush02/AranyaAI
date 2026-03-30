@@ -62,8 +62,20 @@ const allowedOrigins = new Set([
     'http://localhost:5173',
     'http://localhost:5000',
     'https://aranya-ai-five.vercel.app',
+    'https://aranyaai.vercel.app',
     'https://aranya.ai'
 ]);
+
+// Add CLIENT_URL from environment if available
+if (process.env.CLIENT_URL) {
+    allowedOrigins.add(process.env.CLIENT_URL.trim());
+    // Also add versions with/without trailing slashes
+    if (process.env.CLIENT_URL.endsWith('/')) {
+        allowedOrigins.add(process.env.CLIENT_URL.slice(0, -1));
+    } else {
+        allowedOrigins.add(`${process.env.CLIENT_URL}/`);
+    }
+}
 
 app.use(cors({
     origin: (origin, callback) => {

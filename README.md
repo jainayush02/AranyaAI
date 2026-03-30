@@ -2,7 +2,7 @@
 
 AranyaAI is a full-stack AI-powered livestock health monitoring platform that helps farmers and veterinarians detect critical animal health issues before they become visible. Powered by an LSTM Autoencoder anomaly detection model and integrated with the Gemini AI chatbot, AranyaAI delivers real-time diagnostics, predictive alerts, and smart farm management tools.
 
-> **Live Demo:** [aranya-ai-five.vercel.app](https://aranya-ai-five.vercel.app)
+> **Live Demo:** [aranyaai.vercel.app](https://aranyaai.vercel.app)
 
 ---
 
