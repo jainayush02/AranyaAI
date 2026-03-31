@@ -348,9 +348,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             const finalMessages = [
                 { 
                     role: "system", 
-                    content: chatMode === 'chiron' 
-                        ? (aiConfig.chironPrompt || "You are Chiron Intelligence, an expert veterinary advisor. Strictly use the knowledge base and pet profiles.") 
-                        : systemPrompt 
+                    content: systemPrompt 
                 },
                 {
                     role: "user",
@@ -412,13 +410,31 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         baseURL: fallbackModelObj.baseURL || aiConfig.fallback.baseURL,
                         defaultHeaders: { "HTTP-Referer": "http://localhost:3000", "X-Title": "Aranya AI Chatbot" }
                     });
-
-                    completionStream = await fallbackOpenai.chat.completions.create({
-                        model: fallbackModelObj.modelId,
-                        messages: finalMessages,
-                        max_tokens: 900,
-                        stream: stream
-                    });
+                    
+                    try {
+                        completionStream = await primaryOpenai.chat.completions.create({
+                            model: primaryModelObj.modelId,
+                            messages: finalMessages,
+                            max_tokens: 900,
+                            stream: stream
+                        });
+                    } catch (roleErr) {
+                        if (roleErr.message && roleErr.message.includes('400')) {
+                            const [firstUser] = [finalMessages[1]];
+                            const noSystemMessages = [{
+                                role: 'user',
+                                content: firstUser.content.map(c =>
+                                    c.type === 'text' ? { ...c, text: `[SYSTEM]\n${systemPrompt}\n[/SYSTEM]\n\n${c.text}` } : c
+                            )
+                        }];
+                        completionStream = await primaryOpenai.chat.completions.create({
+                            model: primaryModelObj.modelId,
+                            messages: noSystemMessages,
+                            max_tokens: 900,
+                            stream: stream
+                        });
+                    } else throw roleErr;
+                }
                 } catch (fErr) {
                     console.error("Fallback GenAI Engine Error:", fErr.message);
                 }
