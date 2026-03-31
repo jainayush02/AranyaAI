@@ -13,6 +13,9 @@ const { logActivity } = require('./utils/logger');
 
 const app = express();
 
+// ── Trust Proxy: Required for accurate IP rate limiting on Vercel ──
+app.set('trust proxy', 1);
+
 // ── Performance: Enable Gzip Compression ──
 app.use(compression());
 

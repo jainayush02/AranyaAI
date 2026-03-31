@@ -412,29 +412,29 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     });
                     
                     try {
-                        completionStream = await primaryOpenai.chat.completions.create({
-                            model: primaryModelObj.modelId,
+                        completionStream = await fallbackOpenai.chat.completions.create({
+                            model: fallbackModelObj.modelId,
                             messages: finalMessages,
                             max_tokens: 900,
                             stream: stream
                         });
                     } catch (roleErr) {
                         if (roleErr.message && roleErr.message.includes('400')) {
-                            const [firstUser] = [finalMessages[1]];
+                            const [firstUser] = finalMessages.slice(1, 2);
                             const noSystemMessages = [{
                                 role: 'user',
                                 content: firstUser.content.map(c =>
                                     c.type === 'text' ? { ...c, text: `[SYSTEM]\n${systemPrompt}\n[/SYSTEM]\n\n${c.text}` } : c
-                            )
-                        }];
-                        completionStream = await primaryOpenai.chat.completions.create({
-                            model: primaryModelObj.modelId,
-                            messages: noSystemMessages,
-                            max_tokens: 900,
-                            stream: stream
-                        });
-                    } else throw roleErr;
-                }
+                                )
+                            }];
+                            completionStream = await fallbackOpenai.chat.completions.create({
+                                model: fallbackModelObj.modelId,
+                                messages: noSystemMessages,
+                                max_tokens: 900,
+                                stream: stream
+                            });
+                        } else throw roleErr;
+                    }
                 } catch (fErr) {
                     console.error("Fallback GenAI Engine Error:", fErr.message);
                 }
