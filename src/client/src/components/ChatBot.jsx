@@ -17,7 +17,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
-import { Paperclip, FileText } from 'lucide-react'; // Added Paperclip and FileText
+import { Paperclip, FileText, ChevronDown } from 'lucide-react'; // Added Paperclip and FileText
 import { useToast } from '../components/ToastProvider';
 
 const AILogo = ({ size = 24, className }) => (
@@ -61,23 +61,42 @@ const parseMessage = (content, isStreaming = false) => {
     // 1. Standard cleaning for attachments
     let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
 
-    // 2. Strict Table-Healer: Locks the table format as soon as a header is typed
-    if (isStreaming && clean.includes('|') && !clean.includes('|--')) {
+    // 2. Detect incomplete tables and buffer them until complete
+    if (isStreaming && clean.includes('|')) {
         const lines = clean.split('\n');
-        // Find the first line that looks like a potential header
+        let tableStartIdx = -1;
+        let hasValidTableStructure = false;
+        
+        // Find where a table starts
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('|')) {
-                const pipeCount = (line.match(/\|/g) || []).length;
-                if (pipeCount > 1) {
-                    // Inject a virtual separator with a trailing newline
-                    // This forces ReactMarkdown to recognize the header row even during streaming
-                    const virtualSeparator = '|' + Array(pipeCount - 1).fill('---|').join('') + '\n';
-                    lines.splice(i + 1, 0, virtualSeparator);
-                    clean = lines.join('\n');
-                    break; 
+            if (lines[i].trim().startsWith('|')) {
+                tableStartIdx = i;
+                // Check if table has header + separator + at least one data row (minimum 3 lines)
+                const hasSeparator = i + 1 < lines.length && lines[i + 1].trim().match(/^\|[\s\-|]+\|$/);
+                const hasDataRow = i + 2 < lines.length && lines[i + 2].trim().startsWith('|');
+                hasValidTableStructure = hasSeparator && hasDataRow;
+                break;
+            }
+        }
+        
+        // If table is incomplete (no separator row yet), hide it and show only content before it
+        if (tableStartIdx !== -1 && !hasValidTableStructure) {
+            clean = lines.slice(0, tableStartIdx).join('\n').trim();
+        } else if (tableStartIdx !== -1 && hasValidTableStructure) {
+            // Table is complete enough to render - inject separator if needed for markdown parsing
+            for (let i = tableStartIdx; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('|') && i === tableStartIdx) {
+                    const pipeCount = (line.match(/\|/g) || []).length;
+                    // Check if next line is NOT a separator
+                    if (i + 1 >= lines.length || !lines[i + 1].trim().match(/^\|[\s\-|]+\|$/)) {
+                        const separator = '|' + Array(pipeCount - 1).fill('---|').join('') + '|';
+                        lines.splice(i + 1, 0, separator);
+                    }
+                    break;
                 }
             }
+            clean = lines.join('\n');
         }
     }
 
@@ -87,11 +106,14 @@ const parseMessage = (content, isStreaming = false) => {
         .replace(/\[SEARCH_NEEDED:[\s\S]*$/gi, '')  // Partial tag at end of current stream
         .replace(/\[SEARCH_NEEDED:?$/gi, '');       // Just the start of the tag
 
-    // 4. Strict Markdown Stripper (Flicker-Free): Hides ALL markdown symbols durante streaming
-    // This allows for a 100% clean, non-technical "Normal" view during typing as requested.
+    // 4. Smooth Markdown Rendering: Preserve table pipes while streaming, but hide other formatting flicker
     if (isStreaming) {
-        // We strictly remove all markdown formatting characters from the stream
-        clean = clean.replace(/(\*\*|\*|`|\[|\]|_)+/g, '');
+        // Preserve pipes (|) for tables and headers (---) for table markers
+        // Only remove bold/italic/code formatting that's incomplete or partial
+        clean = clean
+            .replace(/\*\*(?![^\*]*\*\*[^\*]*$)(?![^\*]*$)/g, '') // Remove incomplete bold markers
+            .replace(/\`(?![^\`]*\`[^\`]*$)/g, '') // Remove incomplete backticks
+            .replace(/\[(?!\[)(?![^\]]*\])/g, '');  // Remove incomplete brackets (but keep [[ for links)
     }
 
     return { cleanContent: clean.trim() };
@@ -258,7 +280,8 @@ export default function ChatBot() {
     const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
     const [selectedChatIds, setSelectedChatIds] = useState([]);
     const [menuOpenId, setMenuOpenId] = useState(null);
-    const [chatMode, setChatMode] = useState('search'); // Default to Search mode for general answers
+    const [chatMode, setChatMode] = useState('search');
+    const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     
     // NEW: Auto-New Chat when mode changes
@@ -298,11 +321,16 @@ export default function ChatBot() {
             if (isInputMenuOpen && !e.target.closest(`.${styles.inputMenuContainer}`)) {
                 setIsInputMenuOpen(false);
             }
+
+            // Close mode selector when clicking outside
+            if (isModeSelectorOpen && !e.target.closest(`.${styles.modeSelectorContainer}`)) {
+                setIsModeSelectorOpen(false);
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [menuOpenId, isInputMenuOpen]);
+    }, [menuOpenId, isInputMenuOpen, isModeSelectorOpen]);
     const [confirmConfig, setConfirmConfig] = useState({
         isOpen: false,
         title: '',
@@ -950,8 +978,13 @@ export default function ChatBot() {
                 displayContent += char;
                 
                 const now = Date.now();
+                // Check if a complete table row just finished (ends with newline after pipe)
+                const isTableRowComplete = char === '\n' && displayContent.includes('|') && 
+                                           displayContent.split('\n').slice(-2)[0]?.includes('|');
+                
                 // Standard Framerate Update (40ms): Prevents state-flooding and UI flickering
-                if (now - lastUpdate > 40 || tokenQueue.length === 0) {
+                // Accelerated update for table rows: Force immediate render when row completes
+                if (isTableRowComplete || now - lastUpdate > 40 || tokenQueue.length === 0) {
                     setMessages(prev => {
                         const next = [...prev];
                         const idx = next.length - 1;
@@ -964,8 +997,8 @@ export default function ChatBot() {
                     lastUpdate = now;
                 }
                 
-                // Elite Brisk Speed: Set to 8ms for a fast, snappy, and perfectly smooth experience
-                await new Promise(r => setTimeout(r, 8));
+                // Elite Brisk Speed: Set to 2ms for ultra-smooth rendering (especially for tables)
+                await new Promise(r => setTimeout(r, 2));
             }
             isProcessingQueue = false;
         };
@@ -1242,7 +1275,7 @@ export default function ChatBot() {
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>
-                                <div className={`${styles.modeGlow} ${chatMode === 'aranya' ? styles.aranyaActiveGlow : ''}`} />
+                                <div className={`${styles.modeGlow} ${chatMode === 'search' ? styles.searchActiveGlow : chatMode === 'aranya' ? styles.aranyaActiveGlow : styles.chironActiveGlow}`} />
                                 <header
                                     className={`${styles.chatHeader} ${!headerVisible ? styles.chatHeaderCompact : ''}`}
                                 >
@@ -1322,6 +1355,8 @@ export default function ChatBot() {
                                                         >
                                                             {chatMode === 'aranya'
                                                                 ? <>I am in <strong>Aranya AI Mode</strong> — I can access your pet profiles and give personalized health advice.</>
+                                                                : chatMode === 'chiron'
+                                                                ? <>I am in <strong>Chiron Intelligence</strong> — I'll search your knowledge base and pet profiles for grounded answers.</>
                                                                 : <>I am in <strong>Search Mode</strong> for general veterinary answers.</>
                                                             }
                                                         </motion.p>
@@ -1632,7 +1667,7 @@ export default function ChatBot() {
                                     )}
 
 
-                                    <div className={styles.inputWrapper}>
+                                    <div className={`${styles.inputWrapper} ${chatMode === 'search' ? styles.inputWrapperSearch : chatMode === 'aranya' ? styles.inputWrapperAranya : styles.inputWrapperChiron}`}>
                                         <input
                                             type="file"
                                             ref={fileInputRef}
@@ -1708,25 +1743,64 @@ export default function ChatBot() {
                                                 </AnimatePresence>
                                             </div>
 
-                                            <button
-                                                className={`${styles.inlineModeBtn} ${chatMode === 'search' ? styles.modeSearchActive : styles.modeAranyaActive}`}
-                                                onClick={() => setChatMode(chatMode === 'aranya' ? 'search' : 'aranya')}
-                                                title={`Switch to ${chatMode === 'aranya' ? 'Search' : 'Aranya AI'} mode`}
-                                            >
-                                                <AnimatePresence mode="wait">
-                                                    <motion.div
-                                                        key={chatMode}
-                                                        className={styles.modeSwitchContent}
-                                                        initial={{ opacity: 0, x: -10 }}
-                                                        animate={{ opacity: 1, x: 0 }}
-                                                        exit={{ opacity: 0, x: 10 }}
-                                                        transition={{ duration: 0.2 }}
-                                                    >
-                                                        {chatMode === 'aranya' ? <Sparkles size={16} /> : <Search size={16} />}
-                                                        <span>{chatMode === 'aranya' ? 'Aranya AI' : 'Search'}</span>
-                                                    </motion.div>
+                                            <div className={styles.modeSelectorContainer}>
+                                                <button
+                                                    className={`${styles.inlineModeBtn} ${chatMode === 'search' ? styles.modeSearchActive : chatMode === 'aranya' ? styles.modeAranyaActive : styles.modeChironActive}`}
+                                                    onClick={() => setIsModeSelectorOpen(!isModeSelectorOpen)}
+                                                    title="Switch Intelligence Mode"
+                                                >
+                                                    <AnimatePresence mode="wait">
+                                                        <motion.div
+                                                            key={chatMode}
+                                                            className={styles.modeSwitchContent}
+                                                            initial={{ opacity: 0, x: -10 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            exit={{ opacity: 0, x: 10 }}
+                                                            transition={{ duration: 0.2 }}
+                                                        >
+                                                            {chatMode === 'aranya' ? <Sparkles size={16} /> : chatMode === 'chiron' ? <Bot size={16} /> : <Search size={16} />}
+                                                            <span>
+                                                                {chatMode === 'aranya' ? 'Aranya AI' : chatMode === 'chiron' ? 'Chiron' : 'Search'}
+                                                            </span>
+                                                            <ChevronDown size={14} className={`${styles.dropdownChevron} ${isModeSelectorOpen ? styles.chevronRotated : ''}`} />
+                                                        </motion.div>
+                                                    </AnimatePresence>
+                                                </button>
+
+                                                <AnimatePresence>
+                                                    {isModeSelectorOpen && (
+                                                        <motion.div 
+                                                            className={styles.modeDropdown}
+                                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                        >
+                                                            {[
+                                                                { id: 'search', icon: <Search size={16} />, label: 'Search' },
+                                                                { id: 'aranya', icon: <Sparkles size={16} />, label: 'Aranya AI' },
+                                                                { id: 'chiron', icon: <Bot size={16} />, label: 'Chiron' }
+                                                            ].map(mode => (
+                                                                <button
+                                                                    key={mode.id}
+                                                                    className={`${styles.modeOption} ${chatMode === mode.id ? styles.modeOptionActive : ''}`}
+                                                                    onClick={() => {
+                                                                        setChatMode(mode.id);
+                                                                        setIsModeSelectorOpen(false);
+                                                                    }}
+                                                                >
+                                                                    <div className={`${styles.modeOptionIcon} ${styles['icon' + mode.id.charAt(0).toUpperCase() + mode.id.slice(1)]}`}>
+                                                                        {mode.icon}
+                                                                    </div>
+                                                                    <div className={styles.modeOptionInfo}>
+                                                                        <div className={styles.modeOptionLabel}>{mode.label}</div>
+                                                                    </div>
+                                                                    {chatMode === mode.id && <div className={styles.activeCheck}>●</div>}
+                                                                </button>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
                                                 </AnimatePresence>
-                                            </button>
+                                            </div>
                                         </div>
 
                                         {isRecording ? (
@@ -1743,7 +1817,7 @@ export default function ChatBot() {
                                             <input
                                                 type="text"
                                                 className={styles.inputField}
-                                                placeholder={chatMode === 'search' ? "Search and ask anything..." : "Message Aranya AI..."}
+                                                placeholder={chatMode === 'search' ? "Search and ask anything..." : chatMode === 'aranya' ? "Message Aranya AI..." : "Ask Chiron..."}
                                                 value={input}
                                                 onChange={(e) => {
                                                     setInput(e.target.value);
@@ -1772,7 +1846,7 @@ export default function ChatBot() {
                                                 </button>
                                             ) : (
                                                 <button
-                                                    className={styles.sendBtn}
+                                                    className={`${styles.sendBtn} ${chatMode === 'search' ? styles.sendBtnSearch : chatMode === 'aranya' ? styles.sendBtnAranya : styles.sendBtnChiron}`}
                                                     onClick={() => handleSend()}
                                                     disabled={!input.trim() && imagePreviews.length === 0}
                                                 >
@@ -1806,3 +1880,5 @@ export default function ChatBot() {
         </React.Fragment>
     );
 }
+
+

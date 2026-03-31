@@ -1,10 +1,11 @@
 """
 🚀 Aranya AI - One-Click Launcher
 ===================================
-Starts all 3 services with a single command:
-  1. Python AI Model    (port 8005)
-  2. Node.js Backend    (port 5000)
-  3. React Frontend     (port 5173)
+Starts all 4 services with a single command:
+  1. Python AI Model         (port 8005)
+  2. Chiron Embedding Service (port 8006)
+  3. Node.js Backend         (port 5000)
+  4. React Frontend          (port 5173)
 
 Usage:  python start_all.py
 Stop:   Press Ctrl+C (stops everything)
@@ -22,8 +23,10 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CLIENT_DIR = os.path.join(ROOT_DIR, "src", "client")
 SERVER_DIR = os.path.join(ROOT_DIR, "src", "server")
 AI_DIR = os.path.join(ROOT_DIR, "src", "server", "ai_model")
+CHIRON_DIR = os.path.join(ROOT_DIR, "src", "server", "ai_model")
 VENV_PYTHON = os.path.join(AI_DIR, "venv", "Scripts", "python.exe")
 AI_LOG = os.path.join(AI_DIR, "ai_server.log")
+CHIRON_LOG = os.path.join(CHIRON_DIR, "chiron_server.log")
 
 # ── Colors ─────────────────────────────────────────────
 RESET = "\033[0m"
@@ -139,7 +142,13 @@ def main():
     log(MAGENTA, "AI ", "Loading TensorFlow + LSTM model (~15s)...")
     time.sleep(18)
 
-    # ── 2. Node.js Backend (port 5000) ─────────────────
+    # ── 2. Chiron Embedding Service (Node.js in main backend) ───────
+    log(YELLOW, "RAG", "Chiron Embedding Service is now handled by Node.js backend (port 5000).")
+    log(YELLOW, "RAG", "Skipping Python-based service startup to avoid double process.")
+    # No Python process to start; Node process handles Chiron routes.
+    time.sleep(1)
+
+    # ── 3. Node.js Backend (port 5000) ─────────────────
     log(GREEN, "API", "Starting Node.js Backend (port 5000)...")
     api_proc = subprocess.Popen(
         "npx nodemon server.js",
@@ -155,7 +164,7 @@ def main():
     t_api.start()
     time.sleep(3)
 
-    # ── 3. React Frontend (port 5173) ──────────────────
+    # ── 4. React Frontend (port 5173) ──────────────────
     log(CYAN, "UI ", "Starting React Frontend (port 5173)...")
     ui_proc = subprocess.Popen(
         "npm run dev",
@@ -174,6 +183,7 @@ def main():
     print(f"""
 {BOLD}{'='*50}
   {MAGENTA}🧠 AI Model   →  http://localhost:8005{RESET}
+  {YELLOW}🔍 Chiron RAG →  http://localhost:8006{RESET}
   {GREEN}{BOLD}🔧 Backend    →  http://localhost:5000{RESET}
   {CYAN}{BOLD}🌐 Frontend   →  http://localhost:5173{RESET}
 {BOLD}{'='*50}{RESET}

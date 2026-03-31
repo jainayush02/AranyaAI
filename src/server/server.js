@@ -224,6 +224,7 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/docs', require('./routes/docs'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/plans', require('./routes/plans'));
+app.use('/api/chiron', require('./routes/chiron'));
 
 // Start local server
 const PORT = process.env.PORT || 5000;

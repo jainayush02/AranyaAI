@@ -9,6 +9,10 @@ const SystemSettings = require('../models/SystemSettings');
 const SystemMetrics = require('../models/SystemMetrics');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
+// Trigger chiron re-init when config changes
+let chironRoute;
+try { chironRoute = require('./chiron'); } catch(e) {} 
+
 
 // ── Middleware ──────────────────────────────────────────
 const authenticate = async (req, res, next) => {
@@ -801,6 +805,12 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
             { value: newValue },
             { upsert: true, new: true }
         );
+
+        // If chiron settings were updated, re-init the pinecone client
+        if (req.body.chiron && chironRoute && typeof chironRoute.initPinecone === 'function') {
+            console.log('[Admin] Re-initializing Chiron Pinecone Client...');
+            chironRoute.initPinecone().catch(err => console.error('[Admin] Chiron Re-init failed:', err.message));
+        }
 
         const vaxStatus = newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF';
         await log(req, 'admin', `Updated AI Model Configuration (Hybrid Vax Routing: ${vaxStatus})`);

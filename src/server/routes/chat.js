@@ -11,6 +11,7 @@ const { OpenAI } = require('openai');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
+const { searchKnowledge } = require('./chiron');
 
 const aiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
@@ -240,7 +241,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     conversation_id: req.params.id,
                     user_id: req.user.id,
                     _id: { $ne: userMsg._id }
-                }).sort({ createdAt: -1 }).limit(15).lean() // Increased to 15 for deeper memory context
+                }).sort({ createdAt: -1 }).limit(15).lean()
             ]);
 
             // ── ARANYA AI MODE: Pet Context Injection ──
@@ -271,6 +272,67 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 systemPrompt += `\n\n[ARANYA_AI_MODE]\n${aranyaPrompt}\n[ARANYA_AI_MODE_END]`;
             }
 
+            // ── CHIRON INTELLIGENCE MODE: RAG + Pet Context Injection ──
+            let chironKnowledgeBlock = "";
+            let chironSources = [];
+            if (chatMode === 'chiron') {
+                try {
+                    // Load user animals for context
+                    const chironAnimals = await Animal.find({ user_id: req.user.id }).lean().catch(() => []);
+                    
+                    // First, always inject pet context
+                    if (chironAnimals.length > 0) {
+                        const calcAge = (dob) => {
+                            if (!dob) return 'Unknown';
+                            const ms = Date.now() - new Date(dob).getTime();
+                            const yrs = Math.floor(ms / (365.25 * 24 * 60 * 60 * 1000));
+                            const mos = Math.floor((ms % (365.25 * 24 * 60 * 60 * 1000)) / (30.44 * 24 * 60 * 60 * 1000));
+                            return yrs > 0 ? `${yrs}y ${mos}m` : `${mos}m`;
+                        };
+                        const petLines = chironAnimals.map(a => {
+                            const age = calcAge(a.dob);
+                            const vax = a.vaccinated ? 'Yes' : 'No';
+                            const temp = a.recentVitals?.temperature ?? '—';
+                            const hr = a.recentVitals?.heartRate ?? '—';
+                            const wt = a.recentVitals?.weight ? `${a.recentVitals.weight}kg` : '—';
+                            return `• ${a.name} | ${a.category} | ${a.breed} | ${a.gender} | Age:${age} | Status:${a.status} | Vax:${vax} | Temp:${temp}°C HR:${hr}bpm Wt:${wt}`;
+                        }).join('\n');
+                        petContextBlock = `\n\n[PET_PROFILES]\n${petLines}\n[PET_PROFILES_END]\n`;
+                        systemPrompt += petContextBlock;
+                    }
+
+                    // Direct Internal Search - bypassing port 8006
+                    const topK = aiConfig.chiron?.topK || 5;
+                    const retrievedDocs = await searchKnowledge(content, topK);
+                    
+                    if (retrievedDocs.length > 0) {
+                        intelligenceType = 'chiron';
+                        chironSources = retrievedDocs.map((doc, i) => ({
+                            title: doc.source,
+                            snippet: doc.text?.substring(0, 150),
+                            source: doc.source,
+                            score: doc.score
+                        }));
+
+                        chironKnowledgeBlock = retrievedDocs
+                            .map((doc, i) => `[DOC_${i+1}] (${doc.source}) ${doc.text}`)
+                            .join('\n\n');
+
+                        systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\nUse the following knowledge base documents to inform your answer. Synthesize a personalized response combining this knowledge with the pet's profile:\n${chironKnowledgeBlock}\n[CHIRON_KNOWLEDGE_BASE_END]`;
+                    } else {
+                        // GROUNDING PROTECTION: If no knowledge found, force the refusal message.
+                        systemPrompt += `\n\n[STRICT_GROUNDING_NOTICE]\nYou must state that you do not have specific information about this query in your current knowledge base. Direct the user to general Aranya services for broader advice.`;
+                    }
+
+                    const chironPrompt = aiConfig.chironPrompt || "You are Chiron Intelligence, an expert veterinary advisor. Strictly use the knowledge base and pet profiles to provide grounded, personalized advice. If knowledge is missing, admit it.";
+                    systemPrompt += `\n\n[CHIRON_MODE]\n${chironPrompt}\n[CHIRON_MODE_END]`;
+
+                } catch (chironErr) {
+                    console.error('[Chiron] RAG query error:', chironErr.message);
+                    intelligenceType = 'chiron_fallback';
+                }
+            }
+
             if (image_url) {
                 console.log(`Processing message with image for conversation ${req.params.id}`);
             }
@@ -284,7 +346,12 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             const historyBlock = toonHistory ? `[HISTORY]\n${toonHistory}\n[HISTORY_END]\n\n` : "";
 
             const finalMessages = [
-                { role: "system", content: systemPrompt },
+                { 
+                    role: "system", 
+                    content: chatMode === 'chiron' 
+                        ? (aiConfig.chironPrompt || "You are Chiron Intelligence, an expert veterinary advisor. Strictly use the knowledge base and pet profiles.") 
+                        : systemPrompt 
+                },
                 {
                     role: "user",
                     content: [
@@ -365,13 +432,25 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 res.setHeader('Connection', 'keep-alive');
 
                 let fullText = "";
-                let sourceMeta = [];
+                let sourceMeta = chatMode === 'chiron' ? (chironSources || []) : [];
+                
+                // Emit Chiron metadata immediately if applicable
+                if (chatMode === 'chiron') {
+                    const metadata = {
+                        intelligenceType: 'chiron',
+                        sources: chironSources || []
+                    };
+                    res.write(`data: ${JSON.stringify({ metadata })}\n\n`);
+                    if (res.flush) res.flush();
+                }
+
                 for await (const chunk of completionStream) {
                     const delta = chunk.choices[0]?.delta?.content || "";
                     if (delta) {
                         fullText += delta;
                         res.write(`data: ${JSON.stringify({ token: delta })}\n\n`);
                         if (res.flush) res.flush();
+                        // 4ms Ultra-Fast Smoothness logic is handled by frontend processing speed
                     }
                 }
 
@@ -508,7 +587,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     user_id: req.user.id,
                     role: 'ai',
                     content: (fullText || aiContent).replace(/\[SEARCH_NEEDED:\s*.+?\]/gi, '').replace(/\[PRODUCT_SEARCH:\s*.+?\]/gi, '').trim(),
-                    sources: sourceMeta || [],
+                    sources: chatMode === 'chiron' ? (chironSources || []) : (sourceMeta || []),
                     intelligenceType: intelligenceType
                 });
                 await finalAiMsg.save();

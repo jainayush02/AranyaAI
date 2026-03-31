@@ -17,6 +17,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import axios from 'axios';
 import AdvancedLoader from '../components/AdvancedLoader';
 import s from './AdminPortal.module.css';
+import ChironIntelligence from './ChironIntelligence';
+
 
 const API = '/api';
 const authH = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
@@ -460,6 +462,7 @@ export default function AdminPortal() {
     const [showVPriKey, setShowVPriKey] = useState(false);
     const [showVFbKey, setShowVFbKey] = useState(false);
     const [showTinyFishKey, setShowTinyFishKey] = useState(false);
+    const [showChironKey, setShowChironKey] = useState(false);
     const [isEditingIntel, setIsEditingIntel] = useState(false);
     // (Routing tab states removed as they are now displayed in a single focused column)
     const [routingMode, setRoutingMode] = useState('chatbot'); // 'chatbot' or 'cyclecare'
@@ -1096,6 +1099,7 @@ export default function AdminPortal() {
         { id: 'pricing', label: 'Subscription', icon: Zap },
         { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
         { id: 'infrastructure', label: 'Arion Configuration', icon: SettingsIcon },
+        { id: 'chiron', label: 'Chiron Intelligence', icon: Brain },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
     ];
 
@@ -1112,7 +1116,8 @@ export default function AdminPortal() {
         docs: { title: 'KNOWLEDGE', subtitle: 'BASE', desc: 'Create and organize platform guides and help articles', icon: BookOpen },
         pricing: { title: 'SUBSCRIPTION', subtitle: 'CENTER', desc: 'Manage tiers and subscription framework', icon: Zap },
         taxonomy: { title: 'ARANYA', subtitle: 'TAXONOMY', desc: 'Manage animal categories and breed registry across the platform', icon: Shapes },
-        intelligence: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
+        infrastructure: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
+        chiron: { title: 'CHIRON', subtitle: 'INTELLIGENCE', desc: 'Document management and vector knowledge extraction', icon: Brain },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
     };
     const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
@@ -2536,6 +2541,16 @@ export default function AdminPortal() {
 
 
 
+                            {/* ── CHIRON INTELLIGENCE ── */}
+                            {activeTab === 'chiron' && (
+                                <motion.div key="ci" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                                    <ChironIntelligence />
+                                </motion.div>
+                            )}
+
+
+
+
                             {/* ── ARION CONFIGURATION ── */}
                             {activeTab === 'infrastructure' && (
                                 <motion.div key="st" className={s.section} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -2603,20 +2618,27 @@ export default function AdminPortal() {
                                                         </div>
                                                         <div>
                                                             {/* ── CENTRAL SEGMENTED NAVIGATION ── */}
-                                                            <div className={s.pillTabs} style={{ padding: '3px', minWidth: '320px' }}>
+                                                            <div className={s.pillTabs} style={{ padding: '3px', minWidth: '420px' }}>
                                                                 <button
                                                                     className={`${s.pillTab} ${routingMode === 'chatbot' ? s.pillTabActive : ''}`}
                                                                     onClick={() => setRoutingMode('chatbot')}
                                                                     style={{ flex: 1, padding: '5px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
                                                                 >
-                                                                    Arion Chatbot
+                                                                    Chatbot
                                                                 </button>
                                                                 <button
                                                                     className={`${s.pillTab} ${routingMode === 'cyclecare' ? s.pillTabActive : ''}`}
                                                                     onClick={() => setRoutingMode('cyclecare')}
                                                                     style={{ flex: 1, padding: '5px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
                                                                 >
-                                                                    Arion Cyclecare
+                                                                    Cyclecare
+                                                                </button>
+                                                                <button
+                                                                    className={`${s.pillTab} ${routingMode === 'intelligence' ? s.pillTabActive : ''}`}
+                                                                    onClick={() => setRoutingMode('intelligence')}
+                                                                    style={{ flex: 1, padding: '5px 16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                                                                >
+                                                                    Vector Engine
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -2694,7 +2716,7 @@ export default function AdminPortal() {
                                                                         s={s}
                                                                     />
                                                                 </>
-                                                            ) : (
+                                                            ) : routingMode === 'cyclecare' ? (
                                                                 <>
                                                                     <AiGatewayConfig
                                                                         title="Primary Model"
@@ -2731,6 +2753,81 @@ export default function AdminPortal() {
                                                                         s={s}
                                                                     />
                                                                 </>
+                                                            ) : (
+                                                                <div className={s.contentCard} style={{ gridColumn: '1 / -1' }}>
+                                                                    <div className={s.contentCardHead} style={{ marginBottom: '1.5rem' }}>
+                                                                        <div className={s.contentCardTitle}>
+                                                                            <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                <Database size={22} color="#3b82f6" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.1rem' }}>Vector Intelligence Engine</div>
+                                                                                <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Configure Pinecone & Gemini Embeddings for RAG</div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <ToggleSwitch
+                                                                            checked={aiConfig.chiron?.enabled}
+                                                                            onChange={(val) => toggleEngine('chiron', val)}
+                                                                            activeColor="#3b82f6"
+                                                                        />
+                                                                    </div>
+
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                                                            <div className={s.aiConfigGroup}>
+                                                                                <label className={s.inputLabel}>Embedding Model Provider</label>
+                                                                                <select className={s.configInput} value={aiConfig.chiron?.provider || 'Google'} disabled={!isEditingAi} onChange={e => {
+                                                                                    const val = e.target.value;
+                                                                                    setAiConfig(p => {
+                                                                                        let nu = { ...p, chiron: { ...p.chiron, provider: val } };
+                                                                                        if (val === 'Google') nu.chiron.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+                                                                                        if (val === 'OpenAI') nu.chiron.baseUrl = 'https://api.openai.com/v1';
+                                                                                        return nu;
+                                                                                    });
+                                                                                }}>
+                                                                                    <option value="Google">Google (Gemini)</option>
+                                                                                    <option value="OpenAI">OpenAI</option>
+                                                                                    <option value="Custom">Custom / OAI-Compatible</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div className={s.aiConfigGroup}>
+                                                                                <label className={s.inputLabel}>Embedding Model ID</label>
+                                                                                <input 
+                                                                                    type="text" 
+                                                                                    className={s.configInput} 
+                                                                                    value={aiConfig.chiron?.model || (aiConfig.chiron?.provider === 'OpenAI' ? 'text-embedding-3-small' : 'gemini-embedding-001')} 
+                                                                                    disabled={!isEditingAi} 
+                                                                                    placeholder="e.g. text-embedding-3-small" 
+                                                                                    onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, model: e.target.value } }))} 
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                                                            <div className={s.aiConfigGroup}>
+                                                                                <label className={s.inputLabel}>Provider API Key</label>
+                                                                                <div style={{ position: 'relative' }}>
+                                                                                    <input
+                                                                                        type={showChironKey ? "text" : "password"}
+                                                                                        className={s.configInput}
+                                                                                        value={aiConfig.chiron?.apiKey || ''}
+                                                                                        disabled={!isEditingAi}
+                                                                                        placeholder="Enter Provider Key"
+                                                                                        onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, apiKey: e.target.value } }))}
+                                                                                        style={{ paddingRight: '2.5rem' }}
+                                                                                    />
+                                                                                    <button type="button" onClick={() => setShowChironKey(!showChironKey)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                                                                                        {showChironKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className={s.aiConfigGroup}>
+                                                                                <label className={s.inputLabel}>Search Top-K (Context depth)</label>
+                                                                                <input type="number" className={s.configInput} value={aiConfig.chiron?.topK || 5} disabled={!isEditingAi} onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, topK: parseInt(e.target.value) } }))} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>
@@ -2788,6 +2885,13 @@ export default function AdminPortal() {
                                                                 <Brain size={16} />
                                                                 Aranya Mode Intelligence
                                                             </button>
+                                                            <button
+                                                                className={`${s.pillTab} ${promptTab === 'chiron' ? s.pillTabActive : ''}`}
+                                                                onClick={() => setPromptTab('chiron')}
+                                                            >
+                                                                <Database size={16} />
+                                                                Chiron Mode Intelligence
+                                                            </button>
                                                         </div>
                                                     </div>
 
@@ -2796,7 +2900,8 @@ export default function AdminPortal() {
                                                             <label className={s.inputLabel} style={{ fontSize: '0.85rem' }}>
                                                                 {promptTab === 'assistant' ? 'Global Chatbot Guardrails' : 
                                                                  promptTab === 'vaccine' ? 'Medical Logic & JSON Structure' : 
-                                                                 'Aranya Orchestration Logic'}
+                                                                 promptTab === 'aranya' ? 'Aranya Orchestration Logic' :
+                                                                 'Chiron RAG Context & Guardrails'}
                                                             </label>
                                                             <div className={`${s.badge} ${s.badgeSuccess}`} style={{ fontSize: '0.65rem' }}>Active Configuration</div>
                                                         </div>
@@ -2805,18 +2910,21 @@ export default function AdminPortal() {
                                                             value={
                                                                 promptTab === 'assistant' ? aiConfig.systemPrompt : 
                                                                 promptTab === 'vaccine' ? (aiConfig.vaccinePrompt || '') : 
-                                                                (aiConfig.aranyaPrompt || '')
+                                                                promptTab === 'aranya' ? (aiConfig.aranyaPrompt || '') :
+                                                                (aiConfig.chironPrompt || '')
                                                             }
                                                             onChange={e => {
                                                                 const field = promptTab === 'assistant' ? 'systemPrompt' : 
                                                                               promptTab === 'vaccine' ? 'vaccinePrompt' : 
-                                                                              'aranyaPrompt';
+                                                                              promptTab === 'aranya' ? 'aranyaPrompt' :
+                                                                              'chironPrompt';
                                                                 setAiConfig(p => ({ ...p, [field]: e.target.value }));
                                                             }}
                                                             placeholder={
                                                                 promptTab === 'assistant' ? "Define rules, tone, and clinical protocols..." : 
                                                                 promptTab === 'vaccine' ? "Specify how vaccines should be categorized and formatted..." :
-                                                                "Define orchestration rules, search triggers, and veterinary deep-thinking..."
+                                                                promptTab === 'aranya' ? "Define orchestration rules, search triggers, and veterinary deep-thinking..." :
+                                                                "Define RAG-grounding rules and how to handle missing data in the knowledge base..."
                                                             }
                                                             style={{ flex: 1, fontFamily: (promptTab === 'vaccine' || promptTab === 'aranya') ? 'monospace' : 'inherit' }}
                                                         />
@@ -2828,6 +2936,11 @@ export default function AdminPortal() {
                                                         {promptTab === 'aranya' && (
                                                             <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
                                                                 <strong>Pro Tip:</strong> Ensure the <code>[SEARCH_NEEDED]</code> and <code>[PRODUCT_SEARCH]</code> tags are explicitly allowed to maintain real-time capabilities.
+                                                            </div>
+                                                        )}
+                                                        {promptTab === 'chiron' && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+                                                                <strong>Pro Tip:</strong> Instructions here will prevent the AI from hallucinations if it cannot find answers in your uploaded documents. Use terms like "Strictly Grounded".
                                                             </div>
                                                         )}
                                                     </div>
