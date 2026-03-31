@@ -382,11 +382,14 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         baseURL: primaryModelObj.baseURL || aiConfig.primary.baseURL
                     });
 
+                    const temperature = intelligenceType === 'chiron' ? (aiConfig.chiron?.temperature || 0.3) : 0.7;
+
                     completionStream = await primaryOpenai.chat.completions.create({
                         model: primaryModelObj.modelId,
                         messages: finalMessages,
                         max_tokens: 900,
-                        stream: stream
+                        stream: stream,
+                        temperature: temperature
                     });
                 } catch (pErr) {
                     console.error("Primary GenAI Engine Error:", pErr.message);
@@ -411,12 +414,15 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         defaultHeaders: { "HTTP-Referer": "http://localhost:3000", "X-Title": "Aranya AI Chatbot" }
                     });
                     
+                    const temperature = intelligenceType === 'chiron' ? (aiConfig.chiron?.temperature || 0.3) : 0.7;
+
                     try {
                         completionStream = await fallbackOpenai.chat.completions.create({
                             model: fallbackModelObj.modelId,
                             messages: finalMessages,
                             max_tokens: 900,
-                            stream: stream
+                            stream: stream,
+                            temperature: temperature
                         });
                     } catch (roleErr) {
                         if (roleErr.message && roleErr.message.includes('400')) {
@@ -431,7 +437,8 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                                 model: fallbackModelObj.modelId,
                                 messages: noSystemMessages,
                                 max_tokens: 900,
-                                stream: stream
+                                stream: stream,
+                                temperature: temperature
                             });
                         } else throw roleErr;
                     }

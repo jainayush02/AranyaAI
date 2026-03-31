@@ -21,8 +21,11 @@ export default function ChironIntelligence() {
     const [showUrlForm, setShowUrlForm] = useState(false);
     const [showEmbeddingConfig, setShowEmbeddingConfig] = useState(false);
     const [embeddingConfig, setEmbeddingConfig] = useState(null);
-    const [configForm, setConfigForm] = useState({ provider: 'gemini', baseUrl: '', model: '', apiKey: '' });
-    const [showEmbeddingApiKey, setShowEmbeddingApiKey] = useState(false);
+    const [configForm, setConfigForm] = useState({ 
+        chunkSize: 500, 
+        overlap: 50, 
+        temperature: 0.3
+    });
     const [savingConfig, setSavingConfig] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
@@ -68,15 +71,23 @@ export default function ChironIntelligence() {
         try {
             const response = await axios.get('/api/chiron/embedding-config', authH());
             setEmbeddingConfig(response.data);
-            if (!showEmbeddingConfig) setConfigForm(response.data);
+            if (!showEmbeddingConfig) {
+                const { chunkSize, overlap, temperature } = response.data;
+                setConfigForm({ chunkSize, overlap, temperature });
+            }
         } catch (err) { console.error('Config error:', err); }
     };
 
     const handleSaveEmbeddingConfig = async () => {
         setSavingConfig(true);
         try {
-            await axios.put('/api/chiron/embedding-config', configForm, authH());
-            setEmbeddingConfig(configForm);
+            // Only send the subset of fields we manage here
+            const updatePayload = {
+                ...embeddingConfig, // keep current global settings
+                ...configForm       // override with new RAG settings
+            };
+            await axios.put('/api/chiron/embedding-config', updatePayload, authH());
+            setEmbeddingConfig(updatePayload);
             setShowEmbeddingConfig(false);
         } catch (err) {
             alert('Error saving config: ' + err.message);
@@ -236,11 +247,11 @@ export default function ChironIntelligence() {
                             </button>
                             <button
                                 className={s.addBtn}
-                                onClick={() => setShowUrlForm(!showUrlForm)}
-                                disabled={uploading}
-                                style={{ height: '36px', background: '#f0fdf4', color: '#166534', padding: '0 1rem', border: '1px solid #bbf7d0' }}
+                                onClick={() => setShowEmbeddingConfig(true)}
+                                style={{ height: '36px', background: '#f8fafc', color: '#64748b', padding: '0 0.75rem', border: '1px solid #e2e8f0' }}
+                                title="Engine Settings"
                             >
-                                <LinkIcon size={16} /> URL Ingest
+                                <Settings size={16} />
                             </button>
                         </div>
                     </div>
@@ -427,6 +438,102 @@ export default function ChironIntelligence() {
                                         Erase Permanently
                                     </button>
                                 </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {showEmbeddingConfig && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '1rem' }}>
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            style={{ background: '#fff', borderRadius: '28px', width: '100%', maxWidth: '600px', boxShadow: '0 30px 60px -12px rgba(0,0,0,0.18)', overflow: 'hidden' }}
+                        >
+                            <div style={{ padding: '1.75rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to right, #f8fafc, #fff)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: '12px', background: '#f0f9ff', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Brain size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>RAG Tuning & Chunking</h3>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Optimize document decomposition & response precision</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowEmbeddingConfig(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                            </div>
+
+                            <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                    <div className={s.aiConfigGroup}>
+                                        <label className={s.inputLabel}>Chunk Size (Tokens)</label>
+                                        <input 
+                                            type="number" 
+                                            className={s.configInput} 
+                                            value={configForm.chunkSize} 
+                                            onChange={e => setConfigForm({...configForm, chunkSize: parseInt(e.target.value)})} 
+                                        />
+                                        <p style={{ margin: '0.4rem 0 0', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Recommended: 500-1000</p>
+                                    </div>
+                                    <div className={s.aiConfigGroup}>
+                                        <label className={s.inputLabel}>Chunk Overlap</label>
+                                        <input 
+                                            type="number" 
+                                            className={s.configInput} 
+                                            value={configForm.overlap} 
+                                            onChange={e => setConfigForm({...configForm, overlap: parseInt(e.target.value)})} 
+                                        />
+                                        <p style={{ margin: '0.4rem 0 0', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Recommended: 10-15% of size</p>
+                                    </div>
+                                </div>
+
+                                <div className={s.aiConfigGroup}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <label className={s.inputLabel}>Inference Temperature</label>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '6px' }}>{configForm.temperature}</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min="0" max="1" step="0.1"
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                        value={configForm.temperature} 
+                                        onChange={e => setConfigForm({...configForm, temperature: parseFloat(e.target.value)})} 
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8' }}>Precise (0.0)</span>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8' }}>Creative (1.0)</span>
+                                    </div>
+                                </div>
+
+                                <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #f1f5f9', marginTop: '0.5rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <Zap size={18} color="#3b82f6" style={{ marginTop: '0.1rem' }} />
+                                        <div>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>Active Configuration Notice</div>
+                                            <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600, lineHeight: 1.4 }}>
+                                                Global vector engine settings (Model, API Key, Provider) have been moved to the <strong>Arion Navigation Configuration</strong> in the Admin Portal for centralized management.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '1.5rem 2rem', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                                <button onClick={() => setShowEmbeddingConfig(false)} className={s.refreshBtn}>Discard</button>
+                                <button 
+                                    onClick={handleSaveEmbeddingConfig} 
+                                    disabled={savingConfig}
+                                    style={{ 
+                                        background: '#3b82f6', color: '#fff', border: 'none', 
+                                        padding: '0.6rem 1.5rem', borderRadius: '12px', 
+                                        fontWeight: 800, cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
+                                    }}
+                                >
+                                    {savingConfig ? <RefreshCw className={s.spin} size={16} /> : <><Save size={16} /> Apply RAG Settings</>}
+                                </button>
                             </div>
                         </motion.div>
                     </div>

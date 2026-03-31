@@ -9,6 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
+// Pinecone Global Instances (Properly declared to avoid ReferenceErrors)
+let pineconeIndex = null;
+let pineconeClient = null;
+let PINECONE_INDEX_NAME = null;
+
 // Setup multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -34,11 +39,11 @@ async function initPinecone() {
     try {
         const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
         const config = settings?.value?.chiron;
-        
+
         // IMPORTANT: The API key for the vector index (Pinecone) is stored in the .env, 
         // while the API key for generating embeddings (Gemini/OpenAI) is stored in the Admin Portal.
         const pineconeKey = process.env.PINECONE_API_KEY;
-        const indexName = 'arion'; 
+        const indexName = 'arion';
         const host = config?.host || process.env.PINECONE_HOST;
 
         if (!config?.enabled) {
@@ -55,10 +60,10 @@ async function initPinecone() {
 
         PINECONE_INDEX_NAME = indexName;
         pineconeClient = new Pinecone({ apiKey: pineconeKey });
-        
+
         // Use direct host if provided, otherwise let library discover it
         pineconeIndex = host ? pineconeClient.index(indexName, host) : pineconeClient.index(indexName);
-        
+
         // Test connectivity and log details
         const desc = await pineconeIndex.describeIndexStats();
         console.log(`[Chiron] Pinecone initialized (index: ${indexName}, host: ${host ? 'manual' : 'auto'}, vectors: ${desc.totalRecordCount})`);
@@ -97,7 +102,7 @@ async function upsertPineconeVectors(vectors) {
         } else if (err.message.includes('404')) {
             console.error(`- Hint: INDEX NOT FOUND. Check if the index name "${PINECONE_INDEX_NAME}" exists in your project.`);
         }
-        
+
         console.log('[Chiron] Continuing with MongoDB storage backup...');
     }
 }
@@ -109,57 +114,68 @@ async function upsertPineconeVectors(vectors) {
 async function getEmbeddingConfig() {
     try {
         const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
-        const config = settings?.value?.chiron;
+        const config = settings?.value?.chiron || {};
 
-        if (config && config.enabled) {
-            const provider = (config.provider || 'google').toLowerCase();
-            return {
-                provider,
-                baseUrl: config.baseUrl || (provider === 'openai' ? 'https://api.openai.com/v1' : 'https://generativelanguage.googleapis.com/v1beta/models'),
-                model: config.model || (provider === 'openai' ? 'text-embedding-3-small' : 'gemini-embedding-001'),
-                apiKey: config.apiKey || process.env.GEMINI_API_KEY
-            };
-        }
-
-        // Final fallback if nothing else is available
+        const provider = (config.provider || 'google').toLowerCase();
         return {
-            provider: 'google',
-            baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
-            model: 'gemini-embedding-001',
-            apiKey: process.env.GEMINI_API_KEY
+            provider,
+            baseUrl: config.baseUrl || (provider === 'openai' ? 'https://api.openai.com/v1' : 'https://generativelanguage.googleapis.com/v1beta/models'),
+            model: config.model || (provider === 'openai' ? 'text-embedding-3-small' : 'gemini-embedding-001'),
+            apiKey: config.apiKey || process.env.GEMINI_API_KEY,
+            chunkSize: parseInt(config.chunkSize) || 500,
+            overlap: parseInt(config.overlap) || 50,
+            temperature: parseFloat(config.temperature) || 0.3,
+            dimensions: parseInt(config.dimensions) || 768
         };
     } catch (e) {
-        console.warn('[Chiron] Embedding config error, using env default');
-        return {
-            provider: 'google',
-            baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
-            model: 'gemini-embedding-001',
-            apiKey: process.env.GEMINI_API_KEY
-        };
+        console.warn('[Chiron] Embedding config error:', e.message);
+        return { dimensions: 768 };
     }
 }
 
-async function generateEmbedding(text) {
-    const config = await getEmbeddingConfig();
+async function generateEmbedding(text, overrideConfig = null) {
+    const config = overrideConfig || await getEmbeddingConfig();
+    const headers = {};
+    if (config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+        headers['x-api-key'] = config.apiKey; // For some specific providers
+    }
 
     try {
-        if (config.provider === 'google' || config.provider === 'gemini') {
+        const provider = config.provider?.toLowerCase() || 'google';
+
+        if (provider === 'google' || provider === 'gemini') {
             const response = await axios.post(
                 `${config.baseUrl}/${config.model}:embedContent?key=${config.apiKey}`,
                 {
                     content: { parts: [{ text }] },
-                    outputDimensionality: 768
+                    outputDimensionality: config.dimensions || 768
                 }
             );
             return response.data.embedding.values;
-        } else if (config.provider === 'openai' || config.provider === 'custom') {
+        }
+
+        else if (provider === 'huggingface' || provider === 'huggingface-inference') {
             const response = await axios.post(
-                `${config.baseUrl}/embeddings`,
+                config.baseUrl.includes('api-inference.huggingface.co') ? config.baseUrl : `https://api-inference.huggingface.co/models/${config.model}`,
+                { inputs: text },
+                { headers: { 'Authorization': `Bearer ${config.apiKey}` } }
+            );
+            // HF returns array of floats or nested array
+            return Array.isArray(response.data[0]) ? response.data[0] : response.data;
+        }
+
+        else if (provider === 'openai' || provider === 'custom' || provider === 'cerebras') {
+            const url = config.baseUrl.endsWith('/embeddings') ? config.baseUrl : `${config.baseUrl}/embeddings`;
+            const response = await axios.post(
+                url,
                 { input: text, model: config.model },
                 { headers: { 'Authorization': `Bearer ${config.apiKey}` } }
             );
             return response.data.data[0].embedding;
-        } else if (config.provider?.toLowerCase() === 'cohere') {
+        }
+
+        else if (provider === 'cohere') {
             const response = await axios.post(
                 `${config.baseUrl}/embed`,
                 { texts: [text], model: config.model },
@@ -167,9 +183,10 @@ async function generateEmbedding(text) {
             );
             return response.data.embeddings[0];
         }
-        throw new Error(`Unknown embedding provider: ${config.provider}`);
+
+        throw new Error(`Unknown or unsupported embedding provider: ${config.provider}`);
     } catch (err) {
-        console.error('[Embedding] Error:', err.message);
+        console.error(`[Embedding] ${config.provider} Error:`, err.response?.data || err.message);
         throw err;
     }
 }
@@ -299,9 +316,9 @@ router.post('/ingest', [auth, upload.single('file')], async (req, res) => {
 
         if (!pineconeIndex) {
             console.error('[Chiron] Pinecone ingestion aborted: Vector Engine index not initialized.');
-            return res.status(500).json({ 
-                msg: 'Vector Engine (Pinecone) not initialized. Check your API Key and Index name in the Admin Portal.', 
-                status: 'error' 
+            return res.status(500).json({
+                msg: 'Vector Engine (Pinecone) not initialized. Check your API Key and Index name in the Admin Portal.',
+                status: 'error'
             });
         }
 
@@ -341,7 +358,8 @@ router.post('/ingest', [auth, upload.single('file')], async (req, res) => {
 
         try {
             const text = await parseFileToText(req.file.buffer, fileExt);
-            const chunks = chunkText(text);
+            const config = await getEmbeddingConfig();
+            const chunks = chunkText(text, config.chunkSize, config.overlap);
 
             let status = 'complete';
             let errorMessage = null;
@@ -437,10 +455,10 @@ router.delete('/documents/:id', auth, async (req, res) => {
         if (pineconeIndex && chironDoc.vector_db_refs && chironDoc.vector_db_refs.length > 0) {
             try {
                 console.log(`[Chiron] Purging ${chironDoc.vector_db_refs.length} vectors from Pinecone for doc: ${chironDoc.document_name}`);
-                
+
                 // Pinecone v4 deleteMany/delete takes an array of IDs
                 await pineconeIndex.deleteMany(chironDoc.vector_db_refs);
-                
+
                 console.log(`[Chiron] Pinecone vectors purged successfully`);
             } catch (pineErr) {
                 console.error('[Chiron] Pinecone vector deletion warning:', pineErr.message);
@@ -498,7 +516,7 @@ router.post('/ingest-url', auth, async (req, res) => {
         const buffer = Buffer.from(response.data);
         const filename = document_name || url.split('/').pop() || 'document.txt';
         let fileExt = filename.split('.').pop().toLowerCase();
-        
+
         // Validate file extension - default to 'txt' if not a supported type
         const validExtensions = ['txt', 'pdf', 'docx'];
         if (!validExtensions.includes(fileExt)) {
@@ -523,7 +541,8 @@ router.post('/ingest-url', auth, async (req, res) => {
 
         try {
             const text = await parseFileToText(buffer, fileExt);
-            const chunks = chunkText(text);
+            const config = await getEmbeddingConfig();
+            const chunks = chunkText(text, config.chunkSize, config.overlap);
 
             res.write(`data: ${JSON.stringify({ status: 'chunking', percent: 30, chunk_count: chunks.length })}\n\n`);
 
@@ -680,6 +699,51 @@ router.post('/ingest-verify', [auth, upload.single('file')], async (req, res) =>
     }
 });
 
+// @route   GET /api/chiron/embedding-config
+// @desc    Get embedding configuration
+// @access  Admin
+router.get('/embedding-config', auth, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ msg: 'Admin access required' });
+        }
+        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        const config = settings?.value?.chiron || {
+            provider: 'google',
+            model: 'gemini-embedding-001',
+            chunkSize: 500,
+            overlap: 50,
+            temperature: 0.3
+        };
+        res.json(config);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ msg: 'Error fetching config' });
+    }
+});
+
+// @route   POST /api/chiron/probe-embedding
+// @desc    Test embedding model and return vector dimension
+// @access  Admin
+router.post('/probe-embedding', auth, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ msg: 'Admin access required' });
+        }
+        const config = req.body;
+        // Basic connectivity check with a tiny probe
+        const testVector = await generateEmbedding("Probe Test String", config);
+        res.json({
+            ok: true,
+            dimension: testVector.length,
+            sample: testVector.slice(0, 5)
+        });
+    } catch (err) {
+        console.error('[Probe] Error:', err.message);
+        res.status(500).json({ msg: 'Probe failed', error: err.message, details: err.response?.data });
+    }
+});
+
 // @route   PUT /api/chiron/embedding-config
 // @desc    Update embedding configuration
 // @access  Admin
@@ -688,26 +752,36 @@ router.put('/embedding-config', auth, async (req, res) => {
         if (req.user.role !== 'admin') {
             return res.status(403).json({ msg: 'Admin access required' });
         }
-        const { provider, baseUrl, model, apiKey } = req.body;
+        const { provider, baseUrl, model, apiKey, chunkSize, overlap, temperature, dimensions } = req.body;
 
         if (!provider) {
             return res.status(400).json({ msg: 'Provider required' });
         }
 
-        const config = {
+        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        const fullConfig = settings?.value || {};
+
+        const chironConfig = {
+            ...(fullConfig.chiron || {}),
             provider,
             baseUrl: baseUrl || '',
             model: model || '',
-            apiKey: apiKey || ''
+            apiKey: apiKey || '',
+            chunkSize: parseInt(chunkSize) || 500,
+            overlap: parseInt(overlap) || 50,
+            temperature: parseFloat(temperature) || 0.3,
+            dimensions: parseInt(dimensions) || 768
         };
 
+        fullConfig.chiron = chironConfig;
+
         await SystemSettings.findOneAndUpdate(
-            { key: 'embeddingModel' },
-            { value: config },
+            { key: 'ai_config_v2' },
+            { value: fullConfig },
             { upsert: true, new: true }
         );
 
-        res.json({ msg: 'Embedding config updated', config });
+        res.json({ msg: 'Embedding config updated', config: chironConfig });
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ msg: 'Error updating config' });

@@ -17,6 +17,7 @@ import os
 import signal
 import time
 import threading
+import datetime
 
 # ── Paths ──────────────────────────────────────────────
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +44,8 @@ shutting_down = False
 
 def log(color, tag, msg):
     if not shutting_down:
-        print(f"{color}[{tag}]{RESET} {msg}")
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f"{DIM}[{timestamp}] {RESET}{color}[{tag}]{RESET} {msg}", flush=True)
 
 def stream_output(proc, tag, color):
     """Read output from a subprocess and print with colored tag."""
@@ -100,7 +102,7 @@ def cleanup(signum=None, frame=None):
         except Exception:
             pass
 
-    print(f"{GREEN}{BOLD}✅ All services stopped.{RESET}")
+    print(f"{GREEN}{BOLD}[OK] All services stopped.{RESET}")
     os._exit(0)
 
 signal.signal(signal.SIGINT, cleanup)
@@ -108,9 +110,9 @@ signal.signal(signal.SIGTERM, cleanup)
 
 def main():
     print(f"""
-{CYAN}{BOLD}╔══════════════════════════════════════════════╗
-║        🐄  ARANYA AI - Full Stack Launcher   ║
-╚══════════════════════════════════════════════╝{RESET}
+{CYAN}{BOLD}+----------------------------------------------+
+|         ARANYA AI - Full Stack Launcher      |
++----------------------------------------------+{RESET}
 """)
 
     # ── 1. AI Microservice (port 8005) ─────────────────
@@ -178,17 +180,20 @@ def main():
     processes.append(ui_proc)
     t_ui = threading.Thread(target=stream_output, args=(ui_proc, "UI ", CYAN), daemon=True)
     t_ui.start()
-    time.sleep(2)
+    time.sleep(1)
+
+    print(f"\n{YELLOW}{BOLD} >>> LIVE MONITORING STREAM STARTED <<< {RESET}")
+    print(f"{DIM}{'='*50}{RESET}")
 
     print(f"""
-{BOLD}{'='*50}
-  {MAGENTA}🧠 AI Model   →  http://localhost:8005{RESET}
-  {YELLOW}🔍 Chiron RAG →  http://localhost:8006{RESET}
-  {GREEN}{BOLD}🔧 Backend    →  http://localhost:5000{RESET}
-  {CYAN}{BOLD}🌐 Frontend   →  http://localhost:5173{RESET}
-{BOLD}{'='*50}{RESET}
+{'='*50}
+  [AI]  AI Model   ->  http://localhost:8005
+  [RAG] Chiron RAG ->  http://localhost:8006
+  [API] Backend    ->  http://localhost:5000
+  [UI]  Frontend   ->  http://localhost:5173
+{'='*50}
 
-  {DIM}Press Ctrl+C to stop all services{RESET}
+  Press Ctrl+C to stop all services
 """)
 
     # Keep alive

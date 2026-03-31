@@ -464,6 +464,8 @@ export default function AdminPortal() {
     const [showTinyFishKey, setShowTinyFishKey] = useState(false);
     const [showChironKey, setShowChironKey] = useState(false);
     const [isEditingIntel, setIsEditingIntel] = useState(false);
+    const [probing, setProbing] = useState(false);
+    const [probeResult, setProbeResult] = useState(null);
     // (Routing tab states removed as they are now displayed in a single focused column)
     const [routingMode, setRoutingMode] = useState('chatbot'); // 'chatbot' or 'cyclecare'
     const addModel = (engine) => {
@@ -793,6 +795,36 @@ export default function AdminPortal() {
         await saveAiConfig(newConfig);
     };
 
+
+    const handleProbeModel = async () => {
+        setProbing(true);
+        setProbeResult(null);
+        try {
+            const config = aiConfig.chiron || {};
+            // Convert to format backend expects
+            const probeData = {
+                provider: config.provider?.toLowerCase() || 'google',
+                model: config.model,
+                baseUrl: config.baseUrl,
+                apiKey: config.apiKey
+            };
+            const response = await axios.post('/api/chiron/probe-embedding', probeData, authH());
+            if (response.data.ok) {
+                setProbeResult({ success: true, dimension: response.data.dimension });
+                setAiConfig(prev => ({ 
+                    ...prev, 
+                    chiron: { ...prev.chiron, dimensions: response.data.dimension } 
+                }));
+                push(`✓ Probe Success: ${response.data.dimension}d detected`);
+            }
+        } catch (err) {
+            const msg = err.response?.data?.msg || err.message;
+            setProbeResult({ success: false, error: msg });
+            push(`Probe failed: ${msg}`, 'err');
+        } finally {
+            setProbing(false);
+        }
+    };
 
     const fetchOverview = useCallback(async (silent = false) => {
         if (!silent) setOverviewLoading(true);
@@ -2782,11 +2814,14 @@ export default function AdminPortal() {
                                                                                         let nu = { ...p, chiron: { ...p.chiron, provider: val } };
                                                                                         if (val === 'Google') nu.chiron.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
                                                                                         if (val === 'OpenAI') nu.chiron.baseUrl = 'https://api.openai.com/v1';
+                                                                                        if (val === 'Hugging Face') nu.chiron.baseUrl = 'https://api-inference.huggingface.co/pipeline/feature-extraction';
                                                                                         return nu;
                                                                                     });
                                                                                 }}>
                                                                                     <option value="Google">Google (Gemini)</option>
                                                                                     <option value="OpenAI">OpenAI</option>
+                                                                                    <option value="Hugging Face">Hugging Face</option>
+                                                                                    <option value="Cerebras">Cerebras</option>
                                                                                     <option value="Custom">Custom / OAI-Compatible</option>
                                                                                 </select>
                                                                             </div>
@@ -2799,6 +2834,17 @@ export default function AdminPortal() {
                                                                                     disabled={!isEditingAi} 
                                                                                     placeholder="e.g. text-embedding-3-small" 
                                                                                     onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, model: e.target.value } }))} 
+                                                                                />
+                                                                            </div>
+                                                                            <div className={s.aiConfigGroup}>
+                                                                                <label className={s.inputLabel}>Base URL</label>
+                                                                                <input 
+                                                                                    type="text" 
+                                                                                    className={s.configInput} 
+                                                                                    value={aiConfig.chiron?.baseUrl || ''} 
+                                                                                    disabled={!isEditingAi} 
+                                                                                    placeholder="https://api.example.com/v1" 
+                                                                                    onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, baseUrl: e.target.value } }))} 
                                                                                 />
                                                                             </div>
                                                                         </div>
@@ -2821,9 +2867,46 @@ export default function AdminPortal() {
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-                                                                            <div className={s.aiConfigGroup}>
-                                                                                <label className={s.inputLabel}>Search Top-K (Context depth)</label>
-                                                                                <input type="number" className={s.configInput} value={aiConfig.chiron?.topK || 5} disabled={!isEditingAi} onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, topK: parseInt(e.target.value) } }))} />
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: '1rem' }}>
+                                                                                <div className={s.aiConfigGroup}>
+                                                                                    <label className={s.inputLabel}>Search Top-K</label>
+                                                                                    <input type="number" className={s.configInput} value={aiConfig.chiron?.topK || 5} disabled={!isEditingAi} onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, topK: parseInt(e.target.value) } }))} />
+                                                                                </div>
+                                                                                <div className={s.aiConfigGroup}>
+                                                                                    <label className={s.inputLabel}>Dimensions</label>
+                                                                                    <div style={{ position: 'relative' }}>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            className={s.configInput} 
+                                                                                            value={aiConfig.chiron?.dimensions || 768} 
+                                                                                            disabled={!isEditingAi} 
+                                                                                            onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, dimensions: parseInt(e.target.value) } }))} 
+                                                                                            style={{ border: probeResult?.success ? '1.5px solid #10b981' : '1px solid #e2e8f0' }}
+                                                                                        />
+                                                                                        {probeResult?.success && <CheckCircle size={14} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: '#10b981' }} />}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Dimension Probe Tool */}
+                                                                            <div style={{ border: '1.5px dashed #e2e8f0', borderRadius: '16px', padding: '1rem', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                                    <Zap size={18} color={probeResult?.success ? "#10b981" : "#3b82f6"} />
+                                                                                    <div>
+                                                                                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Dimension Probe</div>
+                                                                                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>
+                                                                                            {probing ? 'Probing model...' : (probeResult?.success ? `Success: ${probeResult.dimension}d detected` : (probeResult?.error ? `Error: ${probeResult.error}` : 'Auto-detect vector dimensions'))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <button 
+                                                                                    onClick={handleProbeModel}
+                                                                                    disabled={probing}
+                                                                                    className={s.btnSecondary}
+                                                                                    style={{ height: '32px', background: '#fff', padding: '0 0.75rem', fontSize: '0.75rem', borderRadius: '10px' }}
+                                                                                >
+                                                                                    {probing ? <RefreshCw className={s.spin} size={14} /> : 'Probe Model'}
+                                                                                </button>
                                                                             </div>
                                                                         </div>
                                                                     </div>
