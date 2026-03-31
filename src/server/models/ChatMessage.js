@@ -45,7 +45,7 @@ const ChatMessageSchema = new mongoose.Schema({
     }],
     intelligenceType: {
         type: String,
-        enum: ['arion', 'web', 'product'],
+        enum: ['arion', 'web', 'product', 'chiron', 'chiron_fallback'],
         default: 'arion'
     },
     createdAt: {

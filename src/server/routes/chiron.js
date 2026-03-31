@@ -727,8 +727,7 @@ async function searchKnowledge(query, topK = 5) {
         const results = await pineconeIndex.query({
             vector: queryVector,
             topK: topK,
-            includeMetadata: true,
-            namespace: '' // Force _default_ namespace as per dashboard
+            includeMetadata: true
         });
 
         console.log(`[Chiron] Found ${results.matches?.length || 0} matches. Top score: ${results.matches?.[0]?.score || 'N/A'}`);
