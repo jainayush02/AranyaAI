@@ -232,6 +232,16 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
 
             let systemPrompt = aiConfig.systemPrompt;
 
+            if (chatMode === 'chiron') {
+                systemPrompt = `[STRICT_GROUNDING_DIRECTIVE]: You are Chiron. 
+                - For identity questions (Name, Breed, Age, Gender), use [PET_PROFILES] and provide direct, simple answers (e.g., "Rocky is a Beagle").
+                - For medical/clinical advice, you MUST use the [CHIRON_KNOWLEDGE_BASE].
+                - If the Knowledge Base has specific info for the pet's breed, use it. 
+                - If the Knowledge Base lacks breed-specific info, you MUST state: "I don't have specific Knowledge Base information for the [Breed] breed, but for dogs in general..." and then provide the general Knowledge Base facts.
+                - NEVER use internal memory or general vet knowledge for clinical facts.
+                - Always use the full term "Knowledge Base", never "KB".\n\n` + systemPrompt;
+            }
+
             // ── Parallel DB fetch: pet profiles + chat history ──
             const [userAnimals, previousMessages] = await Promise.all([
                 chatMode === 'aranya'
@@ -315,13 +325,12 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         }));
 
                         chironKnowledgeBlock = retrievedDocs
-                            .map((doc, i) => `[DOC_${i+1}] (${doc.source}) ${doc.text}`)
+                            .map((doc, i) => `[Doc ID: DOC_${i+1}] (Source: ${doc.source}) ${doc.text}`)
                             .join('\n\n');
 
-                        systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\nUse the following knowledge base documents to inform your answer. Synthesize a personalized response combining this knowledge with the pet's profile:\n${chironKnowledgeBlock}\n[CHIRON_KNOWLEDGE_BASE_END]`;
+                        systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\nUse these documents for ALL medical facts. If pet profiles are provided, use them to identify the animal. If a clinical query is about a specific breed not mentioned in these docs, you MUST provide a disclaimer. Always refer to this as the "Knowledge Base".\n${chironKnowledgeBlock}\n[CHIRON_KNOWLEDGE_BASE_END]`;
                     } else {
-                        // GROUNDING PROTECTION: If no knowledge found, force the refusal message.
-                        systemPrompt += `\n\n[STRICT_GROUNDING_NOTICE]\nYou must state that you do not have specific information about this query in your current knowledge base. Direct the user to general Aranya services for broader advice.`;
+                        systemPrompt += `\n\n[STRICT_GROUNDING_NOTICE]: No relevant medical documents found in the Knowledge Base. You may identify the pet using [PET_PROFILES], but you MUST refuse all clinical advice using your standard refusal phrase: "I'm sorry, I could not find enough information in the Knowledge Base..."`;
                     }
 
                     const chironPrompt = aiConfig.chironPrompt || "You are Chiron Intelligence, an expert veterinary advisor. Strictly use the knowledge base and pet profiles to provide grounded, personalized advice. If knowledge is missing, admit it.";
