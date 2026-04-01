@@ -64,6 +64,8 @@ app.use(helmet({
 const allowedOrigins = new Set([
     'http://localhost:5173',
     'http://localhost:5000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5000',
     'https://aranya-ai-five.vercel.app',
     'https://aranyaai.vercel.app',
     'https://aranya.ai'
@@ -119,7 +121,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 
 // ── Global Audit Middleware (Optimized) ──
 app.use((req, res, next) => {
+    const start = Date.now();
     res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} - ${duration}ms`);
         if (res.statusCode >= 400) {
             const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
             const ua = req.headers['user-agent'];

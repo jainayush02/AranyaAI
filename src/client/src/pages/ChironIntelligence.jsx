@@ -247,6 +247,14 @@ export default function ChironIntelligence() {
                             </button>
                             <button
                                 className={s.addBtn}
+                                onClick={() => setShowUrlForm(!showUrlForm)}
+                                disabled={uploading}
+                                style={{ height: '36px', background: '#fff', color: '#10b981', padding: '0 1rem', border: '1px solid #d1fae5' }}
+                            >
+                                <LinkIcon size={16} /> URL Ingest
+                            </button>
+                            <button
+                                className={s.addBtn}
                                 onClick={() => setShowEmbeddingConfig(true)}
                                 style={{ height: '36px', background: '#f8fafc', color: '#64748b', padding: '0 0.75rem', border: '1px solid #e2e8f0' }}
                                 title="Engine Settings"

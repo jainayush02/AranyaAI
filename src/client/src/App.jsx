@@ -25,9 +25,20 @@ axios.defaults.timeout = 15000;
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const status = error.response?.status;
+
+    // Handle session expiration or invalid tokens (401)
+    if (status === 401) {
+      if (!window.location.pathname.includes('/login')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login?expired=true';
+      }
+      return Promise.reject(error);
+    }
+
     const config = error.config;
     if (!config || config._retried) return Promise.reject(error);
-    const status = error.response?.status;
     
     // Retry on common serverless/network failure codes or if the server doesn't respond in time
     if (!error.response || status === 500 || status === 502 || status === 503) {

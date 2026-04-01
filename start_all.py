@@ -105,6 +105,15 @@ def cleanup(signum=None, frame=None):
     print(f"{GREEN}{BOLD}[OK] All services stopped.{RESET}")
     os._exit(0)
 
+def check_mongodb():
+    """Verify Atlas connectivity using simple Node script."""
+    try:
+        script = os.path.join(SERVER_DIR, "test_db.js")
+        result = subprocess.run(["node", script], cwd=SERVER_DIR, capture_output=True, text=True, timeout=10, encoding='utf-8')
+        return "Connection Successful" in result.stdout
+    except Exception:
+        return False
+
 signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
 
@@ -133,7 +142,8 @@ def main():
         cwd=AI_DIR,
         stdout=ai_log_handle,
         stderr=subprocess.STDOUT,
-        text=True
+        text=True,
+        encoding='utf-8'
     )
     processes.append(ai_proc)
 
@@ -159,12 +169,19 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        encoding='utf-8'
     )
     processes.append(api_proc)
     t_api = threading.Thread(target=stream_output, args=(api_proc, "API", GREEN), daemon=True)
     t_api.start()
-    time.sleep(3)
+    time.sleep(15)
+    
+    db_status = check_mongodb()
+    if db_status:
+        log(GREEN, "DB ", "Connected to MongoDB Atlas Cluster")
+    else:
+        log(RED, "DB ", "Connection Failed! Please check your IP whitelist and MONGO_URI")
 
     # ── 4. React Frontend (port 5173) ──────────────────
     log(CYAN, "UI ", "Starting React Frontend (port 5173)...")
@@ -175,7 +192,8 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        encoding='utf-8'
     )
     processes.append(ui_proc)
     t_ui = threading.Thread(target=stream_output, args=(ui_proc, "UI ", CYAN), daemon=True)
@@ -188,9 +206,10 @@ def main():
     print(f"""
 {'='*50}
   [AI]  AI Model   ->  http://localhost:8005
-  [RAG] Chiron RAG ->  http://localhost:8006
   [API] Backend    ->  http://localhost:5000
-  [UI]  Frontend   ->  http://localhost:5173
+  [RAG] Chiron RAG ->  http://localhost:5000/api/chiron (Integrated)
+  [DB ] MongoDB    ->  {'Connected' if db_status else 'Disconnected (Check Whitelist)'}
+  [UI ] Frontend   ->  http://localhost:5173
 {'='*50}
 
   Press Ctrl+C to stop all services

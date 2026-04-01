@@ -102,6 +102,13 @@ export default function Login() {
         setResetExpireTimer(0); setIsAdminForgot(false); setAdminResetStep(1);
     };
 
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('expired')) {
+            setError('Your session has expired or is invalid. Please log in again to continue.');
+        }
+    }, []);
+
     /* Google Login — User */
     const handleGoogleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
