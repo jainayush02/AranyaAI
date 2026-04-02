@@ -178,7 +178,7 @@ router.put('/:id', authenticate, adminOnly, async (req, res) => {
         const doc = await DocArticle.findByIdAndUpdate(
             req.params.id,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
 
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Updated doc article: "${doc.title}"`);
@@ -236,7 +236,7 @@ router.post('/:id/upload-video', authenticate, adminOnly, upload.single('video')
         const doc = await DocArticle.findByIdAndUpdate(
             req.params.id,
             { videoUrl: videoPath, videoTitle: req.body.videoTitle || req.file.originalname },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!doc) return res.status(404).json({ message: 'Article not found' });
         await logActivity('doc', req.user.name || 'Admin', req.user._id, `Uploaded video to: "${doc.title}"`);

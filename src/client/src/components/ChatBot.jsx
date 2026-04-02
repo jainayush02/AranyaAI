@@ -1934,7 +1934,7 @@ export default function ChatBot() {
                                                     scrollToBottom();
                                                 }}
                                                 onFocus={() => scrollToBottom(true)}
-                                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                                             />
                                         )}
                                         <div className={styles.inputActions}>

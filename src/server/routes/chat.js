@@ -251,11 +251,12 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     conversation_id: req.params.id,
                     user_id: req.user.id,
                     _id: { $ne: userMsg._id }
-                }).sort({ createdAt: -1 }).limit(15).lean()
+                }).sort({ createdAt: -1 }).limit(chatMode === 'chiron' ? 5 : 15).lean()
             ]);
 
             // ── ARANYA AI MODE: Pet Context Injection ──
             let petContextBlock = "";
+            const isPetQuery = /(my|pet|dog|cat|horse|cow|he|she|his|her|animal|age|weight|breed|vitals|vaccine|sick|health)/i.test(content);
             if (chatMode === 'aranya' && userAnimals.length > 0) {
                 const calcAge = (dob) => {
                     if (!dob) return 'Unknown';
@@ -289,9 +290,9 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 try {
                     // Load user animals for context
                     const chironAnimals = await Animal.find({ user_id: req.user.id }).lean().catch(() => []);
-                    
-                    // First, always inject pet context
-                    if (chironAnimals.length > 0) {
+
+                    // First, always inject pet context ONLY if query seems related to a pet
+                    if (chironAnimals.length > 0 && isPetQuery) {
                         const calcAge = (dob) => {
                             if (!dob) return 'Unknown';
                             const ms = Date.now() - new Date(dob).getTime();
@@ -313,24 +314,41 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
 
                     // Direct Internal Search - bypassing port 8006
                     const topK = aiConfig.chiron?.topK || 5;
-                    const retrievedDocs = await searchKnowledge(content, topK);
-                    const relevantDocs = retrievedDocs.filter(doc => doc.score >= 0.60);
-                    if (retrievedDocs.length > 0) {
+                    
+                    // Token Optimizer: Skip expensive Pinecone RAG for tiny conversational fillers
+                    const cleanContent = content.trim().toLowerCase().replace(/[^\w\s]/gi, '');
+                    const isConversational = /^(hi|hello|hey|ok|okay|thanks|thank you|yes|no|good|great|awesome|understood|got it|makes sense|sure)$/.test(cleanContent) || cleanContent.length < 3;
+                    
+                    let relevantDocs = [];
+                    if (!isConversational) {
+                        const retrievedDocs = await searchKnowledge(content, topK);
+                        // Adaptive TopK: Filter strict relevance and grab at most 3
+                        // Adaptive TopK: Filter strict relevance, but respect Admin Portal's topK setting
+                        relevantDocs = retrievedDocs.filter(doc => doc.score >= 0.60);
+                    } else {
+                        console.log(`[Chiron] Query skipped: Conversational filler detected ("${content}")`);
+                    }
+
+                    if (relevantDocs.length > 0) {
                         intelligenceType = 'chiron';
                         chironSources = relevantDocs.map((doc, i) => ({
                             title: doc.source,
                             snippet: doc.text?.substring(0, 150),
                             source: doc.source,
                             score: doc.score,
-                            file_type: doc.file_type || null,      
-                            source_url: doc.source_url || null 
+                            file_type: doc.file_type || null,
+                            source_url: doc.source_url || null
                         }));
 
                         chironKnowledgeBlock = relevantDocs
-                            .map((doc, i) => `[Doc ID: DOC_${i+1}] (Source: ${doc.source}) ${doc.text}`)
+                            .map((doc, i) => {
+                                // Cap each document's injected text to 8000 chars to avoid "Payload Too Large"
+                                const safeText = doc.text ? doc.text.substring(0, 8000) : '';
+                                return `[Doc ID: DOC_${i + 1}] (Source: ${doc.source}) ${safeText}`;
+                            })
                             .join('\n\n');
 
-                        systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\nUse these documents for ALL medical facts. If pet profiles are provided, use them to identify the animal. If a clinical query is about a specific breed not mentioned in these docs, you MUST provide a disclaimer. Always refer to this as the "Knowledge Base".\n${chironKnowledgeBlock}\n[CHIRON_KNOWLEDGE_BASE_END]`;
+                        systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\nUse these documents for ALL medical facts. If pet profiles are provided, use them to identify the animal. If a clinical query is about a specific breed not mentioned in these docs, you MUST provide a disclaimer. Always refer to this as the "Knowledge Base".\n${chironKnowledgeBlock.substring(0, 25000)}\n[CHIRON_KNOWLEDGE_BASE_END]`;
                     } else {
                         systemPrompt += `\n\n[STRICT_GROUNDING_NOTICE]: No relevant medical documents found in the Knowledge Base. You may identify the pet using [PET_PROFILES], but you MUST refuse all clinical advice using your standard refusal phrase: "I'm sorry, I could not find enough information in the Knowledge Base..."`;
                     }
@@ -357,9 +375,9 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             const historyBlock = toonHistory ? `[HISTORY]\n${toonHistory}\n[HISTORY_END]\n\n` : "";
 
             const finalMessages = [
-                { 
-                    role: "system", 
-                    content: systemPrompt 
+                {
+                    role: "system",
+                    content: systemPrompt
                 },
                 {
                     role: "user",
@@ -371,6 +389,9 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     ]
                 }
             ];
+
+            const requestChars = JSON.stringify(finalMessages).length;
+            console.log(`[API] [Outbound AI Request] Payload Size: ${requestChars} chars (~${Math.floor(requestChars / 4)} tokens) | Mode: ${chatMode}`);
 
             const contextHasImage = hasImage || previousMessages.some(m =>
                 (m.image_url && m.image_url.length > 0) || (m.image_urls && m.image_urls.length > 0)
@@ -424,7 +445,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         baseURL: fallbackModelObj.baseURL || aiConfig.fallback.baseURL,
                         defaultHeaders: { "HTTP-Referer": "http://localhost:3000", "X-Title": "Aranya AI Chatbot" }
                     });
-                    
+
                     const temperature = intelligenceType === 'chiron' ? (aiConfig.chiron?.temperature || 0.3) : 0.7;
 
                     try {
@@ -467,7 +488,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
 
                 let fullText = "";
                 let sourceMeta = chatMode === 'chiron' ? (chironSources || []) : [];
-                
+
                 // Emit Chiron metadata immediately if applicable
                 if (chatMode === 'chiron') {
                     const metadata = {
@@ -526,7 +547,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         // Build source metadata for frontend display (favicon + link on click)
                         sourceMeta = searchResults.slice(0, 3).map(r => {
                             let domain = '';
-                            try { domain = new URL(r.url).hostname.replace('www.', ''); } catch (_) {}
+                            try { domain = new URL(r.url).hostname.replace('www.', ''); } catch (_) { }
                             return { title: r.title, url: r.url, domain };
                         });
 
@@ -539,9 +560,9 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         // We strictly include historyMessages here so Aranya MAINTAINS its context window and memory.
                         const searchAugmentedMessages = [
                             { role: 'system', content: systemPrompt },
-                            ...previousMessages.map(m => ({ 
-                                role: m.role, 
-                                content: m.content || "" 
+                            ...previousMessages.map(m => ({
+                                role: m.role,
+                                content: m.content || ""
                             })),
                             {
                                 role: 'user',
@@ -569,7 +590,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                                     stream: true
                                 });
                             }
-                        } catch (_) {}
+                        } catch (_) { }
 
                         if (!augStream) {
                             try {
@@ -587,7 +608,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                                         stream: true
                                     });
                                 }
-                            } catch (_) {}
+                            } catch (_) { }
                         }
 
                         if (augStream) {
@@ -632,7 +653,25 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             }
         } catch (aiErr) {
             console.error("AI API Error:", aiErr.message);
-            aiContent = "Arion is temporarily over capacity. Please provide more specifics or try again later.";
+            const errMsg = "⚠️ AI engine is temporarily unavailable. Both the primary and fallback models could not respond. Please check your API keys in the Admin Portal or try again in a moment.";
+
+            // If client expected SSE stream, send error as a streamed token so frontend displays it
+            if (stream && !res.headersSent) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                const errAiMsg = new ChatMessage({
+                    conversation_id: req.params.id,
+                    user_id: req.user.id,
+                    role: 'ai',
+                    content: errMsg
+                });
+                await errAiMsg.save();
+                res.write(`data: ${JSON.stringify({ token: errMsg })}\n\n`);
+                res.write(`data: ${JSON.stringify({ done: true, messageId: errAiMsg._id })}\n\n`);
+                return res.end();
+            }
+            aiContent = errMsg;
         }
 
         const finalAiMsg = new ChatMessage({
@@ -647,11 +686,11 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
         try {
             await logActivity('chat', { id: req.user.id }, `Used AI chatbot`);
         } catch (_) { }
-        
+
         if (!res.headersSent) {
             res.json({ userMessage: userMsg, aiMessage: finalAiMsg, conversation });
         }
-    
+
     } catch (err) {
         console.error(err.message);
         if (!res.headersSent) {

@@ -195,7 +195,8 @@
     box-sizing: border-box;
     background: #2d5f3f;
     background: linear-gradient(105deg, #1a2e23 0%, #2d5f3f 100%);
-    padding: 2rem 2.5rem 1.5rem; /* Increased top padding */
+    padding: 2rem 2.5rem 1.5rem;
+    /* Increased top padding */
     display: flex;
     align-items: center;
     gap: 1.5rem;
@@ -2110,7 +2111,26 @@
 .modalContent {
     flex: 1;
     overflow-y: auto;
-    padding: 2rem;
+    padding: 2.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+}
+
+.modalContent::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modalContent::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modalContent::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+}
+
+.modalContent::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
 }
 
 .premiumTextarea {
@@ -2701,4 +2721,80 @@
         grid-template-columns: 1fr;
         gap: 2rem;
     }
+}
+
+/* --- CHIRON PREMIUM UI --- */
+.clinicalSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 10px;
+    outline: none;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.clinicalSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: #ffffff;
+    border: 3px solid #2d5f3f;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(45, 95, 63, 0.25);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.clinicalSlider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 6px 18px rgba(45, 95, 63, 0.35);
+}
+
+.glowIcon {
+    filter: drop-shadow(0 0 8px rgba(45, 95, 63, 0.3));
+    color: #2d5f3f;
+}
+
+.tuningInputGroup {
+    background: #fcfdfe;
+    border: 2px solid #f1f5f9;
+    border-radius: 20px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tuningInputGroup:focus-within {
+    border-color: #2d5f3f;
+    background: #ffffff;
+    box-shadow: 0 10px 25px rgba(45, 95, 63, 0.08);
+    transform: translateY(-2px);
+}
+
+.clinicalLabel {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.clinicalValueBadge {
+    background: #f0fdf4;
+    color: #166534;
+    padding: 4px 12px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    border: 1.5px solid #dcfce7;
 }

@@ -40,7 +40,7 @@ router.post('/', authenticate, adminOnly, async (req, res) => {
 // Admin - Update a tier 
 router.put('/:id', authenticate, adminOnly, async (req, res) => {
     try {
-        const plan = await Plan.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const plan = await Plan.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
         if (!plan) return res.status(404).json({ message: 'Plan not found' });
         res.json(plan);
     } catch (err) { res.status(400).json({ message: err.message }); }

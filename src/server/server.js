@@ -111,7 +111,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // app.use(xss());
 // app.use(hpp());
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
     maxAge: '1d',
     setHeaders: (res, path) => {
         res.set('X-Content-Type-Options', 'nosniff'); // Prevent MIME type sniffing
@@ -213,9 +213,9 @@ const ensureDB = async (req, res, next) => {
         next();
     } catch (err) {
         console.error("[DB_MIDDLEWARE_ERROR]", err.message);
-        res.status(500).json({ 
+        res.status(500).json({
             message: 'Database connection failed. Check MONGO_URI and IP whitelist.',
-            error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
 };
@@ -232,7 +232,7 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/docs', require('./routes/docs'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/plans', require('./routes/plans'));
-app.use('/api/chiron', require('./routes/chiron'));
+app.use('/api/chiron', require('./routes/chiron').router);
 
 // Start local server
 const PORT = process.env.PORT || 5000;

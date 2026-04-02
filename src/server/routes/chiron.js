@@ -9,815 +9,315 @@ const fs = require('fs');
 const path = require('path');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
-// Pinecone Global Instances (Properly declared to avoid ReferenceErrors)
+// Dynamic Alignment State
 let pineconeIndex = null;
 let pineconeClient = null;
-let PINECONE_INDEX_NAME = null;
+let DETECTED_DIMENSION = 1536;
+let PHYSICAL_HOST = 'Discovering...';
 
-// Setup multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-    storage,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
-    fileFilter: (req, file, cb) => {
-        const allowed = ['pdf', 'docx', 'doc', 'txt', 'png', 'jpg', 'jpeg'];
-        const ext = file.originalname.split('.').pop().toLowerCase();
-        if (allowed.includes(ext)) {
-            cb(null, true);
-        } else {
-            cb(new Error('File type not allowed'));
-        }
-    }
-});
+const RECOVERY_DIR = path.join(__dirname, '../storage/recovery');
+if (!fs.existsSync(RECOVERY_DIR)) fs.mkdirSync(RECOVERY_DIR, { recursive: true });
 
-// Node-only Chiron (no external Python service)
-const CHIRON_SERVICE_URL = null;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 
 async function initPinecone() {
     try {
-        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
-        const config = settings?.value?.chiron;
-
-        // IMPORTANT: The API key for the vector index (Pinecone) is stored in the .env, 
-        // while the API key for generating embeddings (Gemini/OpenAI) is stored in the Admin Portal.
         const pineconeKey = process.env.PINECONE_API_KEY;
-        const indexName = 'arion';
-        const host = config?.host || process.env.PINECONE_HOST;
+        if (!pineconeKey) return false;
 
-        if (!config?.enabled) {
-            console.log('[Chiron] Vector Engine disabled in config.');
-            pineconeIndex = null;
-            return;
-        }
-
-        if (!pineconeKey) {
-            console.error('[Chiron] PINECONE_API_KEY NOT FOUND IN .ENV. Connectivity required for RAG.');
-            pineconeIndex = null;
-            return;
-        }
-
-        PINECONE_INDEX_NAME = indexName;
         pineconeClient = new Pinecone({ apiKey: pineconeKey });
 
-        // Use direct host if provided, otherwise let library discover it
-        pineconeIndex = host ? pineconeClient.index(indexName, host) : pineconeClient.index(indexName);
+        // 1. Describe Index (High-Level Metadata)
+        const meta = await pineconeClient.describeIndex('chiron');
+        DETECTED_DIMENSION = meta.dimension;
+        PHYSICAL_HOST = meta.host;
 
-        // Test connectivity and log details
-        const desc = await pineconeIndex.describeIndexStats();
-        console.log(`[Chiron] Pinecone initialized (index: ${indexName}, host: ${host ? 'manual' : 'auto'}, vectors: ${desc.totalRecordCount})`);
+        // 2. Target the physical host discovered by the SDK
+        console.log(`[Chiron] ALIGNED: Index "chiron" correctly found at ${PHYSICAL_HOST} (${DETECTED_DIMENSION}d)`);
+        pineconeIndex = pineconeClient.index('chiron', PHYSICAL_HOST);
+
+        // 3. Final Verification (Internal Stats)
+        const stats = await pineconeIndex.describeIndexStats();
+        console.log(`[Chiron] Ready -> ${stats.totalRecordCount} vectors physically present.`);
+        return true;
     } catch (err) {
-        console.error('[Chiron] Pinecone initialization error:', err.message);
+        console.error('[Chiron] Handshake Critical Fail:', err.message);
         pineconeIndex = null;
+        return false;
     }
 }
-
-// Initial call
 initPinecone();
 
-module.exports.initPinecone = initPinecone;
-
-async function upsertPineconeVectors(vectors) {
-    if (!pineconeIndex) {
-        console.warn('[Chiron] Pinecone index not available; vectors will be stored in MongoDB only.');
-        return;
-    }
-
-    try {
-        console.log(`[Chiron] Preparing to upsert ${vectors.length} vectors to Pinecone index: ${PINECONE_INDEX_NAME}`);
-
-        // Pinecone v4 - takes array directly
-        await pineconeIndex.upsert(vectors);
-
-        console.log('[Chiron] Pinecone upsert successful');
-    } catch (err) {
-        // Detailed error logging for dimension/key issues
-        console.error('❌ [Chiron] Pinecone Upsert Failed!');
-        console.error(`- Error: ${err.message}`);
-        if (err.message.includes('400')) {
-            console.error('- Hint: This is often a DIMENSION MISMATCH. Ensure your index is 768 for Gemini or 1536 for OpenAI.');
-        } else if (err.message.includes('401')) {
-            console.error('- Hint: API KEY REJECTED. Check your key in the Admin Portal.');
-        } else if (err.message.includes('404')) {
-            console.error(`- Hint: INDEX NOT FOUND. Check if the index name "${PINECONE_INDEX_NAME}" exists in your project.`);
-        }
-
-        console.log('[Chiron] Continuing with MongoDB storage backup...');
-    }
-}
-
-// ============================================================================
-// EMBEDDING ROUTING (from AdminPortal config)
-// ============================================================================
-
 async function getEmbeddingConfig() {
-    try {
-        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
-        const config = settings?.value?.chiron || {};
+    const s = await SystemSettings.findOne({ key: 'ai_config_v2' });
+    const c = s?.value?.chiron;
 
-        const provider = (config.provider || 'google').toLowerCase();
-        return {
-            provider,
-            baseUrl: config.baseUrl || (provider === 'openai' ? 'https://api.openai.com/v1' : 'https://generativelanguage.googleapis.com/v1beta/models'),
-            model: config.model || (provider === 'openai' ? 'text-embedding-3-small' : 'gemini-embedding-001'),
-            apiKey: config.apiKey || process.env.GEMINI_API_KEY,
-            chunkSize: parseInt(config.chunkSize) || 500,
-            overlap: parseInt(config.overlap) || 50,
-            temperature: parseFloat(config.temperature) || 0.3,
-            dimensions: parseInt(config.dimensions) || 768
-        };
-    } catch (e) {
-        console.warn('[Chiron] Embedding config error:', e.message);
-        return { dimensions: 768 };
+    if (!c || !c.enabled) {
+        throw new Error('Vector Intelligence Engine is disabled. Please enable it in the Aranya Admin Portal.');
+    }
+
+    if (!c.apiKey || !c.baseUrl || !c.model) {
+        throw new Error('Vector Networking Unconfigured! No hardcoded fallbacks are permitted. Please provide the Provider API Key, Base URL, and Model ID in the Admin Portal.');
+    }
+
+    return {
+        provider: c.provider.toLowerCase(),
+        baseUrl: c.baseUrl,
+        model: c.model,
+        apiKey: c.apiKey,
+        chunkSize: parseInt(c.chunkSize) || 450,
+        overlap: parseInt(c.overlap) || 70,
+        dimensions: parseInt(c.dimensions) || DETECTED_DIMENSION
+    };
+}
+
+async function generateEmbedding(text, config) {
+    try {
+        const response = await axios.post(`${config.baseUrl}/${config.model}:embedContent?key=${config.apiKey}`, {
+            content: { parts: [{ text }] },
+            outputDimensionality: config.dimensions
+        });
+        return response.data.embedding.values;
+    } catch (err) {
+        throw new Error(`Alignment Error: ${err.message}`);
     }
 }
 
-async function generateEmbedding(text, overrideConfig = null) {
-    const config = overrideConfig || await getEmbeddingConfig();
-    const headers = {};
-    if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
-        headers['x-api-key'] = config.apiKey; // For some specific providers
-    }
-
+async function generateEmbeddingsBatch(chunks, config) {
     try {
-        const provider = config.provider?.toLowerCase() || 'google';
-
-        if (provider === 'google' || provider === 'gemini') {
-            const response = await axios.post(
-                `${config.baseUrl}/${config.model}:embedContent?key=${config.apiKey}`,
-                {
-                    content: { parts: [{ text }] },
-                    outputDimensionality: config.dimensions || 768
-                }
-            );
-            return response.data.embedding.values;
-        }
-
-        else if (provider === 'huggingface' || provider === 'huggingface-inference') {
-            const response = await axios.post(
-                config.baseUrl.includes('api-inference.huggingface.co') ? config.baseUrl : `https://api-inference.huggingface.co/models/${config.model}`,
-                { inputs: text },
-                { headers: { 'Authorization': `Bearer ${config.apiKey}` } }
-            );
-            // HF returns array of floats or nested array
-            return Array.isArray(response.data[0]) ? response.data[0] : response.data;
-        }
-
-        else if (provider === 'openai' || provider === 'custom' || provider === 'cerebras') {
-            const url = config.baseUrl.endsWith('/embeddings') ? config.baseUrl : `${config.baseUrl}/embeddings`;
-            const response = await axios.post(
-                url,
-                { input: text, model: config.model },
-                { headers: { 'Authorization': `Bearer ${config.apiKey}` } }
-            );
-            return response.data.data[0].embedding;
-        }
-
-        else if (provider === 'cohere') {
-            const response = await axios.post(
-                `${config.baseUrl}/embed`,
-                { texts: [text], model: config.model },
-                { headers: { 'Authorization': `Bearer ${config.apiKey}` } }
-            );
-            return response.data.embeddings[0];
-        }
-
-        throw new Error(`Unknown or unsupported embedding provider: ${config.provider}`);
+        const response = await axios.post(`${config.baseUrl}/${config.model}:batchEmbedContents?key=${config.apiKey}`, {
+            requests: chunks.map(text => ({
+                model: `models/${config.model}`,
+                content: { parts: [{ text }] },
+                outputDimensionality: config.dimensions
+            }))
+        });
+        return response.data.embeddings.map(e => e.values);
     } catch (err) {
-        console.error(`[Embedding] ${config.provider} Error:`, err.response?.data || err.message);
-        throw err;
+        throw new Error(`Alignment Error: ${err.message}`);
     }
 }
 
-function chunkText(text, chunkSize = 500, overlap = 50) {
-    const words = text.split(/\s+/);
-    const chunks = [];
-    const step = chunkSize - overlap;
-
-    for (let i = 0; i < words.length; i += step) {
-        chunks.push(words.slice(i, i + chunkSize).join(' '));
-    }
-
-    return chunks.filter(c => c.trim().length > 0);
+function chunkText(text, sz = 500, ov = 50) {
+    const w = text.split(/\s+/);
+    const c = [];
+    const step = Math.max(1, sz - ov);
+    for (let i = 0; i < w.length; i += step) c.push(w.slice(i, i + sz).join(' '));
+    return c.filter(x => x).map(x => x.trim()).filter(x => x.length > 0);
 }
 
-async function parseFileToText(fileBuffer, fileExt) {
-    const ext = fileExt.toLowerCase();
-    if (ext === 'txt') {
-        return fileBuffer.toString('utf8');
-    } else if (ext === 'docx') {
-        const result = await mammoth.extractRawText({ buffer: fileBuffer });
-        return result.value;
-    } else if (ext === 'pdf') {
-        const data = await pdfParse(fileBuffer);
-        return data.text;
-    }
-    throw new Error('Unsupported file type for parsing: ' + fileExt);
-}
-
-
-// @route   POST /api/chiron/embed
-// @desc    Generate embedding for text (routes to configured provider)
-// @access  Internal
-router.post('/embed', async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) {
-            return res.status(400).json({ msg: 'Text required' });
-        }
-
-        const embedding = await generateEmbedding(text);
-        res.json({ embedding });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Embedding generation failed', error: err.message });
-    }
-});
-
-// ============================================================================
-// ADMIN ROUTES
-// ============================================================================
-
-// @route   GET /api/chiron/stats
-// @desc    Get knowledge base statistics
-// @access  Admin
-router.get('/stats', auth, async (req, res) => {
-    try {
-        // Verify admin
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        const [docCount, totalChunks, totalEntities] = await Promise.all([
-            ChironDocument.countDocuments({ status: 'complete' }),
-            ChironDocument.aggregate([
-                { $match: { status: 'complete' } },
-                { $group: { _id: null, total: { $sum: '$chunks_count' } } }
-            ]),
-            ChironDocument.aggregate([
-                { $match: { status: 'complete' } },
-                { $group: { _id: null, total: { $sum: '$entities_count' } } }
-            ])
-        ]);
-
-        // Vector stats are maintained via local documents in Node only
-        const vectorStats = {
-            vectors: 0,
-            entities: 0,
-            relationships: 0
-        };
-
-        res.json({
-            documents: docCount,
-            chunks: totalChunks[0]?.total || 0,
-            entities: totalEntities[0]?.total || 0,
-            vectorDbStats: vectorStats,
-            lastUpdate: new Date()
-        });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Error fetching stats' });
-    }
-});
-
-// @route   GET /api/chiron/documents
-// @desc    Get all ingested documents
-// @access  Admin
-router.get('/documents', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        const docs = await ChironDocument.find()
-            .select('document_name chunks_count entities_count relationships_count uploaded_at status file_size_kb')
-            .sort({ uploaded_at: -1 });
-
-        res.json(docs);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Error fetching documents' });
-    }
-});
-
-// @route   POST /api/chiron/ingest
-// @desc    Ingest document (file upload)
-// @access  Admin
-router.post('/ingest', [auth, upload.single('file')], async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        // Force reload of Pinecone client from latest database settings before ingestion
-        await initPinecone();
-
-        if (!pineconeIndex) {
-            console.error('[Chiron] Pinecone ingestion aborted: Vector Engine index not initialized.');
-            return res.status(500).json({
-                msg: 'Vector Engine (Pinecone) not initialized. Check your API Key and Index name in the Admin Portal.',
-                status: 'error'
-            });
-        }
-
-        if (!req.file) {
-            return res.status(400).json({ msg: 'No file provided' });
-        }
-
-        const { originalname, size, mimetype } = req.file;
-        const fileExt = originalname.split('.').pop().toLowerCase();
-
-        // Save file temporarily
-        const tempDir = '/tmp';
-        const tempPath = path.join(tempDir, `${Date.now()}_${originalname}`);
-
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-
-        fs.writeFileSync(tempPath, req.file.buffer);
-
-        // Create document record
-        const chironDoc = new ChironDocument({
-            user_id: req.user.id,
-            document_name: originalname,
-            original_filename: originalname,
-            file_type: fileExt,
-            file_size_kb: Math.ceil(size / 1024),
-            status: 'pending'
-        });
-
-        await chironDoc.save();
-
-        // Setup SSE response
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-
-        try {
-            const text = await parseFileToText(req.file.buffer, fileExt);
-            const config = await getEmbeddingConfig();
-            const chunks = chunkText(text, config.chunkSize, config.overlap);
-
-            let status = 'complete';
-            let errorMessage = null;
-            let entityCount = chunks.length;
-            let vectorCount = 0;
-
-            res.write(`data: ${JSON.stringify({ status: 'chunking', percent: 30, chunk_count: chunks.length })}\n\n`);
-
-            const pineconeVectors = [];
-
-            // Generate embeddings for all chunks (in series to avoid burst rate-limits)
-            for (let i = 0; i < chunks.length; i++) {
-                try {
-                    const vector = await generateEmbedding(chunks[i]);
-                    vectorCount += 1;
-
-                    pineconeVectors.push({
-                        id: `${chironDoc._id}_${i}`,
-                        values: vector,
-                        metadata: {
-                            document_id: chironDoc._id.toString(),
-                            chunk_index: i,
-                            text: chunks[i].slice(0, 1000),
-                            source: chironDoc.document_name,
-                            file_type: fileExt
-                        }
-                    });
-
-                    res.write(`data: ${JSON.stringify({ status: 'embedding', percent: Math.min(95, 30 + Math.round((i + 1) / chunks.length * 60)), chunk_index: i })}\n\n`);
-                } catch (e) {
-                    console.error('[Chiron] Embedding chunk error', e.message);
-                }
-            }
-
-            // Store vectors in Pinecone (strict check)
-            try {
-                if (!pineconeIndex) throw new Error('Pinecone Client became unavailable during embedding process.');
-                await upsertPineconeVectors(pineconeVectors);
-            } catch (err) {
-                console.error('❌ [Chiron] Pinecone upsert critical failure:', err.message);
-                throw new Error(`Pinecone Storage Failed: ${err.message}`);
-            }
-
-            // Update document as complete
-            await ChironDocument.findByIdAndUpdate(chironDoc._id, {
-                status: 'complete',
-                chunks_count: chunks.length,
-                entities_count: entityCount,
-                relationships_count: 0,
-                ingestion_time_ms: 0,
-                lightrag_doc_id: chironDoc._id,
-                vector_db_refs: pineconeVectors.map(v => v.id)
-            });
-
-            res.write(`data: ${JSON.stringify({ status: 'complete', percent: 100, document_id: chironDoc._id, chunks: chunks.length })}\n\n`);
-            res.end();
-
-            try { fs.unlinkSync(tempPath); } catch (e) { }
-        } catch (err2) {
-            console.error('[Chiron] Node ingest failed:', err2.message);
-            await ChironDocument.findByIdAndUpdate(chironDoc._id, {
-                status: 'failed',
-                error_message: err2.message
-            });
-
-            try { fs.unlinkSync(tempPath); } catch (e) { }
-
-            res.write(`data: ${JSON.stringify({ status: 'error', error: err2.message, percent: 0 })}\\n\\n`);
-            res.end();
-        }
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Ingestion failed', error: err.message });
-    }
-});
-
-// @route   DELETE /api/chiron/documents/:id
-// @desc    Delete ingested document
-// @access  Admin
-router.delete('/documents/:id', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        const chironDoc = await ChironDocument.findById(req.params.id);
-        if (!chironDoc) {
-            return res.status(404).json({ msg: 'Document not found' });
-        }
-
-        // Delete from Pinecone if vectors exist
-        if (pineconeIndex && chironDoc.vector_db_refs && chironDoc.vector_db_refs.length > 0) {
-            try {
-                console.log(`[Chiron] Purging ${chironDoc.vector_db_refs.length} vectors from Pinecone for doc: ${chironDoc.document_name}`);
-
-                // Pinecone v4 deleteMany/delete takes an array of IDs
-                await pineconeIndex.deleteMany(chironDoc.vector_db_refs);
-
-                console.log(`[Chiron] Pinecone vectors purged successfully`);
-            } catch (pineErr) {
-                console.error('[Chiron] Pinecone vector deletion warning:', pineErr.message);
-                // Continue with MongoDB deletion even if Pinecone fails
-            }
-        }
-
-        // Delete from MongoDB (Node-only flow)
-        await ChironDocument.findByIdAndDelete(req.params.id);
-
-        // Get updated stats
-        const [docCount, totalChunks] = await Promise.all([
-            ChironDocument.countDocuments({ status: 'complete' }),
-            ChironDocument.aggregate([
-                { $match: { status: 'complete' } },
-                { $group: { _id: null, total: { $sum: '$chunks_count' } } }
-            ])
-        ]);
-
-        res.json({
-            msg: 'Document deleted successfully',
-            stats: {
-                docs: docCount,
-                chunks: totalChunks[0]?.total || 0
-            }
-        });
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Delete failed', error: err.message });
-    }
-});
-
-// @route   POST /api/chiron/ingest-url
-// @desc    Ingest document from URL
-// @access  Admin
-router.post('/ingest-url', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        const { url, document_name } = req.body;
-
-        if (!url) {
-            return res.status(400).json({ msg: 'URL required' });
-        }
-
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            timeout: 30000,
-            maxContentLength: 50 * 1024 * 1024
-        });
-
-        const buffer = Buffer.from(response.data);
-        const filename = document_name || url.split('/').pop() || 'document.txt';
-        let fileExt = filename.split('.').pop().toLowerCase();
-
-        // Validate file extension - default to 'txt' if not a supported type
-        const validExtensions = ['txt', 'pdf', 'docx'];
-        if (!validExtensions.includes(fileExt)) {
-            fileExt = 'txt';
-        }
-
-        const chironDoc = new ChironDocument({
-            user_id: req.user.id,
-            document_name: filename,
-            original_filename: filename,
-            file_type: fileExt,
-            file_size_kb: Math.ceil(buffer.length / 1024),
-            source_url: url,
-            status: 'pending'
-        });
-
-        await chironDoc.save();
-
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-
-        try {
-            const text = await parseFileToText(buffer, fileExt);
-            const config = await getEmbeddingConfig();
-            const chunks = chunkText(text, config.chunkSize, config.overlap);
-
-            res.write(`data: ${JSON.stringify({ status: 'chunking', percent: 30, chunk_count: chunks.length })}\n\n`);
-
-            const pineconeVectors = [];
-
-            for (let i = 0; i < chunks.length; i++) {
-                try {
-                    const vector = await generateEmbedding(chunks[i]);
-                    pineconeVectors.push({
-                        id: `${chironDoc._id}_${i}`,
-                        values: vector,
-                        metadata: {
-                            document_id: chironDoc._id.toString(),
-                            chunk_index: i,
-                            text: chunks[i].slice(0, 1000),
-                            source: chironDoc.document_name,
-                            file_type: fileExt
-                        }
-                    });
-
-                    res.write(`data: ${JSON.stringify({ status: 'embedding', percent: Math.min(95, 30 + Math.round((i + 1) / chunks.length * 60)), chunk_index: i })}\n\n`);
-                } catch (innerErr) {
-                    console.error('[Chiron] Embedding error', innerErr.message);
-                }
-            }
-
-            try {
-                await upsertPineconeVectors(pineconeVectors);
-            } catch (err) {
-                console.error('[Chiron] Pinecone upsert failed:', err.message || err);
-            }
-
-            await ChironDocument.findByIdAndUpdate(chironDoc._id, {
-                status: 'complete',
-                chunks_count: chunks.length,
-                entities_count: chunks.length,
-                lightrag_doc_id: chironDoc._id,
-                vector_db_refs: pineconeVectors.map(v => v.id)
-            });
-
-            res.write(`data: ${JSON.stringify({ status: 'complete', percent: 100, document_id: chironDoc._id, chunks: chunks.length })}\n\n`);
-            res.end();
-        } catch (processErr) {
-            console.error('[Chiron] Ingest URL processing failed', processErr.message);
-            await ChironDocument.findByIdAndUpdate(chironDoc._id, {
-                status: 'failed',
-                error_message: processErr.message
-            });
-            res.write(`data: ${JSON.stringify({ status: 'error', error: processErr.message, percent: 0 })}\n\n`);
-            res.end();
-        }
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Ingestion failed', error: err.message });
-    }
-});
-
-// @route   GET /api/chiron/embedding-config
-// @desc    Get embedding configuration
-// @access  Admin
-router.get('/embedding-config', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-        const config = await getEmbeddingConfig();
-        res.json(config);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Error fetching config' });
-    }
-});
-
-// @route GET /api/chiron/pinecone-status
-// @desc  Verify Pinecone integration status
-// @access Admin
-router.get('/pinecone-status', auth, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ msg: 'Admin access required' });
-    }
-    if (!pineconeIndex) {
-        return res.status(200).json({ ok: false, msg: 'Pinecone not initialized. Embeddings will use MongoDB storage only.' });
-    }
-    try {
-        // Try to describe index stats
-        const info = await pineconeIndex.describeIndexStats();
-        res.json({ ok: true, index: PINECONE_INDEX_NAME, stats: info });
-    } catch (err) {
-        // Pinecone SDK compatibility issue - respond with success anyway since embeddings are working
-        console.warn('[Chiron] Pinecone stats unavailable:', err.message);
-        res.json({ ok: true, index: PINECONE_INDEX_NAME, stats: { namespace: { vector_count: 0 } }, warning: 'Stats unavailable' });
-    }
-});
-
-// @route POST /api/chiron/ingest-verify
-// @desc  Ingest and return Pinecone status after ingestion
-// @access Admin
-router.post('/ingest-verify', [auth, upload.single('file')], async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-
-        if (!req.file) {
-            return res.status(400).json({ msg: 'No file provided' });
-        }
-
-        if (!pineconeIndex) {
-            return res.status(500).json({ msg: 'Pinecone not initialized. Set PINECONE_API_KEY/PINECONE_ENV/PINECONE_INDEX.' });
-        }
-
-        const { originalname } = req.file;
-        const fileExt = originalname.split('.').pop().toLowerCase();
-        const text = await parseFileToText(req.file.buffer, fileExt);
-        const chunks = chunkText(text);
-
-        const vectors = [];
-        for (let i = 0; i < chunks.length; i++) {
-            const embedding = await generateEmbedding(chunks[i]);
-            vectors.push({
-                id: `${Date.now()}_${i}`,
-                values: embedding,
-                metadata: {
-                    source: originalname,
-                    chunk_index: i,
-                    text: chunks[i].slice(0, 1000)
-                }
-            });
-        }
-
-        await upsertPineconeVectors(vectors);
-
-        // Try to get Pinecone stats, but don't fail if unavailable
-        let stats = null;
-        try {
-            if (pineconeIndex) {
-                stats = await pineconeIndex.describeIndexStats();
-            }
-        } catch (statsErr) {
-            console.warn('[Chiron] Could not fetch Pinecone stats:', statsErr.message);
-        }
-
-        res.json({
-            ok: true,
-            uploaded: vectors.length,
-            pineconeIndex: PINECONE_INDEX_NAME,
-            stats: stats || { namespace: { vector_count: 0 } }
-        });
-
-    } catch (err) {
-        console.error('[Chiron] ingest-verify error:', err.message || err);
-        res.status(500).json({ msg: 'Ingest verify failed', error: err.message || err });
-    }
-});
-
-// @route   GET /api/chiron/embedding-config
-// @desc    Get embedding configuration
-// @access  Admin
-router.get('/embedding-config', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
-        const config = settings?.value?.chiron || {
-            provider: 'google',
-            model: 'gemini-embedding-001',
-            chunkSize: 500,
-            overlap: 50,
-            temperature: 0.3
-        };
-        res.json(config);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Error fetching config' });
-    }
-});
-
-// @route   POST /api/chiron/probe-embedding
-// @desc    Test embedding model and return vector dimension
-// @access  Admin
-router.post('/probe-embedding', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-        const config = req.body;
-        // Basic connectivity check with a tiny probe
-        const testVector = await generateEmbedding("Probe Test String", config);
-        res.json({
-            ok: true,
-            dimension: testVector.length,
-            sample: testVector.slice(0, 5)
-        });
-    } catch (err) {
-        console.error('[Probe] Error:', err.message);
-        res.status(500).json({ msg: 'Probe failed', error: err.message, details: err.response?.data });
-    }
-});
-
-// @route   PUT /api/chiron/embedding-config
-// @desc    Update embedding configuration
-// @access  Admin
-router.put('/embedding-config', auth, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ msg: 'Admin access required' });
-        }
-        const { provider, baseUrl, model, apiKey, chunkSize, overlap, temperature, dimensions } = req.body;
-
-        if (!provider) {
-            return res.status(400).json({ msg: 'Provider required' });
-        }
-
-        const settings = await SystemSettings.findOne({ key: 'ai_config_v2' });
-        const fullConfig = settings?.value || {};
-
-        const chironConfig = {
-            ...(fullConfig.chiron || {}),
-            provider,
-            baseUrl: baseUrl || '',
-            model: model || '',
-            apiKey: apiKey || '',
-            chunkSize: parseInt(chunkSize) || 500,
-            overlap: parseInt(overlap) || 50,
-            temperature: parseFloat(temperature) || 0.3,
-            dimensions: parseInt(dimensions) || 768
-        };
-
-        fullConfig.chiron = chironConfig;
-
-        await SystemSettings.findOneAndUpdate(
-            { key: 'ai_config_v2' },
-            { value: fullConfig },
-            { upsert: true, new: true }
-        );
-
-        res.json({ msg: 'Embedding config updated', config: chironConfig });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ msg: 'Error updating config' });
-    }
-});
-
-// Export internal search function for chat.js
+// ── UTILITY: KNOWLEDGE SEARCH (USED BY chat.js) ──
 async function searchKnowledge(query, topK = 5) {
-    if (!pineconeIndex) {
-        console.warn('[Chiron] Cannot search: Pinecone not initialized');
-        return [];
-    }
-
     try {
-        const queryVector = await generateEmbedding(query);
-        console.log(`[Chiron] Querying index "${PINECONE_INDEX_NAME}" with 768-dim vector...`);
+        if (!pineconeIndex) await initPinecone();
+        if (!pineconeIndex) return [];
+
+        const config = await getEmbeddingConfig();
+        const vector = await generateEmbedding(query, config);
+
+        console.log(`[Chiron Search] Querying ${PHYSICAL_HOST} | TopK: ${topK}`);
         const results = await pineconeIndex.query({
-            vector: queryVector,
-            topK: topK,
+            vector,
+            topK: parseInt(topK) || 5,
             includeMetadata: true
         });
 
-        console.log(`[Chiron] Found ${results.matches?.length || 0} matches. Top score: ${results.matches?.[0]?.score || 'N/A'}`);
-
-        return (results.matches || []).map(m => ({
-            text: m.metadata?.text || '',
-            source: m.metadata?.source || 'Internal Docs',
-            file_type: m.metadata?.file_type || null,
-            source_url: m.metadata?.source_url || null,
-            score: m.score
+        return results.matches.map(m => ({
+            text: m.metadata.text,
+            source: m.metadata.source,
+            score: m.score,
+            document_id: m.metadata.document_id
         }));
     } catch (err) {
-        console.error('[Chiron] Search failed:', err.message);
+        console.error('[Chiron Search] Failure:', err.message);
         return [];
     }
 }
 
-module.exports = router;
-module.exports.searchKnowledge = searchKnowledge;
+async function runIngestStream(res, doc, buf, displayName) {
+    const pulse = (d) => { res.write(`data: ${JSON.stringify(d)}\n\n`); if (res.flush) res.flush(); };
+    pulse({ status: 'Processing File...', percent: 5 });
+
+    let aborted = false;
+    res.on('close', () => {
+        console.log(`[Chiron] Client Disconnected. Terminating for ${displayName}`);
+        aborted = true;
+    });
+
+    try {
+        const ext = doc.file_type.toLowerCase();
+        let text = '';
+        if (ext === 'pdf') { const d = await pdfParse(buf); text = d.text; }
+        else if (ext === 'docx') { text = (await mammoth.extractRawText({ buffer: buf })).value; }
+        else {
+            let str = buf.toString('utf8');
+            if (str.includes('<html') || str.includes('<!DOCTYPE') || str.includes('<!doctype')) {
+                str = str.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+                         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+                         .replace(/<[^>]+>/g, ' ')
+                         .replace(/&nbsp;/g, ' ')
+                         .replace(/\s+/g, ' ')
+                         .trim();
+            }
+            text = str;
+        }
+
+        // FORCE ALIGNMENT CHECK
+        pulse({ status: `Synchronizing with ${DETECTED_DIMENSION}d Index...`, percent: 10 });
+        const ready = await initPinecone();
+        if (!ready) throw new Error('Vector Engine (Pinecone) Handshake Rejection');
+
+        const config = await getEmbeddingConfig();
+        const chunks = chunkText(text, config.chunkSize, config.overlap);
+
+        const vectors = [];
+        const BATCH_SIZE = 50; 
+        for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+            if (aborted) {
+                console.log(`[Chiron] ABORTED: Stopping at segment ${i}/${chunks.length}`);
+                return;
+            }
+            const batchChunks = chunks.slice(i, i + BATCH_SIZE);
+            const batchValues = await generateEmbeddingsBatch(batchChunks, config);
+            
+            for (let j = 0; j < batchChunks.length; j++) {
+                vectors.push({
+                    id: `${doc._id}_${i + j}`,
+                    values: batchValues[j],
+                    metadata: { document_id: doc._id.toString(), text: batchChunks[j].slice(0, 5000), source: displayName }
+                });
+            }
+            const processed = Math.min(i + BATCH_SIZE, chunks.length);
+            pulse({ status: `Vectorizing Batch ${processed}/${chunks.length}`, percent: Math.round(15 + (processed / chunks.length) * 80) });
+            if (processed < chunks.length) await new Promise(r => setTimeout(r, 4500)); // 4.5s delay to adhere to Gemini Free Tier (15 RPM limits)
+        }
+
+        if (aborted) return;
+
+        console.log(`[Chiron] Handing off ${vectors.length} vectors to ${PHYSICAL_HOST}...`);
+        await pineconeIndex.upsert(vectors);
+
+        await ChironDocument.findByIdAndUpdate(doc._id, {
+            status: 'complete',
+            chunks_count: chunks.length,
+            vector_db_refs: vectors.map(v => v.id)
+        });
+
+        pulse({ status: 'Discovery Complete', percent: 100 });
+        res.end();
+    } catch (err) {
+        if (!aborted) {
+            console.error('[Chiron CRITICAL ERROR]', err);
+            await ChironDocument.findByIdAndUpdate(doc._id, { status: 'failed', error_message: err.message });
+            pulse({ status: 'Engine Desync Error', error: err.message, percent: 0 });
+        }
+        res.end();
+    }
+}
+
+router.post('/ingest', [auth, upload.single('file')], async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ msg: 'No file' });
+        const doc = new ChironDocument({ user_id: req.user.id, document_name: req.file.originalname, original_filename: req.file.originalname, file_type: req.file.originalname.split('.').pop().toLowerCase(), file_size_kb: Math.ceil(req.file.size / 1024), status: 'pending' });
+        await doc.save();
+        // File saving disabled per user request to prevent github/vercel syncing
+        res.setHeader('Content-Type', 'text/event-stream');
+        await runIngestStream(res, doc, req.file.buffer, req.file.originalname);
+    } catch (e) { res.status(500).json({ msg: 'Ingest Failed' }); }
+});
+
+router.post('/ingest-url', auth, async (req, res) => {
+    try {
+        const { url, name } = req.body;
+        const fetch = await axios.get(url, { 
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        });
+        const buf = Buffer.from(fetch.data);
+        const fname = name || url.split('/').pop() || 'web_resource';
+        const doc = new ChironDocument({ user_id: req.user.id, document_name: fname, original_filename: fname, file_type: url.includes('.pdf') ? 'pdf' : 'txt', file_size_kb: Math.ceil(buf.length / 1024), status: 'pending' });
+        await doc.save();
+        // File saving disabled
+        res.setHeader('Content-Type', 'text/event-stream');
+        await runIngestStream(res, doc, buf, fname);
+    } catch (e) { 
+        console.error('[URL Ingest Error]', e.message);
+        res.status(500).json({ msg: 'URL Fetch Failed', error: e.message }); 
+    }
+});
+
+router.post('/sync/:id', auth, async (req, res) => {
+    const doc = await ChironDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ msg: 'Document not found' });
+    
+    // Recovery disabled
+    const reqFile = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type}`);
+    if (!fs.existsSync(reqFile)) {
+        res.status(404).json({ msg: 'Local recovery file is missing/disabled' });
+        return;
+    }
+    const buf = fs.readFileSync(reqFile);
+    res.setHeader('Content-Type', 'text/event-stream');
+    await runIngestStream(res, doc, buf, doc.document_name);
+});
+
+router.delete('/purge', auth, async (req, res) => {
+    try {
+        console.log('[Chiron] Wiping Physical Index...');
+        if (!pineconeIndex) await initPinecone();
+        if (pineconeIndex) {
+            await pineconeIndex.deleteAll();
+        }
+
+        await ChironDocument.deleteMany({});
+        const files = fs.readdirSync(RECOVERY_DIR);
+        for (const file of files) fs.unlinkSync(path.join(RECOVERY_DIR, file));
+
+        console.log('✅ Chiron: Memory and Database Cleared');
+        res.json({ msg: 'Purged' });
+    } catch (err) {
+        console.error('❌ Purge Failed:', err.message);
+        res.status(500).json({ msg: 'Purge Failed', error: err.message });
+    }
+});
+
+router.get('/stats', auth, async (req, res) => {
+    const docs = await ChironDocument.countDocuments();
+    let vectors = 0;
+    if (pineconeIndex) try { vectors = (await pineconeIndex.describeIndexStats()).totalRecordCount; } catch (e) { }
+    res.json({ documents: docs, vectorDbStats: { vectors }, dimensions: DETECTED_DIMENSION, host: PHYSICAL_HOST });
+});
+
+router.get('/documents', auth, async (req, res) => res.json(await ChironDocument.find().sort({ uploaded_at: -1 })));
+
+router.delete('/documents/:id', auth, async (req, res) => {
+    try {
+        const doc = await ChironDocument.findById(req.params.id);
+        if (!doc) return res.status(404).json({ msg: 'Doc not found' });
+
+        // CLEAN VECTORS
+        if (doc.vector_db_refs?.length > 0 && pineconeIndex) {
+            console.log(`[Chiron] Purging ${doc.vector_db_refs.length} vectors for ${doc.document_name}`);
+            try { await pineconeIndex.deleteMany(doc.vector_db_refs); } catch (e) { console.warn('Vector Delete Fail', e.message); }
+        }
+
+        // CLEAN FILES
+        const fPath = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type}`);
+        if (fs.existsSync(fPath)) fs.unlinkSync(fPath);
+
+        await ChironDocument.findByIdAndDelete(req.params.id);
+        res.json({ msg: 'Deleted' });
+    } catch (e) { res.status(500).json({ msg: 'Delet Failed' }); }
+});
+
+
+module.exports = {
+    router,
+    searchKnowledge
+};

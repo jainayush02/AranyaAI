@@ -2869,10 +2869,6 @@ export default function AdminPortal() {
                                                                             </div>
                                                                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: '1rem' }}>
                                                                                 <div className={s.aiConfigGroup}>
-                                                                                    <label className={s.inputLabel}>Search Top-K</label>
-                                                                                    <input type="number" className={s.configInput} value={aiConfig.chiron?.topK || 5} disabled={!isEditingAi} onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, topK: parseInt(e.target.value) } }))} />
-                                                                                </div>
-                                                                                <div className={s.aiConfigGroup}>
                                                                                     <label className={s.inputLabel}>Dimensions</label>
                                                                                     <div style={{ position: 'relative' }}>
                                                                                         <input 

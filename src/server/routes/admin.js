@@ -600,7 +600,7 @@ router.put('/users/:id/block', authenticate, adminOnly, async (req, res) => {
     try {
         if (req.params.id === req.user._id.toString()) return res.status(400).json({ message: 'Cannot block yourself' });
         const { blocked } = req.body;
-        const user = await User.findByIdAndUpdate(req.params.id, { blocked }, { new: true }).select('-password');
+        const user = await User.findByIdAndUpdate(req.params.id, { blocked }, { returnDocument: 'after' }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
         await log(req, 'admin', `${blocked ? 'Blocked' : 'Unblocked'} user: ${user.full_name || user.email}`);
         res.json(user);
@@ -612,7 +612,7 @@ router.put('/users/:id/role', authenticate, adminOnly, async (req, res) => {
     try {
         const { role } = req.body;
         if (!['user', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
-        const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
+        const user = await User.findByIdAndUpdate(req.params.id, { role }, { returnDocument: 'after' }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
         await log(req, 'admin', `Changed ${user.full_name || user.email}'s role to ${role}`);
         res.json(user);
@@ -623,7 +623,7 @@ router.put('/users/:id/role', authenticate, adminOnly, async (req, res) => {
 router.put('/users/:id/plan', authenticate, adminOnly, async (req, res) => {
     try {
         const { plan } = req.body;
-        const user = await User.findByIdAndUpdate(req.params.id, { plan }, { new: true }).select('-password');
+        const user = await User.findByIdAndUpdate(req.params.id, { plan }, { returnDocument: 'after' }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
         await log(req, 'admin', `Updated ${user.full_name || user.email}'s plan to ${plan}`);
         res.json(user);
@@ -634,7 +634,7 @@ router.put('/users/:id/plan', authenticate, adminOnly, async (req, res) => {
 router.put('/users/:id/overrides', authenticate, adminOnly, async (req, res) => {
     try {
         const { overrides } = req.body;
-        const user = await User.findByIdAndUpdate(req.params.id, { planOverrides: overrides }, { new: true }).select('-password');
+        const user = await User.findByIdAndUpdate(req.params.id, { planOverrides: overrides }, { returnDocument: 'after' }).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
         await log(req, 'admin', `Updated limit overrides for ${user.full_name || user.email}`);
         res.json(user);
@@ -701,7 +701,7 @@ router.post('/faqs', authenticate, adminOnly, async (req, res) => {
 
 router.put('/faqs/:id', authenticate, adminOnly, async (req, res) => {
     try {
-        const faq = await Faq.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const faq = await Faq.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
         if (!faq) return res.status(404).json({ message: 'FAQ not found' });
         await log(req, 'admin', `Updated FAQ: "${faq.question}"`);
         res.json(faq);
@@ -770,7 +770,17 @@ Your initial assessment was: \${cleanedText}
 
 [TASK]: Using the search results above, provide a finalized, accurate answer.
 - Reference the source indices (e.g., [1], [2]) naturally.
-- CRITICAL: If the search results above are insufficient, incomplete, or of low confidence for the user's specific query, explicitly state this and synthesize a safe, helpful response based on your internal specialized medical training.`
+- CRITICAL: If the search results above are insufficient, incomplete, or of low confidence for the user's specific query, explicitly state this and synthesize a safe, helpful response based on your internal specialized medical training.`,
+                chiron: {
+                    enabled: true,
+                    provider: 'Google',
+                    model: 'gemini-embedding-001',
+                    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+                    chunkSize: 500,
+                    overlap: 50,
+                    topK: 5,
+                    temperature: 0.3
+                }
             });
         }
 
@@ -785,6 +795,26 @@ Your initial assessment was: \${cleanedText}
             settings.value.intelligence.duckduckgo.targetDomains = [];
         } else if (typeof settings.value.intelligence.duckduckgo.targetDomains === 'string') {
             settings.value.intelligence.duckduckgo.targetDomains = settings.value.intelligence.duckduckgo.targetDomains.split(',').map(d => d.trim()).filter(d => !!d);
+        }
+
+        // --- Ensure Defaults for Chiron Config if missing ---
+        if (!settings.value.chiron) {
+            settings.value.chiron = {
+                enabled: true,
+                provider: 'Google',
+                model: 'gemini-embedding-001',
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+                chunkSize: 500,
+                overlap: 50,
+                topK: 5,
+                temperature: 0.3
+            };
+        } else {
+            // Ensure specific tuning parameters exist
+            if (typeof settings.value.chiron.chunkSize === 'undefined') settings.value.chiron.chunkSize = 500;
+            if (typeof settings.value.chiron.overlap === 'undefined') settings.value.chiron.overlap = 50;
+            if (typeof settings.value.chiron.topK === 'undefined') settings.value.chiron.topK = 5;
+            if (typeof settings.value.chiron.temperature === 'undefined') settings.value.chiron.temperature = 0.3;
         }
 
         res.json(settings.value);
@@ -803,7 +833,7 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },
             { value: newValue },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         // If chiron settings were updated, re-init the pinecone client
@@ -839,7 +869,7 @@ router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_active_engine' },
             { value: engine },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
         console.log(`[AI_ENGINE] Successfully switched to: ${engine}`);
         await log(req, 'admin', `Switched AI Health Engine to: ${engine}`);

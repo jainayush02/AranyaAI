@@ -214,7 +214,7 @@ router.put('/:id', auth, async (req, res) => {
         animal = await Animal.findByIdAndUpdate(
             req.params.id,
             { $set: updateFields },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         await logActivity('animal_registry', req.user, `Updated animal details: ${animal.name}`);

@@ -30,7 +30,6 @@ router.get('/', async (req, res) => {
         const settings = await SystemSettings.find();
         const settingsMap = {};
         settings.forEach(s => settingsMap[s.key] = s.value);
-        console.log('GET /api/settings - Sent:', settingsMap);
         res.json(settingsMap);
     } catch (error) {
         console.error('GET /api/settings - ERROR:', error);
@@ -47,7 +46,7 @@ router.post('/update', adminOnly, async (req, res) => {
         let setting = await SystemSettings.findOneAndUpdate(
             { key },
             { value },
-            { new: true, upsert: true }
+            { upsert: true, returnDocument: 'after' }
         );
         console.log(`POST /api/settings/update - SUCCESS: ${key}`);
         res.json({ message: 'Setting updated successfully', setting });
