@@ -234,7 +234,122 @@ const SourceBadges = ({ sources }) => {
         </div>
     );
 };
+// ── NEW: Chiron Sources Panel ──────────────────────────────────────────────
+const ChironSourcesPanel = ({ sources }) => {
+    if (!sources || sources.length === 0) return null;
 
+    // Deduplicate by title/source name
+    const seen = new Set();
+    const unique = sources.filter(s => {
+        const key = s.title || s.source;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    const getFileIcon = (fileType) => {
+        if (fileType === 'pdf') return (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+        );
+        if (fileType === 'docx' || fileType === 'doc') return (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+        );
+        // URL / web
+        return (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+        );
+    };
+
+    const handleClick = (src) => {
+        const isUrl = !!src.source_url || (!src.file_type || src.file_type === 'url');
+        if (isUrl && src.source_url) {
+            window.open(src.source_url, '_blank', 'noopener,noreferrer');
+        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc') {
+            // Trigger download via backend endpoint
+            const link = document.createElement('a');
+            link.href = `/api/chiron/download?name=${encodeURIComponent(src.title || src.source)}`;
+            link.download = src.title || src.source;
+            link.click();
+        } else if (src.source_url) {
+            window.open(src.source_url, '_blank', 'noopener,noreferrer');
+        }
+        // else: local doc with no download URL — do nothing (or show a toast)
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {unique.map((src, idx) => {
+                const isUrl = !!src.source_url && !src.file_type;
+                const label = src.title || src.source || 'Knowledge Base Document';
+                const fileType = src.file_type || (src.source_url ? 'url' : 'doc');
+                const isClickable = !!src.source_url || ['pdf', 'docx', 'doc'].includes(src.file_type);
+
+                return (
+                    <div
+                        key={idx}
+                        onClick={() => isClickable && handleClick(src)}
+                        title={isClickable ? (isUrl ? 'Open URL in new tab' : 'Download document') : label}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '7px 10px',
+                            background: '#f8fafc',
+                            borderRadius: '10px',
+                            border: '1px solid #f1f5f9',
+                            cursor: isClickable ? 'pointer' : 'default',
+                            transition: 'background 0.15s',
+                        }}
+                        onMouseOver={e => { if (isClickable) e.currentTarget.style.background = '#f1f5f9'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                    >
+                        <div style={{
+                            width: '26px', height: '26px', background: '#fff',
+                            borderRadius: '7px', display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                        }}>
+                            {getFileIcon(fileType)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                                fontSize: '0.72rem', fontWeight: 600, color: '#1e293b',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                            }}>
+                                {label}
+                            </div>
+                            <div style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 500 }}>
+                                {fileType === 'pdf' ? 'PDF · Click to download'
+                                    : fileType === 'docx' || fileType === 'doc' ? 'Word Doc · Click to download'
+                                    : src.source_url ? 'URL · Click to open'
+                                    : 'Knowledge Base'}
+                            </div>
+                        </div>
+                        {isClickable && (
+                            <ExternalLink size={12} color="#cbd5e1" />
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+// ── END ChironSourcesPanel ─────────────────────────────────────────────────
 
 const IntelligenceBadge = ({ type, mode }) => {
     // Only show badge for web intelligence (search augmented answers)
@@ -1489,12 +1604,32 @@ export default function ChatBot() {
                                                                             color: activeSourcesId === (msg._id || i) ? '#10b981' : '#64748b' 
                                                                         }}
                                                                     >
-                                                                        Sources
+                                                                        <Globe size={12} style={{ marginRight: '4px' }} /> Sources
                                                                     </button>
                                                                 </>
                                                             )}
-                                                        </div>
-                                                    )}
+                                                                {msg.role === 'ai' && msg.intelligenceType === 'chiron' && msg.sources && msg.sources.length > 0 && (
+                                                                <>
+                                                                <div className={styles.actionDivider} />
+                                                                <button
+                                                                className={`${styles.messageActionBtn} ${activeSourcesId === (msg._id || i) ? styles.actionBtnActive : ''}`}
+                                                                onClick={() => setActiveSourcesId(activeSourcesId === (msg._id || i) ? null : (msg._id || i))}
+                                                                title="View Knowledge Base Sources"
+                                                                style={{
+                                                                    width: 'auto',
+                                                                    padding: '0 8px',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 600,
+                                                                    color: activeSourcesId === (msg._id || i) ? '#6366f1' : '#64748b'
+                                                                 }}
+                                                                  >
+                                                                   <Globe size={12} style={{ marginRight: '4px' }} /> Sources
+                                                                    </button>
+                                                                    </>
+                                                                    )}
+                                                            
+                                                                    </div>
+                                                                    )}
 
                                                     {/* AI Enhanced Sources Panel (Gemini Style) */}
                                                     <AnimatePresence>
@@ -1551,54 +1686,29 @@ export default function ChatBot() {
                                                         )}
                                                     </AnimatePresence>
 
-                                                    {/* AI Enhanced Sources Panel (Gemini Style) */}
+                                                    {/* Chiron RAG Sources Panel */}
                                                     <AnimatePresence>
-                                                        {msg.role === 'ai' && msg.sources && msg.sources.length > 0 && activeSourcesId === (msg._id || i) && (
-                                                            <motion.div 
-                                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                                                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                                                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                                                style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}
+                                                        {msg.role === 'ai' && msg.intelligenceType === 'chiron' && msg.sources && msg.sources.length > 0 && activeSourcesId === (msg._id || i) && (
+                                                            <motion.div
+                                                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                            animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                                            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                                                            style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}
                                                             >
-                                                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                    <Search size={10} strokeWidth={3} /> Verified Search Sources
-                                                                </div>
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                                    {msg.sources.map((src, idx) => (
-                                                                        <a 
-                                                                            key={idx} 
-                                                                            href={src.url} 
-                                                                            target="_blank" 
-                                                                            rel="noopener noreferrer"
-                                                                            style={{ 
-                                                                                display: 'flex', 
-                                                                                alignItems: 'center', 
-                                                                                gap: '12px', 
-                                                                                padding: '10px 12px', 
-                                                                                background: '#f8fafc', 
-                                                                                borderRadius: '12px', 
-                                                                                textDecoration: 'none',
-                                                                                border: '1px solid #f1f5f9',
-                                                                                transition: '0.2s transform'
-                                                                            }}
-                                                                            onMouseOver={e => e.currentTarget.style.transform = 'translateX(2px)'}
-                                                                            onMouseOut={e => e.currentTarget.style.transform = 'translateX(0)'}
-                                                                        >
-                                                                            <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.03)', flexShrink: 0 }}>
-                                                                                <img src={`https://www.google.com/s2/favicons?domain=${src.domain}&sz=32`} alt="favicon" style={{ width: '16px', height: '16px' }} onError={e => e.target.style.display = 'none'} />
-                                                                            </div>
-                                                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{src.title || 'Web Result'}</div>
-                                                                                <div style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>{src.domain}</div>
-                                                                            </div>
-                                                                            <ExternalLink size={14} color="#94a3b8" />
-                                                                        </a>
-                                                                    ))}
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
+                                                                <div style={{
+                                                                    fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8',
+                                                                    marginBottom: '10px', letterSpacing: '0.08em', textTransform: 'uppercase',
+                                                                    display: 'flex', alignItems: 'center', gap: '6px'
+                                                                    }}>
+                                                                        <Globe size={10} strokeWidth={3} /> Verified Search Sources
+                                                                        </div>
+                                                                        <ChironSourcesPanel sources={msg.sources} />
+                                                                        </motion.div>
+                                                                    )}
+                                                                    </AnimatePresence>
+                                                    {/* AI Enhanced Sources Panel (Gemini Style) */}
+                                                    
                                                 </div>
                                             </div>
                                         </div>
