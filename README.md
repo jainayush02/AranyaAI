@@ -246,7 +246,7 @@ AranyaAi uses a **configuration-first** approach. All AI engine settings are man
 
 ## 📄 License
 
-This project is for educational and portfolio purposes.
+This project is proprietary software. See the [LICENSE](LICENSE) file for full terms. Cloning is permitted for educational review only — deployment, modification, and redistribution are strictly prohibited without written permission from Aranya AI.
 
 ---
 
