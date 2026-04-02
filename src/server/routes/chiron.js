@@ -809,6 +809,8 @@ async function searchKnowledge(query, topK = 5) {
         return (results.matches || []).map(m => ({
             text: m.metadata?.text || '',
             source: m.metadata?.source || 'Internal Docs',
+            file_type: m.metadata?.file_type || null,
+            source_url: m.metadata?.source_url || null,
             score: m.score
         }));
     } catch (err) {

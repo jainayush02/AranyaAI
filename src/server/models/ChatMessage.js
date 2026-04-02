@@ -41,7 +41,9 @@ const ChatMessageSchema = new mongoose.Schema({
     sources: [{
         title: String,
         url: String,
-        domain: String
+        domain: String,
+        file_type: String,      
+        source_url: String 
     }],
     intelligenceType: {
         type: String,

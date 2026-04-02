@@ -314,17 +314,19 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     // Direct Internal Search - bypassing port 8006
                     const topK = aiConfig.chiron?.topK || 5;
                     const retrievedDocs = await searchKnowledge(content, topK);
-                    
+                    const relevantDocs = retrievedDocs.filter(doc => doc.score >= 0.60);
                     if (retrievedDocs.length > 0) {
                         intelligenceType = 'chiron';
-                        chironSources = retrievedDocs.map((doc, i) => ({
+                        chironSources = relevantDocs.map((doc, i) => ({
                             title: doc.source,
                             snippet: doc.text?.substring(0, 150),
                             source: doc.source,
-                            score: doc.score
+                            score: doc.score,
+                            file_type: doc.file_type || null,      
+                            source_url: doc.source_url || null 
                         }));
 
-                        chironKnowledgeBlock = retrievedDocs
+                        chironKnowledgeBlock = relevantDocs
                             .map((doc, i) => `[Doc ID: DOC_${i+1}] (Source: ${doc.source}) ${doc.text}`)
                             .join('\n\n');
 
@@ -645,11 +647,16 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
         try {
             await logActivity('chat', { id: req.user.id }, `Used AI chatbot`);
         } catch (_) { }
-
-        res.json({ userMessage: userMsg, aiMessage: finalAiMsg, conversation });
+        
+        if (!res.headersSent) {
+            res.json({ userMessage: userMsg, aiMessage: finalAiMsg, conversation });
+        }
+    
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server Error');
+        if (!res.headersSent) {
+            res.status(500).send('Server Error');
+        }
     }
 });
 
