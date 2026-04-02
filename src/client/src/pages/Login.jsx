@@ -4,7 +4,7 @@ import {
     Twitter, Linkedin, Facebook, Youtube, Github,
     ChevronRight, ArrowRight, ShieldCheck, Scan, MessageSquare,
     Activity, Shield, Eye, EyeOff, CheckCircle, Sparkles, Zap,
-    Clock, Star, HardDrive, Syringe
+    Clock, Star, HardDrive, Syringe, Bot, Globe, FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -646,6 +646,45 @@ export default function Login() {
                                 <div className={styles.infoCardIcon}><Shield size={22} /></div>
                                 <h3>Smart Health Guard</h3>
                                 <p>Our 24/7 background monitoring system. Continuous vital analysis detects subtle physiological shifts before they manifest as illness.</p>
+                            </motion.div>
+
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><Bot size={22} /></div>
+                                <h3>Chiron Mode</h3>
+                                <p>Access professional-grade clinical insights from our verified animal-health knowledge base. Expert advice grounded in proven medical data.</p>
+                            </motion.div>
+
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 1.0, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><Activity size={22} /></div>
+                                <h3>Smart Meal Planner</h3>
+                                <p>Feeding plans that change based on how your animal feels. We use real health data to suggest the best meals for energy, growth, and fast recovery.</p>
+                            </motion.div>
+
+                            <motion.div
+                                className={styles.infoCard}
+                                whileHover={{ y: -10 }}
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                                viewport={{ amount: 0.2 }}
+                                transition={{ duration: 0.9, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                            >
+                                <div className={styles.infoCardIcon}><FileText size={22} /></div>
+                                <h3>Rapid Health Reports</h3>
+                                <p>Instantly create a full health summary when every second counts. Send detailed medical reports to your vet in one click during emergencies.</p>
                             </motion.div>
                         </div>
                     </motion.div>
