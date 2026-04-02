@@ -9,3 +9,4 @@ tensorflow-cpu
 gunicorn
 duckduckgo-search
 requests
+wikipedia-api
