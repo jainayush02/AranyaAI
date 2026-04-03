@@ -2494,3 +2494,184 @@
     gap: 8px;
     white-space: nowrap;
 }
+
+/* ── Chain of Thought: ThinkingPanel ──────────────────────────────────── */
+
+.thinkingWrapper {
+    margin-bottom: 8px;
+}
+
+.thinkingBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.thinkingBadge:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #475569;
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.thinkingPanel {
+    background: linear-gradient(135deg, rgba(241, 245, 249, 0.6) 0%, rgba(248, 250, 252, 0.8) 100%);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+@keyframes thinkingFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.thinkingPanelHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    width: 100%;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.thinkingPanelHeader:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.thinkingPanelTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 0.01em;
+}
+
+.thinkingChevron {
+    color: #94a3b8;
+    transition: transform 0.3s ease;
+}
+
+.thinkingStepsList {
+    padding: 0 12px 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.thinkingStep {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 3px 0;
+    animation: stepSlideIn 0.25s ease-out;
+}
+
+@keyframes stepSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.thinkingStepDone {
+    opacity: 0.7;
+}
+
+.thinkingStepActive {
+    opacity: 1;
+}
+
+.thinkingStepIcon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.thinkingStepPulse {
+    color: #3b82f6;
+    font-weight: 800;
+    font-size: 0.8rem;
+    animation: stepPulseAnim 1s ease-in-out infinite;
+}
+
+@keyframes stepPulseAnim {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.thinkingStepText {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #475569;
+    line-height: 1.4;
+}
+
+.thinkingPulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3b82f6;
+    animation: thinkingPulseGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes thinkingPulseGlow {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+        box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+    }
+}
+
+/* Mobile: slightly smaller panel */
+@media (max-width: 768px) {
+    .thinkingPanel {
+        margin-bottom: 6px;
+        border-radius: 10px;
+    }
+
+    .thinkingStepText {
+        font-size: 0.68rem;
+    }
+
+    .thinkingBadge {
+        font-size: 0.68rem;
+        padding: 4px 10px;
+    }
+}
