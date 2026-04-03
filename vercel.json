@@ -1,22 +1,30 @@
 {
     "version": 2,
-    "public": true,
+    "builds": [
+        {
+            "src": "src/client/package.json",
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "dist"
+            }
+        },
+        {
+            "src": "src/server/server.js",
+            "use": "@vercel/node"
+        }
+    ],
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "https://aranya-backend-x0qy.onrender.com/api/$1"
+            "destination": "/src/server/server.js"
         },
         {
             "source": "/uploads/(.*)",
-            "destination": "https://aranya-backend-x0qy.onrender.com/uploads/$1"
+            "destination": "/src/server/server.js"
         },
         {
             "source": "/(.*)",
-            "destination": "src/client/dist/$1"
-        },
-        {
-            "source": "/(.*)",
-            "destination": "src/client/dist/index.html"
+            "destination": "/index.html"
         }
     ]
 }
