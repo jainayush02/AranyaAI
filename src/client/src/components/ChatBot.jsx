@@ -61,44 +61,8 @@ const parseMessage = (content, isStreaming = false) => {
     // 1. Standard cleaning for attachments
     let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
 
-    // 2. Detect incomplete tables and buffer them until complete
-    if (isStreaming && clean.includes('|')) {
-        const lines = clean.split('\n');
-        let tableStartIdx = -1;
-        let hasValidTableStructure = false;
-        
-        // Find where a table starts
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim().startsWith('|')) {
-                tableStartIdx = i;
-                // Check if table has header + separator + at least one data row (minimum 3 lines)
-                const hasSeparator = i + 1 < lines.length && lines[i + 1].trim().match(/^\|[\s\-|]+\|$/);
-                const hasDataRow = i + 2 < lines.length && lines[i + 2].trim().startsWith('|');
-                hasValidTableStructure = hasSeparator && hasDataRow;
-                break;
-            }
-        }
-        
-        // If table is incomplete (no separator row yet), hide it and show only content before it
-        if (tableStartIdx !== -1 && !hasValidTableStructure) {
-            clean = lines.slice(0, tableStartIdx).join('\n').trim();
-        } else if (tableStartIdx !== -1 && hasValidTableStructure) {
-            // Table is complete enough to render - inject separator if needed for markdown parsing
-            for (let i = tableStartIdx; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line.startsWith('|') && i === tableStartIdx) {
-                    const pipeCount = (line.match(/\|/g) || []).length;
-                    // Check if next line is NOT a separator
-                    if (i + 1 >= lines.length || !lines[i + 1].trim().match(/^\|[\s\-|]+\|$/)) {
-                        const separator = '|' + Array(pipeCount - 1).fill('---|').join('') + '|';
-                        lines.splice(i + 1, 0, separator);
-                    }
-                    break;
-                }
-            }
-            clean = lines.join('\n');
-        }
-    }
+    // 2. (Removed custom table buffering/streaming logic to prevent performance slowdowns and glitches. 
+    // ReactMarkdown will natively render the table perfectly once the separator row completes.)
 
     // 3. Aranya Mode Tag Strip: Hide technical search tag from the UI (including partial tags during streaming)
     clean = clean
@@ -106,14 +70,27 @@ const parseMessage = (content, isStreaming = false) => {
         .replace(/\[SEARCH_NEEDED:[\s\S]*$/gi, '')  // Partial tag at end of current stream
         .replace(/\[SEARCH_NEEDED:?$/gi, '');       // Just the start of the tag
 
-    // 4. Smooth Markdown Rendering: Preserve table pipes while streaming, but hide other formatting flicker
+    // 4. Smooth Markdown Rendering: Fix partial syntax during streaming
     if (isStreaming) {
-        // Preserve pipes (|) for tables and headers (---) for table markers
-        // Only remove bold/italic/code formatting that's incomplete or partial
-        clean = clean
-            .replace(/\*\*(?![^\*]*\*\*[^\*]*$)(?![^\*]*$)/g, '') // Remove incomplete bold markers
-            .replace(/\`(?![^\`]*\`[^\`]*$)/g, '') // Remove incomplete backticks
-            .replace(/\[(?!\[)(?![^\]]*\])/g, '');  // Remove incomplete brackets (but keep [[ for links)
+        // Auto-close unclosed bold tags, but don't double-close if the AI has already typed the first asterisk '*'
+        const boldCount = (clean.match(/\*\*/g) || []).length;
+        if (boldCount % 2 !== 0) {
+            clean += clean.endsWith('*') && !clean.endsWith('**') ? '*' : '**';
+        }
+
+        // Auto-close unclosed code blocks, handling partial backticks
+        const codeBlockCount = (clean.match(/```/g) || []).length;
+        if (codeBlockCount % 2 !== 0) {
+            if (clean.endsWith('``') && !clean.endsWith('```')) clean += '\n`';
+            else if (clean.endsWith('`') && !clean.endsWith('``')) clean += '\n``';
+            else clean += '\n```';
+        }
+
+        // Auto-close unclosed inline code (ignoring block backticks)
+        const inlineCodeCount = (clean.replace(/```/g, '').match(/`/g) || []).length;
+        if (inlineCodeCount % 2 !== 0) {
+            clean += '`';
+        }
     }
 
     return { cleanContent: clean.trim() };
@@ -351,6 +328,101 @@ const ChironSourcesPanel = ({ sources }) => {
 };
 // ── END ChironSourcesPanel ─────────────────────────────────────────────────
 
+// ── ThinkingPanel: Live Chain of Thought ────────────────────────────────────
+const ThinkingPanel = React.memo(({ steps, isThinking, thinkingDuration }) => {
+    const [isExpanded, setIsExpanded] = React.useState(true);
+
+    // Auto-collapse when thinking is done and content starts streaming
+    React.useEffect(() => {
+        if (!isThinking && steps.length > 0) {
+            const timer = setTimeout(() => setIsExpanded(false), 800);
+            return () => clearTimeout(timer);
+        }
+    }, [isThinking, steps.length]);
+
+    if (!steps || steps.length === 0) return null;
+
+    const durationText = thinkingDuration
+        ? `${(thinkingDuration / 1000).toFixed(1)}s`
+        : null;
+
+    return (
+        <div className={styles.thinkingWrapper}>
+            <AnimatePresence mode="wait">
+                {!isExpanded ? (
+                    <motion.button
+                        key="badge"
+                        onClick={() => setIsExpanded(true)}
+                        className={styles.thinkingBadge}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                        {durationText ? `Thought for ${durationText}` : 'Thinking...'}
+                        <ChevronRight size={12} />
+                    </motion.button>
+                ) : (
+                    <motion.div
+                        key="panel"
+                        className={styles.thinkingPanel}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    >
+                        <button
+                            className={styles.thinkingPanelHeader}
+                            onClick={() => !isThinking && setIsExpanded(false)}
+                        >
+                            <div className={styles.thinkingPanelTitle}>
+                                {isThinking ? (
+                                    <div className={styles.thinkingPulse} />
+                                ) : (
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                )}
+                                <span>{isThinking ? 'Thinking...' : `Thought for ${durationText || '...'}`}</span>
+                            </div>
+                            {!isThinking && <ChevronDown size={14} className={styles.thinkingChevron} />}
+                        </button>
+                        <div className={styles.thinkingStepsList}>
+                            {steps.map((step, idx) => {
+                                const isLast = idx === steps.length - 1;
+                                const isCurrent = isLast && isThinking;
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`${styles.thinkingStep} ${isCurrent ? styles.thinkingStepActive : styles.thinkingStepDone}`}
+                                    >
+                                        <span className={styles.thinkingStepIcon}>
+                                            {isCurrent ? (
+                                                <span className={styles.thinkingStepPulse}>→</span>
+                                            ) : (
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12"/>
+                                                </svg>
+                                            )}
+                                        </span>
+                                        <span className={styles.thinkingStepText}>{step}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+});
+// ── END ThinkingPanel ──────────────────────────────────────────────────────
+
 const IntelligenceBadge = ({ type, mode }) => {
     // Only show badge for web intelligence (search augmented answers)
     if (!type || type === 'arion') return null;
@@ -569,6 +641,8 @@ export default function ChatBot() {
     }, [activeChatId]);
 
     useEffect(() => {
+        // Skip auto-scroll during active generation — processQueue handles it
+        if (isGenerating) return;
         const timeoutId = setTimeout(() => {
             scrollToBottom();
         }, 100);
@@ -1104,11 +1178,15 @@ export default function ChatBot() {
                         const next = [...prev];
                         const idx = next.length - 1;
                         if (idx >= 0 && next[idx].isStreaming) {
+                            // Only update content — preserve thinkingSteps reference to avoid ThinkingPanel re-render
                             next[idx] = { ...next[idx], content: displayContent };
                         }
                         return next;
                     });
-                    scrollToBottom();
+                    // Only auto-scroll if user hasn't scrolled up
+                    if (isAtBottomRef.current) {
+                        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                    }
                     lastUpdate = now;
                 }
                 
@@ -1130,7 +1208,7 @@ export default function ChatBot() {
             if (!response.ok) throw new Error('Failed to send message');
 
             const aiMsgId = Date.now() + 1;
-            const initialAiMsg = { _id: aiMsgId, role: 'ai', content: '', isStreaming: true, createdAt: new Date() };
+            const initialAiMsg = { _id: aiMsgId, role: 'ai', content: '', isStreaming: true, createdAt: new Date(), thinkingSteps: [], isThinking: true, thinkingDuration: null };
             setMessages(prev => [...prev.filter(m => m.tempId !== tempMsgId), userMsg, initialAiMsg]);
             setIsTyping(false);
 
@@ -1149,6 +1227,37 @@ export default function ChatBot() {
                     if (!line.startsWith('data: ')) continue;
                     try {
                         const data = JSON.parse(line.substring(6).trim());
+
+                        // Chain of Thought: Handle thinking events
+                        if (data.thinking && !isAborted()) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                const idx = next.length - 1;
+                                if (idx >= 0 && next[idx].isStreaming) {
+                                    next[idx] = {
+                                        ...next[idx],
+                                        thinkingSteps: [...(next[idx].thinkingSteps || []), data.thinking],
+                                        isThinking: true
+                                    };
+                                }
+                                return next;
+                            });
+                        }
+                        if (data.thinkingDone && !isAborted()) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                const idx = next.length - 1;
+                                if (idx >= 0 && next[idx].isStreaming) {
+                                    next[idx] = {
+                                        ...next[idx],
+                                        isThinking: false,
+                                        thinkingDuration: data.thinkingDuration || null
+                                    };
+                                }
+                                return next;
+                            });
+                        }
+
                         if (data.token && !isAborted()) {
                             tokenQueue.push(...data.token.split(''));
                             processQueue();
@@ -1497,6 +1606,14 @@ export default function ChatBot() {
                                                 )}
 
                                                 <div className={styles.messageContent}>
+                                                    {/* Chain of Thought Panel */}
+                                                    {msg.role === 'ai' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+                                                        <ThinkingPanel
+                                                            steps={msg.thinkingSteps}
+                                                            isThinking={msg.isThinking}
+                                                            thinkingDuration={msg.thinkingDuration}
+                                                        />
+                                                    )}
                                                     {isGlobalSearch && (
                                                         <div className={styles.searchContextInfo}>
                                                             Found in: <strong>{msg.conversationTitle}</strong>

@@ -224,11 +224,32 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             console.error("Error fetching AI config from DB, using defaults:", confErr.message);
         }
         const { stream = true } = req.body;
+
+        // ── Chain of Thought: SSE helper to emit real processing steps ──
+        const thinkingStartTime = Date.now();
+        let thinkingHeadersSent = false;
+        const emitThinking = (text) => {
+            if (!stream) return;
+            if (!thinkingHeadersSent) {
+                if (!res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.setHeader('Cache-Control', 'no-cache');
+                    res.setHeader('Connection', 'keep-alive');
+                }
+                res.write(`data: ${JSON.stringify({ thinkingStart: thinkingStartTime })}\n\n`);
+                if (res.flush) res.flush();
+                thinkingHeadersSent = true;
+            }
+            res.write(`data: ${JSON.stringify({ thinking: text })}\n\n`);
+            if (res.flush) res.flush();
+        };
+
         try {
             // The conversation and userMsg creation are already done above.
             // Using the already destructured variables from req.body
 
             const hasImage = !!(image_url || (image_urls && image_urls.length > 0));
+            emitThinking('Understanding your question...');
 
             let systemPrompt = aiConfig.systemPrompt;
 
@@ -243,6 +264,11 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             }
 
             // ── Parallel DB fetch: pet profiles + chat history ──
+            if (chatMode === 'aranya' || chatMode === 'chiron') {
+                emitThinking('Loading pet profiles and conversation history...');
+            } else {
+                emitThinking('Loading conversation history...');
+            }
             const [userAnimals, previousMessages] = await Promise.all([
                 chatMode === 'aranya'
                     ? Animal.find({ user_id: req.user.id }).lean().catch(() => [])
@@ -275,6 +301,15 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                 }).join('\n');
                 const petInst = aiConfig.petContextInstruction || "";
                 petContextBlock = `\n\n[PET_PROFILES]\n${petInst}\n${petLines}\n[PET_PROFILES_END]\n`;
+
+                // Chain of Thought: Show which pets were loaded
+                if (userAnimals.length === 1) {
+                    const a = userAnimals[0];
+                    const age = calcAge(a.dob);
+                    emitThinking(`Loaded ${a.name}'s profile (${a.breed}, ${age})`);
+                } else {
+                    emitThinking(`Loaded ${userAnimals.length} pet profiles`);
+                }
             }
 
             if (chatMode === 'aranya') {
@@ -289,6 +324,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             if (chatMode === 'chiron') {
                 try {
                     // Load user animals for context
+                    emitThinking('Loading pet profiles for Chiron context...');
                     const chironAnimals = await Animal.find({ user_id: req.user.id }).lean().catch(() => []);
 
                     // First, always inject pet context ONLY if query seems related to a pet
@@ -310,6 +346,15 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         }).join('\n');
                         petContextBlock = `\n\n[PET_PROFILES]\n${petLines}\n[PET_PROFILES_END]\n`;
                         systemPrompt += petContextBlock;
+
+                        // Chain of Thought: Show Chiron pet profiles loaded
+                        if (chironAnimals.length === 1) {
+                            const a = chironAnimals[0];
+                            const age = calcAge(a.dob);
+                            emitThinking(`Loaded ${a.name}'s profile (${a.breed}, ${age})`);
+                        } else {
+                            emitThinking(`Loaded ${chironAnimals.length} pet profiles`);
+                        }
                     }
 
                     // Direct Internal Search - bypassing port 8006
@@ -321,11 +366,14 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     
                     let relevantDocs = [];
                     if (!isConversational) {
+                        emitThinking('Searching Knowledge Base...');
                         const retrievedDocs = await searchKnowledge(content, topK);
                         // Adaptive TopK: Filter strict relevance and grab at most 3
                         // Adaptive TopK: Filter strict relevance, but respect Admin Portal's topK setting
                         relevantDocs = retrievedDocs.filter(doc => doc.score >= 0.60);
+                        emitThinking(`Found ${relevantDocs.length} relevant document${relevantDocs.length !== 1 ? 's' : ''} in Knowledge Base`);
                     } else {
+                        emitThinking('Skipping Knowledge Base (conversational query)');
                         console.log(`[Chiron] Query skipped: Conversational filler detected ("${content}")`);
                     }
 
@@ -408,6 +456,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     const primaryModelObj = contextHasImage ? (primaryVisionModel || primaryTextModel) : primaryTextModel;
 
                     if (!primaryModelObj) throw new Error("No primary model configured.");
+                    emitThinking(`Consulting ${primaryModelObj.name || primaryModelObj.modelId}...`);
 
                     const primaryOpenai = new OpenAI({
                         apiKey: primaryModelObj.apiKey || aiConfig.primary.apiKey,
@@ -425,6 +474,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     });
                 } catch (pErr) {
                     console.error("Primary GenAI Engine Error:", pErr.message);
+                    emitThinking('Primary engine unavailable, switching to fallback...');
                     useFallback = true;
                 }
             } else {
@@ -439,6 +489,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                     const fallbackModelObj = contextHasImage ? (fallbackVisionModel || fallbackTextModel) : fallbackTextModel;
 
                     if (!fallbackModelObj) throw new Error("No fallback model configured.");
+                    emitThinking(`Consulting ${fallbackModelObj.name || fallbackModelObj.modelId}...`);
 
                     const fallbackOpenai = new OpenAI({
                         apiKey: fallbackModelObj.apiKey || aiConfig.fallback.apiKey,
@@ -482,9 +533,16 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
             if (!completionStream) throw new Error("AI Engines unavailable.");
 
             if (stream) {
-                res.setHeader('Content-Type', 'text/event-stream');
-                res.setHeader('Cache-Control', 'no-cache');
-                res.setHeader('Connection', 'keep-alive');
+                // Headers may already be set by emitThinking
+                if (!res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.setHeader('Cache-Control', 'no-cache');
+                    res.setHeader('Connection', 'keep-alive');
+                }
+
+                // Signal end of thinking phase
+                res.write(`data: ${JSON.stringify({ thinkingDone: true, thinkingDuration: Date.now() - thinkingStartTime })}\n\n`);
+                if (res.flush) res.flush();
 
                 let fullText = "";
                 let sourceMeta = chatMode === 'chiron' ? (chironSources || []) : [];
@@ -518,6 +576,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
                         const searchQuery = searchMatch[1].trim();
                         intelligenceType = 'web';
                         console.log(`[ARANYA_AI] Web search triggered by Node: "${searchQuery}"`);
+                        emitThinking(`Searching the web for "${searchQuery.substring(0, 60)}"...`);
 
                         // Strip the search tag from the initial response
                         const cleanedText = fullText
@@ -538,6 +597,7 @@ router.post('/conversations/:id/messages', [auth, aiLimiter], async (req, res) =
 
                             searchResults = response.data.results || [];
                             console.log(`[ARANYA_AI] Python Search Engine returned ${searchResults.length} results.`);
+                            emitThinking(`Found ${searchResults.length} web source${searchResults.length !== 1 ? 's' : ''}. Synthesizing answer...`);
                         } catch (searchErr) {
                             console.error('[ARANYA_AI] Python Search Error:', searchErr.message);
                             // Fallback: if Python fails, we use internal medical training
