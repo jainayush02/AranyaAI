@@ -15,8 +15,16 @@ let pineconeClient = null;
 let DETECTED_DIMENSION = 1536;
 let PHYSICAL_HOST = 'Discovering...';
 
-const RECOVERY_DIR = path.join(__dirname, '../storage/recovery');
-if (!fs.existsSync(RECOVERY_DIR)) fs.mkdirSync(RECOVERY_DIR, { recursive: true });
+const os = require('os');
+const RECOVERY_DIR = process.env.VERCEL 
+    ? path.join(os.tmpdir(), 'chiron-recovery')
+    : path.join(__dirname, '../storage/recovery');
+
+try {
+    if (!fs.existsSync(RECOVERY_DIR)) fs.mkdirSync(RECOVERY_DIR, { recursive: true });
+} catch (err) {
+    console.warn('[Chiron] Recovery storage initialization skipped (Read-only environment)');
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -258,7 +266,7 @@ router.post('/sync/:id', auth, async (req, res) => {
     
     // Recovery disabled
     const reqFile = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type}`);
-    if (!fs.existsSync(reqFile)) {
+    if (!fs.existsSync(RECOVERY_DIR) || !fs.existsSync(reqFile)) {
         res.status(404).json({ msg: 'Local recovery file is missing/disabled' });
         return;
     }
@@ -276,8 +284,10 @@ router.delete('/purge', auth, async (req, res) => {
         }
 
         await ChironDocument.deleteMany({});
-        const files = fs.readdirSync(RECOVERY_DIR);
-        for (const file of files) fs.unlinkSync(path.join(RECOVERY_DIR, file));
+        if (fs.existsSync(RECOVERY_DIR)) {
+            const files = fs.readdirSync(RECOVERY_DIR);
+            for (const file of files) fs.unlinkSync(path.join(RECOVERY_DIR, file));
+        }
 
         console.log('✅ Chiron: Memory and Database Cleared');
         res.json({ msg: 'Purged' });
@@ -309,7 +319,7 @@ router.delete('/documents/:id', auth, async (req, res) => {
 
         // CLEAN FILES
         const fPath = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type}`);
-        if (fs.existsSync(fPath)) fs.unlinkSync(fPath);
+        if (fs.existsSync(RECOVERY_DIR) && fs.existsSync(fPath)) fs.unlinkSync(fPath);
 
         await ChironDocument.findByIdAndDelete(req.params.id);
         res.json({ msg: 'Deleted' });

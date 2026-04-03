@@ -17,8 +17,11 @@ cloudinary.config({
 });
 
 
-// ── File Upload Config ──────────────────────────────────
-const uploadDir = path.join(process.cwd(), 'src', 'server', 'uploads', 'videos');
+const os = require('os');
+const uploadDir = process.env.VERCEL 
+    ? path.join(os.tmpdir(), 'aranya-video-tmp')
+    : path.join(process.cwd(), 'src', 'server', 'uploads', 'videos');
+
 try {
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 } catch (err) {
