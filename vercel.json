@@ -23,8 +23,16 @@
             "destination": "/src/server/server.js"
         },
         {
+            "source": "/assets/(.*)",
+            "destination": "/src/client/assets/$1"
+        },
+        {
+            "source": "/(.*\\.(?:png|jpg|jpeg|svg|gif|ico|json|txt|md))",
+            "destination": "/src/client/$1"
+        },
+        {
             "source": "/(.*)",
-            "destination": "/index.html"
+            "destination": "/src/client/index.html"
         }
     ]
 }
