@@ -932,18 +932,17 @@
 .inlineModeBtn {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 10px;
-    background: #f1f5f9;
-    border: 1px solid transparent;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid rgba(0,0,0,0.04);
     color: #64748b;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     white-space: nowrap;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .inlineModeBtn:hover {
@@ -1004,11 +1003,11 @@
 .inputWrapper {
     background: #ffffff;
     border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 18px;
-    padding: 0.6rem 0.6rem 0.6rem 1.25rem;
+    border-radius: 30px;
+    padding: 0.35rem 0.4rem 0.35rem 1rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.01), 0 4px 12px rgba(0, 0, 0, 0.03);
 }
@@ -1023,9 +1022,9 @@
     border: none;
     background: transparent;
     outline: none;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #0f172a;
-    padding: 0.6rem 0;
+    padding: 0.45rem 0;
 }
 
 .inputField::placeholder {
@@ -1131,12 +1130,12 @@
 }
 
 .sendBtn {
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
     background: linear-gradient(135deg, var(--primary), #1a4a38);
     color: white;
     border: none;
-    border-radius: 12px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1160,20 +1159,20 @@
 }
 
 .stopBtnInInput {
-    padding: 0 16px;
-    height: 48px;
+    padding: 0 14px;
+    height: 38px;
     background: #ffffff;
     border: 1px solid rgba(0, 0, 0, 0.1);
     color: #475569;
-    border-radius: 24px;
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 500;
     white-space: nowrap;
 }
