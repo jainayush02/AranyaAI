@@ -304,7 +304,14 @@ router.get('/stats', auth, async (req, res) => {
     res.json({ documents: docs, vectorDbStats: { vectors }, dimensions: DETECTED_DIMENSION, host: PHYSICAL_HOST });
 });
 
-router.get('/documents', auth, async (req, res) => res.json(await ChironDocument.find().sort({ uploaded_at: -1 })));
+router.get('/documents', auth, async (req, res) => {
+    // Optimization: Exclude heavy chunk metadata from list view
+    const docs = await ChironDocument.find()
+        .select('-chunks -vector_db_refs')
+        .sort({ uploaded_at: -1 })
+        .lean();
+    res.json(docs);
+});
 
 router.delete('/documents/:id', auth, async (req, res) => {
     try {

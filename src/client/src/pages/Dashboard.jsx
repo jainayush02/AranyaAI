@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate, Navigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise, Calendar } from 'lucide-react';
+import { Activity, ShieldAlert, CheckCircle, Flame, Plus, ThermometerSun, HeartPulse, Search, Sparkles, User, Trash2, CheckSquare, Square, X, Zap, BookOpen, BarChart2, Clock, Sun, Moon, Sunrise, Calendar, RefreshCw } from 'lucide-react';
 import styles from './Dashboard.module.css';
 import AddAnimalDialog from '../components/AddAnimalDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import axios from 'axios';
 import AdvancedLoader from '../components/AdvancedLoader';
 import { useToast } from '../components/ToastProvider';
+import { queryCache } from '../utils/queryCache';
 
 export default function Dashboard() {
     const { role, user } = useOutletContext(); // Get the role and user from Layout
@@ -16,9 +17,11 @@ export default function Dashboard() {
 
 
 
+    const [userProfile, setUserProfile] = useState(null);
     const [isAddAnimalOpen, setIsAddAnimalOpen] = useState(false);
     const [animals, setAnimals] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false); // Phase 4 sync indicator
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 8;
@@ -36,28 +39,63 @@ export default function Dashboard() {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
-            // Data fetches as fast as the network allows
+            // ─── Instant Navigation: Cache Lookup ───
+            const cachedAnimals = queryCache.get('animals_list');
+            const cachedVax = queryCache.get('vax_upcoming');
+            const cachedProfile = queryCache.get('user_profile');
 
-            const res = await axios.get('/api/animals', config);
-            setAnimals(res.data);
+            if (cachedAnimals) setAnimals(cachedAnimals);
+            if (cachedVax) setUpcomingVaccines(cachedVax);
+            if (cachedProfile) {
+                setUserProfile(cachedProfile);
+                setLoading(false); 
+            }
+
+            // Start background revalidation
+            if (cachedAnimals) setIsSyncing(true);
+
+            // ─── Background Revalidation ───
+            const [animalsRes, vaxRes, profileRes] = await Promise.all([
+                axios.get('/api/animals', config),
+                role !== 'admin' ? axios.get('/api/animals/vaccinations/upcoming', config) : Promise.resolve({ data: [] }),
+                role !== 'admin' ? axios.get('/api/auth/profile', config) : Promise.resolve({ data: null })
+            ]);
+
+            setAnimals(animalsRes.data);
+            setUpcomingVaccines(vaxRes.data);
+            
+            // Sync to Global Cache
+            queryCache.set('animals_list', animalsRes.data);
+            queryCache.set('vax_upcoming', vaxRes.data);
+
+            if (profileRes.data) {
+                setUserProfile(profileRes.data);
+                queryCache.set('user_profile', profileRes.data);
+                localStorage.setItem('user', JSON.stringify(profileRes.data));
+            }
             setLoading(false);
+            setIsSyncing(false);
 
-            // Auto-reanalyze all animals' status via AI in background
-            for (const animal of res.data) {
+            // ─── Batch Intelligence Update ───
+            if (animalsRes.data.length > 0) {
                 try {
-                    const recalcRes = await axios.post(
-                        `/api/animals/${animal._id}/reanalyze`, {}, config
-                    );
-                    setAnimals(prev => prev.map(a =>
-                        a._id === animal._id ? { ...a, status: recalcRes.data.animalStatus } : a
-                    ));
-                } catch (recalcErr) {
-                    // AI might not be running, skip silently
+                    const batchRes = await axios.post('/api/animals/reanalyze-batch', {}, config);
+                    if (batchRes.data.results) {
+                        const updatedAnimals = animalsRes.data.map(a => {
+                            const match = batchRes.data.results.find(r => r.id === a._id);
+                            return match ? { ...a, status: match.status } : a;
+                        });
+                        setAnimals(updatedAnimals);
+                        queryCache.set('animals_list', updatedAnimals);
+                    }
+                } catch (batchErr) {
+                    console.warn('[Dashboard] Batch re-analysis failed:', batchErr.message);
                 }
             }
         } catch (err) {
-            console.error(err);
+            console.error('[Dashboard] Critical Data Fetch Failure:', err);
             setLoading(false);
+            setIsSyncing(false);
         }
     }
 
@@ -75,9 +113,6 @@ export default function Dashboard() {
 
     useEffect(() => {
         fetchAnimals();
-        if (role !== 'admin') {
-            fetchUpcomingVaccines();
-        }
     }, [role]);
 
     const handleAddAnimal = async (newAnimalData) => {
@@ -128,7 +163,6 @@ export default function Dashboard() {
         });
     };
 
-    const [userProfile, setUserProfile] = useState(null);
     const fetchProfile = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -144,9 +178,7 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
-        if (role !== 'admin') {
-            fetchProfile();
-        }
+        // fetchProfile removed as it is now integrated into fetchAnimals Promise.all for speed
     }, [role]);
 
 
@@ -197,13 +229,15 @@ export default function Dashboard() {
     const warningStats = animals.filter(a => (a.status || '').toLowerCase() === 'alert' || (a.status || '').toLowerCase() === 'warning').length;
     const critical = animals.filter(a => (a.status || '').toLowerCase() === 'critical').length;
 
-    const filteredAnimals = animals.filter(animal => {
-        const matchesSearch = (animal.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (animal.tag_number || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = filterStatus === 'all' || (animal.status || '').toLowerCase() === filterStatus.toLowerCase() ||
-            (filterStatus === 'warning' && (animal.status || '').toLowerCase() === 'alert');
-        return matchesSearch && matchesStatus;
-    });
+    const filteredAnimals = React.useMemo(() => {
+        return animals.filter(animal => {
+            const matchesSearch = (animal.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (animal.tag_number || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesStatus = filterStatus === 'all' || (animal.status || '').toLowerCase() === filterStatus.toLowerCase() ||
+                (filterStatus === 'warning' && (animal.status || '').toLowerCase() === 'alert');
+            return matchesSearch && matchesStatus;
+        });
+    }, [animals, searchQuery, filterStatus]);
 
     const healthScore = total > 0 ? Math.round((healthy / total) * 100) : 100;
 
@@ -248,10 +282,12 @@ export default function Dashboard() {
         return `${years}y ${months}m`;
     };
 
-    const herdCategories = ['General', ...new Set(animals.map(a => a.category).filter(Boolean).map(c => {
-        const tr = c.trim();
-        return tr.charAt(0).toUpperCase() + tr.slice(1).toLowerCase();
-    }))];
+    const herdCategories = React.useMemo(() => {
+        return ['General', ...new Set(animals.map(a => a.category).filter(Boolean).map(c => {
+            const tr = c.trim();
+            return tr.charAt(0).toUpperCase() + tr.slice(1).toLowerCase();
+        }))];
+    }, [animals]);
 
     if (role === 'admin') {
         return <Navigate to="/admin-portal" replace />;
@@ -271,6 +307,20 @@ export default function Dashboard() {
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <p className={styles.greetLine}>{greeting}, {user?.full_name?.split(' ')[0] || 'Farmer'} 🌿</p>
+                            <AnimatePresence>
+                                {isSyncing && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        className={styles.syncWrapper}
+                                        title="Synchronizing with Aranya Intelligence..."
+                                    >
+                                        <RefreshCw size={14} className={styles.syncIconSpin} />
+                                        <span className={styles.syncText}>Syncing</span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                         <h1 className={styles.greetTitle}>My Aranya Dashboard</h1>
                     </div>
@@ -459,9 +509,9 @@ export default function Dashboard() {
                     {selectedAnimals.length > 0 && (
                         <motion.div
                             className={styles.bulkActionBar}
-                            initial={{ y: 50, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: 50, opacity: 0 }}
+                            initial={{ y: 50, x: "-50%", opacity: 0 }}
+                            animate={{ y: 0, x: "-50%", opacity: 1 }}
+                            exit={{ y: 50, x: "-50%", opacity: 0 }}
                         >
                             <div className={styles.bulkActionInfo}>
                                 <div className={styles.selectionCount}>{selectedAnimals.length} selected</div>

@@ -16,6 +16,7 @@ import AdvancedLoader from '../components/AdvancedLoader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EditAnimalDialog from '../components/EditAnimalDialog';
 import { useToast } from '../components/ToastProvider';
+import { queryCache } from '../utils/queryCache';
 
 const calculateLogStatus = (log, index, allLogs = [], animalLimits = null) => {
     // 🧠 TIER 1: TACTICAL INDIVIDUAL ENGINE (Row-by-Row status)
@@ -404,29 +405,52 @@ export default function AnimalProfile() {
                 const token = localStorage.getItem('token');
                 const config = { headers: { Authorization: `Bearer ${token}` } };
 
-                const [animalRes, logsRes, recordsRes] = await Promise.all([
+                // ─── Instant Navigation: Cache Lookup ───
+                const cacheKey = `animal_${id}`;
+                const cachedData = queryCache.get(cacheKey);
+                
+                if (cachedData) {
+                    setAnimal(cachedData.animal);
+                    setHealthLogs(cachedData.logs);
+                    setMedicalRecords(cachedData.records);
+                    setVaccineSchedule(cachedData.animal?.vaccinationSchedule || []);
+                    setLoading(false);
+                }
+
+                // ─── Background Revalidation ───
+                const [animalRes, logsRes, recordsRes, profileRes] = await Promise.all([
                     axios.get(`/api/animals/${id}`, config),
                     axios.get(`/api/animals/${id}/logs`, config),
-                    axios.get(`/api/animals/${id}/records`, config)
+                    axios.get(`/api/animals/${id}/records`, config),
+                    axios.get('/api/auth/profile', config).catch(() => ({ data: null }))
                 ]);
 
-                setAnimal(animalRes.data);
-                setHealthLogs(logsRes.data);
-                setMedicalRecords(recordsRes.data);
-                setVaccineSchedule(animalRes.data.vaccinationSchedule || []);
-                setLoading(false);
+                const fetchedAnimal = animalRes.data;
+                const fetchedLogs = logsRes.data;
+                const fetchedRecords = recordsRes.data;
 
+                setAnimal(fetchedAnimal);
+                setHealthLogs(fetchedLogs);
+                setMedicalRecords(fetchedRecords);
+                setVaccineSchedule(fetchedAnimal.vaccinationSchedule || []);
+                if (profileRes.data) setUserProfile(profileRes.data);
 
-                // Fetch full limits/usage
-                try {
-                    const profileRes = await axios.get('/api/auth/profile', config);
-                    setUserProfile(profileRes.data);
-                } catch { console.log('Profile sync skipped'); }
+                // Update Cache
+                queryCache.set(cacheKey, { 
+                    animal: fetchedAnimal, 
+                    logs: fetchedLogs, 
+                    records: fetchedRecords 
+                });
 
-                if (logsRes.data.length > 0) {
+                if (fetchedLogs.length > 0) {
                     try {
                         const recalcRes = await axios.post(`/api/animals/${id}/reanalyze`, {}, config);
-                        setAnimal(prev => ({ ...prev, status: recalcRes.data.animalStatus, statusDetail: recalcRes.data.detail }));
+                        setAnimal(prev => {
+                            const updated = { ...prev, status: recalcRes.data.animalStatus, statusDetail: recalcRes.data.detail };
+                            // Sync back to cache with updated status
+                            queryCache.set(cacheKey, { animal: updated, logs: fetchedLogs, records: fetchedRecords });
+                            return updated;
+                        });
                         setAiScore(recalcRes.data.aiErrorScore);
                     } catch (recalcErr) {
                         console.log('AI reanalysis skipped or failed:', recalcErr.message);

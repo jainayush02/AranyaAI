@@ -6,9 +6,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
-const mongoSanitize = require('express-mongo-sanitize');
+const mongoSanitize = require('express-mongo-sanitize'); // Keep if needed for other parts, or remove
 const hpp = require('hpp');
-const xss = require('xss-clean');
 const { logActivity } = require('./utils/logger');
 
 const app = express();
@@ -106,10 +105,29 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// ── Security Middleware: Input Sanitization & Protection (DEBUG: Temporarily disabled) ──
-// app.use(mongoSanitize());
-// app.use(xss());
-// app.use(hpp());
+// ── Security Middleware: Manual Input Sanitization (Safe for Vercel/Node 18+) ──
+// Definitively avoids 'Cannot set property query' TypeError by only targeting mutable keys
+const nosqlSanitize = (v) => {
+    if (v instanceof Object) {
+        for (const key in v) {
+            if (/^\$/.test(key)) {
+                delete v[key];
+            } else {
+                nosqlSanitize(v[key]);
+            }
+        }
+    }
+    return v;
+};
+
+app.use((req, res, next) => {
+    if (req.body) nosqlSanitize(req.body);
+    if (req.params) nosqlSanitize(req.params);
+    next();
+});
+app.use(hpp());
+// xss-clean is older; helmet handles most modern XSS vectors, 
+// using it as an additional layer only if needed.
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
     maxAge: '1d',
@@ -118,6 +136,34 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
         res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"); // Restricted CSP for uploads
     }
 }));
+
+// ── Centralized Error Handling (Hardened) ──
+app.use((err, req, res, next) => {
+    const isProd = process.env.NODE_ENV === 'production';
+    console.error(`[INTERNAL_ERROR] ${err.stack}`);
+    
+    // Privacy: Never reveal server internal stacks in production
+    res.status(err.status || 500).json({
+        message: isProd ? 'A server-side error occurred. Please contact support.' : err.message,
+        error: isProd ? {} : err
+    });
+});
+
+// ── Graceful Shutdown Lifecycle ──
+const gracefulShutdown = async (signal) => {
+    console.log(`\n[${signal}] Received. Shutting down gracefully...`);
+    try {
+        await mongoose.connection.close();
+        console.log('✅ MongoDB: Connection closed.');
+        process.exit(0);
+    } catch (err) {
+        console.error('❌ Shutdown Error:', err);
+        process.exit(1);
+    }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // ── Global Audit Middleware (Optimized) ──
 app.use((req, res, next) => {
@@ -169,11 +215,11 @@ const connectDB = async () => {
         }
     }
 
-    // Optimization: Balanced pool size and timeouts for robustness
+    // Optimization: Balanced pool size and timeouts for robustness (Free Tier Optimized)
     const options = {
         serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
-        maxPoolSize: 10,
+        maxPoolSize: 5,        // Reduced from 10 to 5 to prevent connection exhaustion on Atlas Free Tier
         minPoolSize: 0,
         heartbeatFrequencyMS: 30000,
         connectTimeoutMS: 30000,

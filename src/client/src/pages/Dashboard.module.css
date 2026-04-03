@@ -58,6 +58,35 @@
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
 }
 
+.syncWrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.15);
+    border-radius: 100px;
+    color: #2563eb;
+    cursor: help;
+    user-select: none;
+}
+
+.syncIconSpin {
+    animation: syncSpin 2s linear infinite;
+}
+
+.syncText {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+@keyframes syncSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 
 .greetRight {
     display: flex;
@@ -210,6 +239,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
+    justify-content: center;
 }
 
 .animalCard {
@@ -305,7 +335,7 @@
     position: fixed;
     bottom: 2rem;
     left: 50%;
-    transform: translateX(-50%);
+    /* Centering handled via Framer Motion props to avoid override conflicts */
     background: #1e293b;
     color: white;
     padding: 0.75rem 1.5rem;

@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Animal = require('../models/Animal');
@@ -11,6 +12,7 @@ const { logActivity } = require('../utils/logger');
 const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits } = require('../utils/vitalMonitor');
 const SystemSettings = require('../models/SystemSettings');
 const { OpenAI } = require('openai');
+const { getCachedSettings } = require('../utils/settingsCache');
 
 
 // NEW: Monitor Cache to maintain unique EWMA state for each animal separately
@@ -52,7 +54,10 @@ const upload = multer({
 router.get('/', auth, async (req, res) => {
     try {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        const animals = await Animal.find({ user_id: ownerId }).sort({ createdAt: -1 });
+        const animals = await Animal.find({ user_id: ownerId })
+            .select('-vaccinationSchedule') // Optimization: Heavy schedule not needed in list view
+            .sort({ createdAt: -1 })
+            .lean();
         res.json(animals);
     } catch (err) {
         console.error(err.message);
@@ -66,34 +71,31 @@ router.get('/', auth, async (req, res) => {
 router.get('/vaccinations/upcoming', auth, async (req, res) => {
     try {
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        const animals = await Animal.find({ user_id: ownerId });
+        
+        // --- High-Performance Aggregation Pipeline ---
+        // Offloads O(N*M) calculation from Node.js memory to the MongoDB engine
+        const upcoming = await Animal.aggregate([
+            { $match: { user_id: new mongoose.Types.ObjectId(ownerId) } },
+            { $unwind: "$vaccinationSchedule" },
+            { $match: { "vaccinationSchedule.status": { $ne: "Completed" }, "vaccinationSchedule.dueDate": { $exists: true } } },
+            { $project: {
+                _id: 0,
+                animalId: "$_id",
+                animalName: "$name",
+                breed: "$breed",
+                category: "$category",
+                dob: "$dob",
+                vaccineName: "$vaccinationSchedule.name",
+                dueDate: "$vaccinationSchedule.dueDate",
+                type: "$vaccinationSchedule.type",
+                description: "$vaccinationSchedule.description"
+            }},
+            { $sort: { dueDate: 1 } }
+        ]);
 
-        let upcoming = [];
-
-        animals.forEach(animal => {
-            if (animal.vaccinationSchedule && animal.vaccinationSchedule.length > 0) {
-                animal.vaccinationSchedule.forEach(v => {
-                    if (v.status !== 'Completed' && v.dueDate) {
-                        upcoming.push({
-                            animalId: animal._id,
-                            animalName: animal.name,
-                            breed: animal.breed,
-                            category: animal.category,
-                            dob: animal.dob,
-                            vaccineName: v.name,
-                            dueDate: v.dueDate,
-                            type: v.type,
-                            description: v.description
-                        });
-                    }
-                });
-            }
-        });
-
-        upcoming.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
         res.json(upcoming);
     } catch (err) {
-        console.error(err.message);
+        console.error("Aggregation Fail:", err.message);
         res.status(500).send('Server Error');
     }
 });
@@ -146,7 +148,7 @@ router.post('/', auth, async (req, res) => {
         });
 
         const animal = await newAnimal.save();
-        await logActivity('animal_registry', req.user, `Added new animal: ${name} (${breed})`);
+        logActivity('animal_registry', req.user, `Added new animal: ${name} (${breed})`); // Non-blocking
         res.json(animal);
     } catch (err) {
         console.error('Add Animal Error:', err);
@@ -175,7 +177,7 @@ router.delete('/:id', auth, async (req, res) => {
 
         await Animal.findByIdAndDelete(req.params.id);
         await HealthLog.deleteMany({ animal_id: req.params.id });
-        await logActivity('animal_registry', req.user, `Removed animal: ${animal.name}`);
+        logActivity('animal_registry', req.user, `Removed animal: ${animal.name}`); // Non-blocking
         res.json({ msg: 'Animal removed' });
     } catch (err) {
         console.error(err.message);
@@ -217,7 +219,7 @@ router.put('/:id', auth, async (req, res) => {
             { returnDocument: 'after' }
         );
 
-        await logActivity('animal_registry', req.user, `Updated animal details: ${animal.name}`);
+        logActivity('animal_registry', req.user, `Updated animal details: ${animal.name}`); // Non-blocking
         res.json(animal);
     } catch (err) {
         console.error(err.message);
@@ -235,16 +237,15 @@ router.get('/:id', auth, async (req, res) => {
 
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
         if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
+        
         const ageYears = calculateAgeYears(animal.dob);
         const limits = getLimits(animal.category, animal.breed, ageYears, animal.gender);
 
-        // Check if CareCycle AI is enabled globally
-        const vaxSettings = await SystemSettings.findOne({ key: 'ai_config_v2' }).lean();
-        const careCycleEnabled = vaxSettings?.value?.vaccinePrimary?.enabled || false;
+        // --- Caching Insight: Rapid setting lookup ---
+        const vaxSettings = await getCachedSettings('ai_config_v2');
+        const careCycleEnabled = vaxSettings?.chiron?.enabled || vaxSettings?.vaccinePrimary?.enabled || false;
 
-        // Merge limits and feature-flags into the response
         res.json({ ...animal.toObject(), limits, careCycleEnabled });
-
     } catch (err) {
         if (err.kind === 'ObjectId') return res.status(404).json({ msg: 'Animal not found' });
         res.status(500).send('Server Error');
@@ -256,13 +257,8 @@ router.get('/:id', auth, async (req, res) => {
 // @access  Private
 router.get('/:id/logs', auth, async (req, res) => {
     try {
-        const animal = await Animal.findById(req.params.id);
-        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
-
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
-        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) return res.status(401).json({ msg: 'Not authorized' });
-
-        const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 });
+        const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).lean();
         res.json(logs);
     } catch (err) {
         res.status(500).send('Server Error');
@@ -296,9 +292,8 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
             gender: animal.gender ? animal.gender.toLowerCase() : null
         };
 
-        // 🧪 AI ENGINE SELECTOR logic
-        const settings = await SystemSettings.findOne({ key: 'ai_active_engine' });
-        const activeEngine = settings?.value || 'scientist_js';
+        // 🧪 AI ENGINE SELECTOR logic - Using Optimized Cache
+        const activeEngine = await getCachedSettings('ai_active_engine') || 'scientist_js';
 
         let result = { status: 'HEALTHY', detail: 'No data' };
 
@@ -340,7 +335,47 @@ router.post('/:id/reanalyze', auth, async (req, res) => {
         });
     } catch (err) {
         console.error("Reanalyze Error:", err);
-        res.status(500).json({ msg: 'Reanalyze failed', error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined });
+        res.status(500).json({ msg: 'Reanalyze failed', error: err.message });
+    }
+});
+
+// @route   POST /api/animals/reanalyze-batch
+// @desc    Optimized batch re-analysis to prevent N+1 frontend requests
+// @access  Private
+router.post('/reanalyze-batch', auth, async (req, res) => {
+    try {
+        const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        const animals = await Animal.find({ user_id: ownerId });
+        
+        const activeEngine = await getCachedSettings('ai_active_engine') || 'scientist_js';
+        
+        const results = [];
+        for (const animal of animals) {
+            const logs = await HealthLog.find({ animal_id: animal._id }).sort({ createdAt: -1 }).limit(12).lean();
+            if (logs.length === 0) continue;
+
+            const ageYears = calculateAgeYears(animal.dob);
+            const profile = { species: animal.category, breed: animal.breed, age_years: ageYears, gender: animal.gender?.toLowerCase() };
+            
+            const reanalyzeMonitor = new MLEngineeredMonitor();
+            const chronologicalLogs = [...logs].reverse();
+            let monitorResult;
+            
+            for (const log of chronologicalLogs) {
+                const rawVitals = { hr: log.heartRate, rr: log.respiratoryRate, temp_c: log.temperature, spo2: log.spo2 };
+                monitorResult = reanalyzeMonitor.processTelemetry(profile, rawVitals, mapActivityLevel(log.activityLevel), log.ambientTemperature || 22);
+            }
+
+            if (monitorResult) {
+                animal.status = monitorResult.status;
+                animal.statusDetail = monitorResult.detail;
+                await animal.save();
+                results.push({ id: animal._id, status: animal.status });
+            }
+        }
+        res.json({ results, engine: activeEngine });
+    } catch (err) {
+        res.status(500).json({ msg: 'Batch re-analysis failed' });
     }
 });
 
@@ -459,9 +494,8 @@ router.post('/:id/logs', auth, async (req, res) => {
         const activity = mapActivityLevel(activityLevel);
         const ambient_temp = !isNaN(parseFloat(ambientTemperature)) ? parseFloat(ambientTemperature) : 22.0;
 
-        // ─── AI ENGINE SELECTOR ───
-        const settings = await SystemSettings.findOne({ key: 'ai_active_engine' });
-        const activeEngine = settings?.value || 'scientist_js';
+        // ─── AI ENGINE SELECTOR (Optimized Cache) ───
+        const activeEngine = await getCachedSettings('ai_active_engine') || 'scientist_js';
 
         let monitorResult;
         if (activeEngine === 'legacy_python') {

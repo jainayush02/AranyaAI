@@ -72,5 +72,6 @@ const ChironDocumentSchema = new mongoose.Schema({
         summary: String
     }
 }, { timestamps: true });
+ChironDocumentSchema.index({ user_id: 1, uploaded_at: -1 });
 
 module.exports = mongoose.model('ChironDocument', ChironDocumentSchema);

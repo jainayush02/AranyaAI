@@ -89,5 +89,6 @@ const animalSchema = new mongoose.Schema({
 });
 
 animalSchema.index({ user_id: 1, createdAt: -1 });
+animalSchema.index({ user_id: 1, status: 1 }); // Optimized for status filtering on Dashboard
 
 module.exports = mongoose.model('Animal', animalSchema);
