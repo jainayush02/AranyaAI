@@ -10,7 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@pinecone-database/pinecone": "^4.1.0",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
@@ -18,11 +17,9 @@
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "duck-duck-scrape": "^2.2.7",
     "express": "^5.2.1",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.3.1",
-    "fs": "^0.0.1-security",
     "google-auth-library": "^10.6.1",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
@@ -34,9 +31,7 @@
     "nodemailer": "^8.0.1",
     "openai": "^6.25.0",
     "pdf-parse": "^1.1.1",
-    "razorpay": "^2.9.6",
-    "twilio": "^5.12.2",
-    "xss-clean": "^0.1.4"
+    "twilio": "^5.12.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

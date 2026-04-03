@@ -257,7 +257,14 @@ router.get('/:id', auth, async (req, res) => {
 // @access  Private
 router.get('/:id/logs', auth, async (req, res) => {
     try {
+        const animal = await Animal.findById(req.params.id).select('user_id');
+        if (!animal) return res.status(404).json({ msg: 'Animal not found' });
+
         const ownerId = req.user.role === 'caretaker' ? req.user.managedBy : req.user.id;
+        if (!ownerId || !animal.user_id || animal.user_id.toString() !== ownerId.toString()) {
+            return res.status(404).json({ msg: 'Animal not found' });
+        }
+
         const logs = await HealthLog.find({ animal_id: req.params.id }).sort({ createdAt: -1 }).lean();
         res.json(logs);
     } catch (err) {
