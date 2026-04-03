@@ -280,6 +280,16 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/plans', require('./routes/plans'));
 app.use('/api/chiron', require('./routes/chiron').router);
 
+app.use((err, req, res, next) => {
+    const isProd = process.env.NODE_ENV === 'production';
+    console.error(`[INTERNAL_ERROR] ${err.stack}`);
+
+    res.status(err.status || 500).json({
+        message: isProd ? 'A server-side error occurred. Please contact support.' : err.message,
+        error: isProd ? {} : err
+    });
+});
+
 // Start local server
 const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'production') {

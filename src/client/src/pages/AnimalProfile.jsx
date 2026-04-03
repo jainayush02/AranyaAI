@@ -6,7 +6,7 @@ import {
     ThermometerSun, HeartPulse, Save, RefreshCw, Download, FileText, Upload, AlertCircle,
     Trash2, Calendar, Zap, ShieldAlert, FolderHeart, Utensils, Activity, Plus, Gauge,
     Venus, Mars, Dna, HelpCircle, Edit, HardDrive, MapPin, CloudSun, Sparkles, X, Check,
-    ShieldCheck, Syringe, CheckCircle, Circle, Cpu, RotateCcw
+    ShieldCheck, Syringe, CheckCircle, Circle, Cpu, RotateCcw, Clock
 } from 'lucide-react';
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';

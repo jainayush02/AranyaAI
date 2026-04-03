@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react'
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import { GoogleOAuthProvider } from '@react-oauth/google'
@@ -59,6 +59,27 @@ const PrivateRoute = ({ children }) => {
   return children;
 };
 
+const AdminRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const storedUser = localStorage.getItem('user');
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    if (user?.role !== 'admin') {
+      return <Navigate to="/" replace />;
+    }
+  } catch {
+    localStorage.removeItem('user');
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
 // Simple loading indicator for Suspense fallback
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -84,7 +105,11 @@ function App() {
                 </PrivateRoute>
               }>
                 <Route index element={<Dashboard />} />
-                <Route path="admin-portal" element={<AdminPortal />} />
+                <Route path="admin-portal" element={
+                  <AdminRoute>
+                    <AdminPortal />
+                  </AdminRoute>
+                } />
                 <Route path="profile" element={<Profile />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="billing" element={<Billing />} />

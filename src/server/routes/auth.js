@@ -485,7 +485,7 @@ router.post('/admin-login', authLimiter, async (req, res) => {
 // @desc  Get current user profile
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('-password').lean();
+        const user = await User.findById(req.user.id).select('-password -otp -otpExpires').lean();
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         const mongoose = require('mongoose');
@@ -494,17 +494,45 @@ router.get('/profile', authMiddleware, async (req, res) => {
 
         if (user.plan) {
             const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
-            if (planDoc) planRules = planDoc;
+            if (planDoc) {
+                planRules = planDoc;
+                user.planName = planDoc.name;
+            }
         } else {
             const defaultPlan = await PlanModel.findOne({ isDefault: true }).lean();
             if (defaultPlan) {
                 planRules = defaultPlan;
                 user.plan = defaultPlan.code;
+                user.planName = defaultPlan.name;
                 await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
             }
         }
 
         user.limits = { ...planRules, ...(user.planOverrides || {}) };
+
+        if (user.role === 'caretaker') {
+            const manager = await mongoose.model('User').findById(user.managedBy).select('usage').lean();
+            user.usage = manager?.usage || { storageBytes: 0 };
+        } else if (!user.usage || user.usage.storageBytes === 0) {
+            try {
+                const stats = await MedicalRecord.aggregate([
+                    { $match: { user_id: new mongoose.Types.ObjectId(req.user.id.toString()) } },
+                    { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
+                ]);
+                const total = (stats && stats.length > 0) ? stats[0].totalSize : 0;
+
+                if (total > 0) {
+                    await mongoose.model('User').findByIdAndUpdate(req.user.id, { "usage.storageBytes": total });
+                    user.usage = { storageBytes: total };
+                } else {
+                    user.usage = { storageBytes: 0 };
+                }
+            } catch (err) {
+                user.usage = { storageBytes: 0 };
+            }
+        } else if (!user.usage) {
+            user.usage = { storageBytes: 0 };
+        }
 
         res.json(user);
     } catch (error) {
@@ -1283,71 +1311,6 @@ router.post('/verify-email/confirm', authMiddleware, async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
-
-// @route GET /api/auth/profile
-// @desc  Get current user profile
-router.get('/profile', authMiddleware, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password -otp -otpExpires').lean();
-        if (!user) return res.status(404).json({ message: 'User not found' });
-
-        const mongoose = require('mongoose');
-        const PlanModel = mongoose.model('Plan');
-        let planRules = {};
-
-        if (user.plan) {
-            const planDoc = await PlanModel.findOne({ code: user.plan }).lean();
-            if (planDoc) {
-                planRules = planDoc;
-                user.planName = planDoc.name; // Dynamic name from DB
-            }
-        } else {
-            const defaultPlan = await PlanModel.findOne({ isDefault: true }).lean();
-            if (defaultPlan) {
-                planRules = defaultPlan;
-                user.plan = defaultPlan.code;
-                user.planName = defaultPlan.name;
-                await mongoose.model('User').findByIdAndUpdate(req.user.id, { plan: defaultPlan.code });
-            }
-        }
-
-        user.limits = { ...planRules, ...(user.planOverrides || {}) };
-
-        // High-Performance Storage Logic with Self-Healing Sync
-        if (req.user.role === 'caretaker') {
-            const manager = await mongoose.model('User').findById(req.user.managedBy).select('usage');
-            user.usage = manager ? manager.usage : { storageBytes: 0 };
-        } else if (!user.usage || user.usage.storageBytes === 0) {
-            // Self-Healing: If counter is zero, perform one-time background sync
-            try {
-                const stats = await MedicalRecord.aggregate([
-                    { $match: { user_id: new mongoose.Types.ObjectId(req.user.id.toString()) } },
-                    { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 512000] } } } }
-                ]);
-                const total = (stats && stats.length > 0) ? stats[0].totalSize : 0;
-
-                if (total > 0) {
-                    await mongoose.model('User').findByIdAndUpdate(req.user.id, { "usage.storageBytes": total });
-                    user.usage = { storageBytes: total };
-                } else {
-                    user.usage = { storageBytes: 0 };
-                }
-            } catch (err) {
-                user.usage = { storageBytes: 0 };
-            }
-        } else {
-            // Standard Production Load: Fast O(1) read
-            if (!user.usage) user.usage = { storageBytes: 0 };
-        }
-
-        res.json(user);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server Error' });
-    }
-});
-
-// ── Care Circle Management Routes ──
 
 // @route GET /api/auth/care-circle
 // @desc  Get all members of the care circle managed by the current user
