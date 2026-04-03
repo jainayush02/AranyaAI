@@ -13,22 +13,18 @@
             "use": "@vercel/node"
         }
     ],
-    "routes": [
+    "rewrites": [
         {
-            "src": "/api/(.*)",
-            "dest": "/src/server/server.js"
+            "source": "/api/(.*)",
+            "destination": "https://aranya-backend-x0qy.onrender.com/api/$1"
         },
         {
-            "src": "/uploads/(.*)",
-            "dest": "/src/server/server.js"
+            "source": "/uploads/(.*)",
+            "destination": "https://aranya-backend-x0qy.onrender.com/uploads/$1"
         },
         {
-            "src": "/(.*\\..*)",
-            "dest": "/src/client/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/src/client/index.html"
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
     ]
 }
