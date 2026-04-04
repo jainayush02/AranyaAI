@@ -236,6 +236,7 @@ class AnimalsService {
             }
         } else {
             const reanalyzeMonitor = getMonitor(animalId);
+            reanalyzeMonitor.reset(); // (Fix 1: Fresh Slate for Reanalysis)
             for (const log of [...logs].reverse()) {
                 const rawVitals = { hr: parseFloat(log.heartRate) || 70, rr: parseFloat(log.respiratoryRate) || 20, temp_c: parseFloat(log.temperature) || 38.5, spo2: parseFloat(log.spo2) || 98 };
                 result = reanalyzeMonitor.processTelemetry(profile, rawVitals, mapActivityLevel(log.activityLevel), parseFloat(log.ambientTemperature) || 22.0);

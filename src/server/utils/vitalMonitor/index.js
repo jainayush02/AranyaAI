@@ -13,6 +13,7 @@ module.exports = {
     vital_limits,
     getLimits,
     MLEngineeredMonitor,
+    getMonitor,
     calculateAgeYears,
     mapActivityLevel
 };

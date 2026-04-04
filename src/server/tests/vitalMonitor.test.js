@@ -1,6 +1,4 @@
-const { getLimits } = require('../utils/vitalMonitor/getLimits');
-const { MLEngineeredMonitor } = require('../utils/vitalMonitor/MLEngineeredMonitor');
-const helpers = require('../utils/vitalMonitor/helpers');
+const { getLimits, MLEngineeredMonitor, calculateAgeYears, mapActivityLevel } = require('../utils/vitalMonitor');
 
 describe('getLimits', () => {
     test('returns correct row for exact breed + age + gender', () => {

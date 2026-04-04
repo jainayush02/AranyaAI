@@ -1,5 +1,4 @@
-const { getMonitor } = require('../utils/vitalMonitor/MLEngineeredMonitor');
-const { getLimits } = require('../utils/vitalMonitor/getLimits');
+const { getMonitor, getLimits } = require('../utils/vitalMonitor');
 
 describe('🔥 AranyaAI - Hard Core Health Monitoring Stress Test', () => {
     
