@@ -6,7 +6,7 @@
  */
 
 const { vital_limits, getLimits } = require('./getLimits');
-const { MLEngineeredMonitor } = require('./MLEngineeredMonitor');
+const { MLEngineeredMonitor, getMonitor } = require('./MLEngineeredMonitor');
 const { calculateAgeYears, mapActivityLevel } = require('./helpers');
 
 module.exports = {

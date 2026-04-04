@@ -15,13 +15,19 @@ const authLimiter = rateLimit({
 
 const authMiddleware = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Authentication required' });
+    if (!token) return res.status(401).json({ msg: 'Authentication required', code: 'AUTH_ERROR' });
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded.user;
         next();
-    } catch {
-        return res.status(401).json({ message: 'Invalid or expired token' });
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({ msg: 'Token expired', code: 'TOKEN_EXPIRED' });
+        }
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(401).json({ msg: 'Token is malformed', code: 'TOKEN_INVALID' });
+        }
+        res.status(401).json({ msg: 'Authorization failed', code: 'AUTH_ERROR' });
     }
 };
 
@@ -38,7 +44,7 @@ const upload = multer({
 });
 
 // @route POST /api/auth/request-otp
-router.post('/request-otp', AuthController.requestOTP);
+router.post('/request-otp', authLimiter, AuthController.requestOTP);
 
 // @route POST /api/auth/register
 router.post('/register', authLimiter, AuthController.register);
@@ -47,7 +53,7 @@ router.post('/register', authLimiter, AuthController.register);
 router.post('/login', authLimiter, AuthController.login);
 
 // @route POST /api/auth/admin-login
-router.post('/admin-login', AuthController.adminLogin);
+router.post('/admin-login', authLimiter, AuthController.adminLogin);
 
 // @route POST /api/auth/google
 router.post('/google', AuthController.googleLogin);
