@@ -119,7 +119,21 @@ class AuthService {
             $or: [email ? { email } : null, mobile ? { mobile } : null].filter(Boolean)
         });
 
-        if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
+        if (user && user.isVerified) {
+            throw new Error('User already exists');
+        }
+
+        if (!user) {
+            user = new User({
+                email: email || undefined,
+                mobile: mobile || undefined,
+                otp,
+                otpExpires: new Date(Date.now() + 600000), // 10 minutes
+                isVerified: false
+            });
+        }
+
+        if (user.otp !== otp || user.otpExpires < Date.now()) {
             throw new Error('Invalid or expired OTP');
         }
 

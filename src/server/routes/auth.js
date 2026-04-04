@@ -6,9 +6,11 @@ const rateLimit = require('express-rate-limit');
 const AuthController = require('../controllers/auth.controller');
 
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' }
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,                   // max 10 attempts per window
+    message: { msg: 'Too many attempts, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false
 });
 
 const authMiddleware = (req, res, next) => {
@@ -36,7 +38,7 @@ const upload = multer({
 });
 
 // @route POST /api/auth/request-otp
-router.post('/request-otp', authLimiter, AuthController.requestOTP);
+router.post('/request-otp', AuthController.requestOTP);
 
 // @route POST /api/auth/register
 router.post('/register', authLimiter, AuthController.register);
@@ -45,13 +47,13 @@ router.post('/register', authLimiter, AuthController.register);
 router.post('/login', authLimiter, AuthController.login);
 
 // @route POST /api/auth/admin-login
-router.post('/admin-login', authLimiter, AuthController.adminLogin);
+router.post('/admin-login', AuthController.adminLogin);
 
 // @route POST /api/auth/google
-router.post('/google', authLimiter, AuthController.googleLogin);
+router.post('/google', AuthController.googleLogin);
 
 // @route POST /api/auth/google-admin
-router.post('/google-admin', authLimiter, AuthController.googleAdminLogin);
+router.post('/google-admin', AuthController.googleAdminLogin);
 
 // @route GET /api/auth/profile
 router.get('/profile', authMiddleware, AuthController.getProfile);
