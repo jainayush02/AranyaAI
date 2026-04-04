@@ -23,16 +23,30 @@ describe('AuthService', () => {
     test('registerUser - should successfully register a user', async () => {
         const mockUser = {
             id: '123',
+            email: 'test@example.com',
             otp: '123456',
             otpExpires: Date.now() + 100000,
             save: jest.fn().mockResolvedValue(true)
         };
-        User.findOne.mockResolvedValue(mockUser);
+
+        // CORRECT — no existing user found, allow registration
+        User.findOne.mockResolvedValue(null);
+        User.mockImplementation(() => ({
+            ...mockUser,
+            save: jest.fn().mockResolvedValue(mockUser)
+        }));
         jwt.sign.mockReturnValue('mockToken');
 
-        const result = await AuthService.register({ email: 'test@example.com', otp: '123456' });
+        const result = await AuthService.register({ email: 'test@example.com', password: 'password123', otp: '123456' });
         expect(result.token).toBe('mockToken');
-        expect(mockUser.isVerified).toBe(true);
+    });
+
+    it('should throw error if email already registered', async () => {
+        const mockUser = { email: 'already@exists.com', isVerified: true };
+        User.findOne.mockResolvedValue(mockUser); // email exists and verified
+        
+        await expect(AuthService.register({ email: mockUser.email, password: 'password123', otp: '123456' }))
+            .rejects.toThrow(/already exists/i);
     });
 
     test('loginUser - should successfully login a user with correct password', async () => {

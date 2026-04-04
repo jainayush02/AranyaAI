@@ -11,10 +11,12 @@ const SystemSettings = require('../models/SystemSettings');
 const { OpenAI } = require('openai');
 const axios = require('axios');
 
-const healthMonitors = new Map();
-const getMonitorForAnimal = (animalId) => {
-    if (!healthMonitors.has(animalId.toString())) healthMonitors.set(animalId.toString(), new MLEngineeredMonitor());
-    return healthMonitors.get(animalId.toString());
+const monitorInstances = new Map();
+const getMonitor = (animalId) => {
+    if (!monitorInstances.has(animalId.toString())) {
+        monitorInstances.set(animalId.toString(), new MLEngineeredMonitor());
+    }
+    return monitorInstances.get(animalId.toString());
 };
 
 class AnimalsService {
@@ -166,7 +168,7 @@ class AnimalsService {
                 monitorResult = { status: 'ALERT', detail: 'V1 CORE: Engine Offline (Fallback Mode)', aiErrorScore: 0.5 };
             }
         } else {
-            const monitor = getMonitorForAnimal(animalId);
+            const monitor = getMonitor(animalId);
             monitorResult = monitor.processTelemetry(profile, rawVitals, activity, parseFloat(data.ambientTemperature) || 22.0);
             monitorResult.detail = `V2 NEURAL: ${monitorResult.detail}`;
         }
@@ -241,7 +243,7 @@ class AnimalsService {
                 result = { status: 'ALERT', detail: 'V1 Reanalysis: Engine Unreachable', aiErrorScore: 0.5 };
             }
         } else {
-            const reanalyzeMonitor = new MLEngineeredMonitor();
+            const reanalyzeMonitor = getMonitor(animalId);
             for (const log of [...logs].reverse()) {
                 const rawVitals = { hr: parseFloat(log.heartRate) || 70, rr: parseFloat(log.respiratoryRate) || 20, temp_c: parseFloat(log.temperature) || 38.5, spo2: parseFloat(log.spo2) || 98 };
                 result = reanalyzeMonitor.processTelemetry(profile, rawVitals, mapActivityLevel(log.activityLevel), parseFloat(log.ambientTemperature) || 22.0);
