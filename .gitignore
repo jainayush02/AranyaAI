@@ -29,3 +29,7 @@ src/server/storage/
 # Editor
 .vscode/
 .idea/
+
+# Stray lock files
+src/package-lock.json
+src/yarn.lock

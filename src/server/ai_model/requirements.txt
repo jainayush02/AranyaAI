@@ -10,3 +10,6 @@ gunicorn
 duckduckgo-search
 requests
 wikipedia-api
+
+pytest
+pytest-flask

@@ -9,9 +9,10 @@ const SystemSettings = require('../models/SystemSettings');
 const SystemMetrics = require('../models/SystemMetrics');
 const axios = require('axios');
 const { logActivity } = require('../utils/logger');
+const { clearCache } = require('../utils/settingsCache');
 // Trigger chiron re-init when config changes
 let chironRoute;
-try { chironRoute = require('./chiron'); } catch(e) {} 
+try { chironRoute = require('./chiron'); } catch (e) { }
 
 
 // ── Middleware ──────────────────────────────────────────
@@ -735,7 +736,11 @@ router.get('/config/ai', authenticate, adminOnly, async (req, res) => {
                         { id: 'p1', name: 'Primary Text Model', type: 'text', modelId: 'Qwen/Qwen2.5-7B-Instruct' },
                         { id: 'p2', name: 'Vision/Image Model', type: 'vision', modelId: 'Qwen/Qwen2.5-VL-7B-Instruct' }
                     ],
-                    enabled: true
+                    enabled: true,
+                    temperature: 0.7,
+                    maxTokens: 1200,
+                    frequencyPenalty: 0.5,
+                    presencePenalty: 0.3
                 },
                 fallback: {
                     provider: 'OpenRouter',
@@ -745,7 +750,11 @@ router.get('/config/ai', authenticate, adminOnly, async (req, res) => {
                     models: [
                         { id: 'f1', name: 'Fallback Text Model', type: 'text', modelId: 'google/gemma-3-12b-it:free' }
                     ],
-                    enabled: true
+                    enabled: true,
+                    temperature: 0.7,
+                    maxTokens: 1200,
+                    frequencyPenalty: 0.5,
+                    presencePenalty: 0.3
                 },
                 vaccinePrimary: {
                     provider: 'Hugging Face',
@@ -844,6 +853,7 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
 
         const vaxStatus = newValue.vaccinePrimary?.enabled ? 'ON' : 'OFF';
         await log(req, 'admin', `Updated AI Model Configuration (Hybrid Vax Routing: ${vaxStatus})`);
+        clearCache(); // Force immediate updates across all services
         res.json(settings.value);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -873,6 +883,7 @@ router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
         );
         console.log(`[AI_ENGINE] Successfully switched to: ${engine}`);
         await log(req, 'admin', `Switched AI Health Engine to: ${engine}`);
+        clearCache(); // Invalidate settings cache to apply switch immediately
         res.json({ message: 'AI Engine updated successfully', engine });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });

@@ -224,102 +224,72 @@ const ChironSourcesPanel = ({ sources }) => {
         return true;
     });
 
-    const getFileIcon = (fileType) => {
-        if (fileType === 'pdf') return (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-            </svg>
-        );
-        if (fileType === 'docx' || fileType === 'doc') return (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-        );
-        // URL / web
-        return (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="2" y1="12" x2="22" y2="12"/>
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
-        );
+    const getFileIcon = (fileType, fileName = '') => {
+        const lowerName = fileName.toLowerCase();
+        if (fileType === 'pdf' || lowerName.endsWith('.pdf')) return <FileText size={14} color="#ef4444" />;
+        if (fileType === 'docx' || fileType === 'doc' || lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) return <FileText size={14} color="#2563eb" />;
+        if (fileType === 'url' || lowerName.startsWith('http')) return <Globe size={14} color="#10b981" />;
+        return <FileText size={14} color="#94a3b8" />;
     };
 
     const handleClick = (src) => {
         const isUrl = !!src.source_url || (!src.file_type || src.file_type === 'url');
         if (isUrl && src.source_url) {
             window.open(src.source_url, '_blank', 'noopener,noreferrer');
-        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc') {
-            // Trigger download via backend endpoint
+        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc' || (src.title && (src.title.endsWith('.pdf') || src.title.endsWith('.docx')))) {
             const link = document.createElement('a');
             link.href = `/api/chiron/download?name=${encodeURIComponent(src.title || src.source)}`;
             link.download = src.title || src.source;
             link.click();
-        } else if (src.source_url) {
-            window.open(src.source_url, '_blank', 'noopener,noreferrer');
         }
-        // else: local doc with no download URL — do nothing (or show a toast)
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
             {unique.map((src, idx) => {
-                const isUrl = !!src.source_url && !src.file_type;
-                const label = src.title || src.source || 'Knowledge Base Document';
-                const fileType = src.file_type || (src.source_url ? 'url' : 'doc');
-                const isClickable = !!src.source_url || ['pdf', 'docx', 'doc'].includes(src.file_type);
+                const label = src.title || src.source || 'Evidence Document';
+                const lowerLabel = label.toLowerCase();
+                const isPdf = src.file_type === 'pdf' || lowerLabel.endsWith('.pdf');
+                const isWord = src.file_type === 'doc' || src.file_type === 'docx' || lowerLabel.endsWith('.doc') || lowerLabel.endsWith('.docx');
+                
+                const typeLabel = isPdf ? 'PDF Ref' : isWord ? 'Doc Ref' : 'Clinical Record';
 
                 return (
                     <div
                         key={idx}
-                        onClick={() => isClickable && handleClick(src)}
-                        title={isClickable ? (isUrl ? 'Open URL in new tab' : 'Download document') : label}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px',
-                            padding: '7px 10px',
+                            padding: '8px 12px',
                             background: '#f8fafc',
                             borderRadius: '10px',
-                            border: '1px solid #f1f5f9',
-                            cursor: isClickable ? 'pointer' : 'default',
-                            transition: 'background 0.15s',
+                            border: '1px solid #e2e8f0',
+                            maxWidth: 'max-content',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
                         }}
-                        onMouseOver={e => { if (isClickable) e.currentTarget.style.background = '#f1f5f9'; }}
-                        onMouseOut={e => { e.currentTarget.style.background = '#f8fafc'; }}
                     >
                         <div style={{
-                            width: '26px', height: '26px', background: '#fff',
-                            borderRadius: '7px', display: 'flex', alignItems: 'center',
+                            width: '24px', height: '24px', background: '#fff',
+                            borderRadius: '6px', display: 'flex', alignItems: 'center',
                             justifyContent: 'center', flexShrink: 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                            border: '1px solid #f1f5f9'
                         }}>
-                            {getFileIcon(fileType)}
+                            {getFileIcon(src.file_type, label)}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{
-                                fontSize: '0.72rem', fontWeight: 600, color: '#1e293b',
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                fontSize: '0.72rem', fontWeight: 700, color: '#1e293b',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             }}>
                                 {label}
                             </div>
-                            <div style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 500 }}>
-                                {fileType === 'pdf' ? 'PDF · Click to download'
-                                    : fileType === 'docx' || fileType === 'doc' ? 'Word Doc · Click to download'
-                                    : src.source_url ? 'URL · Click to open'
-                                    : 'Knowledge Base'}
+                            <div style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ color: isPdf ? '#ef4444' : isWord ? '#2563eb' : '#64748b' }}>{typeLabel}</span>
+                                <span>•</span>
+                                <span>Grounding Source</span>
                             </div>
                         </div>
-                        {isClickable && (
-                            <ExternalLink size={12} color="#cbd5e1" />
-                        )}
                     </div>
                 );
             })}
@@ -329,22 +299,25 @@ const ChironSourcesPanel = ({ sources }) => {
 // ── END ChironSourcesPanel ─────────────────────────────────────────────────
 
 // ── ThinkingPanel: Live Chain of Thought ────────────────────────────────────
-const ThinkingPanel = React.memo(({ steps, isThinking, thinkingDuration }) => {
+const ThinkingPanel = React.memo(({ steps, reasoningText, isThinking, isGenerating, thinkingDuration }) => {
     const [isExpanded, setIsExpanded] = React.useState(true);
+    const durationText = thinkingDuration ? `${(thinkingDuration / 1000).toFixed(1)}s` : null;
 
-    // Auto-collapse when thinking is done and content starts streaming
+    // Auto-collapse when answer is fully generated
     React.useEffect(() => {
-        if (!isThinking && steps.length > 0) {
-            const timer = setTimeout(() => setIsExpanded(false), 800);
+        if (!isThinking && !isGenerating && steps.length > 0) {
+            const timer = setTimeout(() => setIsExpanded(false), 1500);
             return () => clearTimeout(timer);
         }
-    }, [isThinking, steps.length]);
+    }, [isThinking, isGenerating, steps.length]);
 
     if (!steps || steps.length === 0) return null;
 
-    const durationText = thinkingDuration
-        ? `${(thinkingDuration / 1000).toFixed(1)}s`
-        : null;
+    const getHeaderText = () => {
+        if (isThinking) return 'Thinking...';
+        if (isGenerating) return 'Writing...';
+        return durationText ? `Thought for ${durationText}` : 'Thought';
+    };
 
     return (
         <div className={styles.thinkingWrapper}>
@@ -359,58 +332,46 @@ const ThinkingPanel = React.memo(({ steps, isThinking, thinkingDuration }) => {
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ duration: 0.2, ease: 'easeOut' }}
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 16v-4"/>
-                            <path d="M12 8h.01"/>
-                        </svg>
-                        {durationText ? `Thought for ${durationText}` : 'Thinking...'}
+                        {getHeaderText()}
                         <ChevronRight size={12} />
                     </motion.button>
                 ) : (
                     <motion.div
                         key="panel"
-                        className={styles.thinkingPanel}
+                        className={styles.thinkingTimeline}
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.25, ease: 'easeInOut' }}
                     >
                         <button
-                            className={styles.thinkingPanelHeader}
-                            onClick={() => !isThinking && setIsExpanded(false)}
+                            className={styles.thinkingTimelineHeader}
+                            onClick={() => !isThinking && !isGenerating && setIsExpanded(false)}
                         >
-                            <div className={styles.thinkingPanelTitle}>
-                                {isThinking ? (
-                                    <div className={styles.thinkingPulse} />
-                                ) : (
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12"/>
-                                    </svg>
-                                )}
-                                <span>{isThinking ? 'Thinking...' : `Thought for ${durationText || '...'}`}</span>
-                            </div>
-                            {!isThinking && <ChevronDown size={14} className={styles.thinkingChevron} />}
+                            {isThinking || isGenerating ? (
+                                <div className={styles.thinkingPulse} />
+                            ) : (
+                                <div className={styles.timelineDotDone} />
+                            )}
+                            <span className={styles.thinkingTimelineTitle}>{getHeaderText()}</span>
+                            {(!isThinking && !isGenerating) && <ChevronDown size={13} style={{ color: '#94a3b8', marginLeft: 'auto' }} />}
                         </button>
-                        <div className={styles.thinkingStepsList}>
-                            {steps.map((step, idx) => {
+                        <div className={styles.timelineBody}>
+                            {reasoningText && (
+                                <div className={styles.reasoningContentBlock}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{reasoningText}</ReactMarkdown>
+                                </div>
+                            )}
+                            {steps && steps.map((step, idx) => {
                                 const isLast = idx === steps.length - 1;
                                 const isCurrent = isLast && isThinking;
                                 return (
-                                    <div
-                                        key={idx}
-                                        className={`${styles.thinkingStep} ${isCurrent ? styles.thinkingStepActive : styles.thinkingStepDone}`}
-                                    >
-                                        <span className={styles.thinkingStepIcon}>
-                                            {isCurrent ? (
-                                                <span className={styles.thinkingStepPulse}>→</span>
-                                            ) : (
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                    <polyline points="20 6 9 17 4 12"/>
-                                                </svg>
-                                            )}
-                                        </span>
-                                        <span className={styles.thinkingStepText}>{step}</span>
+                                    <div key={idx} className={styles.timelineStep}>
+                                        <div className={styles.timelineTrack}>
+                                            <div className={`${styles.timelineDot} ${isCurrent ? styles.timelineDotActive : ''}`} />
+                                            {!isLast && <div className={styles.timelineLine} />}
+                                        </div>
+                                        <span className={`${styles.timelineStepText} ${isCurrent ? styles.timelineStepTextActive : ''}`}>{step}</span>
                                     </div>
                                 );
                             })}
@@ -1152,6 +1113,14 @@ export default function ChatBot() {
         // NEW: Hard kill for UI generation - empty the queue immediately on abort
         const handleAbort = () => {
             tokenQueue.length = 0;
+            setMessages(prev => {
+                const next = [...prev];
+                const idx = next.length - 1;
+                if (idx >= 0 && next[idx].isStreaming) {
+                    next[idx] = { ...next[idx], isStreaming: false, isThinking: false, isNew: false };
+                }
+                return next;
+            });
             setIsGenerating(false);
             setIsTyping(false);
         };
@@ -1208,7 +1177,7 @@ export default function ChatBot() {
             if (!response.ok) throw new Error('Failed to send message');
 
             const aiMsgId = Date.now() + 1;
-            const initialAiMsg = { _id: aiMsgId, role: 'ai', content: '', isStreaming: true, createdAt: new Date(), thinkingSteps: [], isThinking: true, thinkingDuration: null };
+            const initialAiMsg = { _id: aiMsgId, role: 'ai', content: '', reasoningText: '', isStreaming: true, createdAt: new Date(), thinkingSteps: [], isThinking: true, thinkingDuration: null };
             setMessages(prev => [...prev.filter(m => m.tempId !== tempMsgId), userMsg, initialAiMsg]);
             setIsTyping(false);
 
@@ -1252,6 +1221,21 @@ export default function ChatBot() {
                                         ...next[idx],
                                         isThinking: false,
                                         thinkingDuration: data.thinkingDuration || null
+                                    };
+                                }
+                                return next;
+                            });
+                        }
+
+                        if (data.thoughtToken && !isAborted()) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                const idx = next.length - 1;
+                                if (idx >= 0 && next[idx].isStreaming) {
+                                    next[idx] = {
+                                        ...next[idx],
+                                        reasoningText: (next[idx].reasoningText || "") + data.thoughtToken,
+                                        isThinking: true
                                     };
                                 }
                                 return next;
@@ -1330,13 +1314,14 @@ export default function ChatBot() {
         }
         setIsTyping(false);
         setIsGenerating(false);
-        // Also remove the "isNew" flag from the last message to stop typewriter
+        // FORCE UI Cleanup: Immediately set isStreaming/isThinking to false to show controls and hide indicators
         setMessages(prev => {
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.role === 'ai') {
-                return [...prev.slice(0, -1), { ...lastMsg, isNew: false }];
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last && last.role === 'ai') {
+                next[next.length - 1] = { ...last, isStreaming: false, isThinking: false, isNew: false };
             }
-            return prev;
+            return next;
         });
     };
 
@@ -1383,14 +1368,13 @@ export default function ChatBot() {
                                         onClick={handleNewChat}
                                         title="New Chat"
                                     >
-                                        <Plus size={18} />
+                                        <Plus size={20} strokeWidth={2.5} />
                                         <span className={styles.newChatText}>New Chat</span>
                                     </button>
                                 </div>
 
-                                {isSidebarOpen && (
-                                    <>
-                                        <div className={styles.historyLabelRow}>
+                                <div className={styles.sidebarContent}>
+                                    <div className={styles.historyLabelRow}>
                                             <div className={styles.historyLabel}>Your Chat</div>
                                             {conversations.length > 0 && (
                                                 <div className={styles.bulkActionsHeader}>
@@ -1487,15 +1471,14 @@ export default function ChatBot() {
                                                 </div>
                                             ))}
                                         </div>
-                                    </>
-                                )}
-                                <button
-                                    className={styles.toggleSidebarBtn}
-                                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                                >
-                                    {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-                                </button>
+                                    </div>
                             </aside>
+                            <button
+                                className={`${styles.toggleSidebarBtn} ${!isSidebarOpen ? styles.toggleSidebarBtnCollapsed : ''}`}
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            >
+                                {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                            </button>
 
                             {/* Main Chat Area */}
                             <main className={styles.mainChat}>
@@ -1607,10 +1590,12 @@ export default function ChatBot() {
 
                                                 <div className={styles.messageContent}>
                                                     {/* Chain of Thought Panel */}
-                                                    {msg.role === 'ai' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+                                                    {msg.role === 'ai' && ((msg.thinkingSteps && msg.thinkingSteps.length > 0) || msg.reasoningText) && (
                                                         <ThinkingPanel
                                                             steps={msg.thinkingSteps}
+                                                            reasoningText={msg.reasoningText}
                                                             isThinking={msg.isThinking}
+                                                            isGenerating={msg.isStreaming}
                                                             thinkingDuration={msg.thinkingDuration}
                                                         />
                                                     )}
@@ -1883,15 +1868,6 @@ export default function ChatBot() {
                                         </div>
                                     )}
 
-                                    {isTyping && (
-                                        <div className={styles.globalTypingContainer}>
-                                            <AILogo size={18} className={styles.typingLogoGlobal} />
-                                            <div className={styles.typingTextContainerGlobal}>
-                                                <span className={styles.typingTextGlobal}></span>
-                                                <span className={styles.typingDotsGlobal}>...</span>
-                                            </div>
-                                        </div>
-                                    )}
 
 
                                     <div className={`${styles.inputWrapper} ${chatMode === 'search' ? styles.inputWrapperSearch : chatMode === 'aranya' ? styles.inputWrapperAranya : styles.inputWrapperChiron}`}>

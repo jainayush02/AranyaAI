@@ -292,6 +292,69 @@ function AiGatewayConfig({
                 </div>
             </div>
 
+            <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', 
+                gap: '0.75rem',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+                background: '#f8fafc',
+                borderRadius: '16px',
+                border: '1px solid #f1f5f9'
+            }}>
+                <div className={s.aiConfigGroup} style={{ gap: '0.35rem' }}>
+                    <label className={s.inputLabel} style={{ fontSize: '0.7rem', margin: 0, opacity: 0.8 }}>Temperature</label>
+                    <input
+                        type="number"
+                        className={s.configInput}
+                        value={config.temperature ?? 0.7}
+                        step="0.1"
+                        min="0"
+                        max="2"
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], temperature: parseFloat(e.target.value) } }))}
+                        disabled={!isEditing}
+                        style={{ padding: '0.5rem 0.6rem', fontSize: '0.8rem', minWidth: 0 }}
+                    />
+                </div>
+                <div className={s.aiConfigGroup} style={{ gap: '0.35rem' }}>
+                    <label className={s.inputLabel} style={{ fontSize: '0.7rem', margin: 0, opacity: 0.8 }}>Max Tokens</label>
+                    <input
+                        type="number"
+                        className={s.configInput}
+                        value={config.maxTokens ?? 1200}
+                        step="100"
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], maxTokens: parseInt(e.target.value) } }))}
+                        disabled={!isEditing}
+                        style={{ padding: '0.5rem 0.6rem', fontSize: '0.8rem', minWidth: 0 }}
+                    />
+                </div>
+                <div className={s.aiConfigGroup} style={{ gap: '0.35rem' }}>
+                    <label className={s.inputLabel} style={{ fontSize: '0.7rem', margin: 0, opacity: 0.8 }}>Freq Pen.</label>
+                    <input
+                        type="number"
+                        className={s.configInput}
+                        value={config.frequencyPenalty ?? 0.5}
+                        step="0.1"
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], frequencyPenalty: parseFloat(e.target.value) } }))}
+                        disabled={!isEditing}
+                        style={{ padding: '0.5rem 0.6rem', fontSize: '0.8rem', minWidth: 0 }}
+                    />
+                </div>
+                <div className={s.aiConfigGroup} style={{ gap: '0.35rem' }}>
+                    <label className={s.inputLabel} style={{ fontSize: '0.7rem', margin: 0, opacity: 0.8 }}>Pres Pen.</label>
+                    <input
+                        type="number"
+                        className={s.configInput}
+                        value={config.presencePenalty ?? 0.3}
+                        step="0.1"
+                        onChange={e => setAiConfig(p => ({ ...p, [engineKey]: { ...p[engineKey], presencePenalty: parseFloat(e.target.value) } }))}
+                        disabled={!isEditing}
+                        style={{ padding: '0.5rem 0.6rem', fontSize: '0.8rem', minWidth: 0 }}
+                    />
+                </div>
+            </div>
+
             <div className={s.aiConfigGroup} style={{ marginTop: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
