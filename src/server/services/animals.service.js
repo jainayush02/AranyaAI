@@ -5,19 +5,11 @@ const User = require('../models/User');
 const Plan = require('../models/Plan');
 const mongoose = require('mongoose');
 const { logActivity } = require('../utils/logger');
-const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits } = require('../utils/vitalMonitor');
+const { MLEngineeredMonitor, calculateAgeYears, mapActivityLevel, getLimits, getMonitor } = require('../utils/vitalMonitor');
 const { getCachedSettings } = require('../utils/settingsCache');
 const SystemSettings = require('../models/SystemSettings');
 const { OpenAI } = require('openai');
 const axios = require('axios');
-
-const monitorInstances = new Map();
-const getMonitor = (animalId) => {
-    if (!monitorInstances.has(animalId.toString())) {
-        monitorInstances.set(animalId.toString(), new MLEngineeredMonitor());
-    }
-    return monitorInstances.get(animalId.toString());
-};
 
 class AnimalsService {
     static async getAnimals(userId, role, managedBy) {

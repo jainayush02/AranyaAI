@@ -149,4 +149,21 @@ class MLEngineeredMonitor {
     }
 }
 
-module.exports = { MLEngineeredMonitor };
+const monitorRegistry = new Map();
+
+/**
+ * getMonitor: Factory function for per-animal monitor instances
+ * @param {string} animalId - The animal's unique ID
+ * @returns {MLEngineeredMonitor} The persistent monitor instance
+ */
+function getMonitor(animalId) {
+    if (!monitorRegistry.has(animalId.toString())) {
+        monitorRegistry.set(animalId.toString(), new MLEngineeredMonitor());
+    }
+    return monitorRegistry.get(animalId.toString());
+}
+
+module.exports = {
+    MLEngineeredMonitor,
+    getMonitor
+};
