@@ -10,6 +10,13 @@ class MLEngineeredMonitor {
      * @param {number} windowSize - Rolling window size for severity history
      */
     constructor(alpha = 0.4, persistenceThreshold = 5, windowSize = 20) {
+        this.reset(alpha, persistenceThreshold, windowSize);
+    }
+
+    /**
+     * Resets the monitor's history and EWMA state
+     */
+    reset(alpha = 0.4, persistenceThreshold = 5, windowSize = 20) {
         this.alpha = alpha;
         this.persistenceThreshold = persistenceThreshold;
         this.windowSize = windowSize;

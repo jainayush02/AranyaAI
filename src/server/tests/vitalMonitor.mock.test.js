@@ -1,4 +1,4 @@
-const { getMonitor } = require('../utils/vitalMonitor/MLEngineeredMonitor');
+const { getMonitor } = require('../utils/vitalMonitor');
 
 describe('🐶 AranyaAI - Activity-Aware Behavioral Mock Test', () => {
     
