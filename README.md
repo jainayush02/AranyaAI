@@ -10,38 +10,30 @@ AranyaAi is a mission-driven, full-stack intelligence platform designed to bridg
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture (Restored MVC)
 
-Our architecture is designed for high-throughput health monitoring, low-latency diagnostic feedback, and intelligent document retrieval. It leverages a microservices-inspired approach to separate real-time data processing from AI inference.
+The platform follows a high-performance **MVC (Controller-Service-Route)** architecture, optimized for serverless deployment on Vercel.
 
 ```mermaid
 graph TD
     %% User Tier
-    User((Farmer / Vet)) -->|Interacts| UI[React Frontend - Vercel]
-    Admin((Admin)) -->|Manages| UI
+    User((Farmer / Vet / Admin)) -->|Interacts| UI[React Frontend - Vercel]
     
     %% Compute Tier
-    UI -->|API Requests| API[Node.js Backend - Vercel]
-    API -->|Identity Auth| OAuth[Google OAuth & OTP]
+    UI -->|API Requests| Routes[Express Routes]
+    Routes -->|Validation| Controllers[MVC Controllers]
+    Controllers -->|Business Logic| Services[MVC Services]
     
-    %% AI & Intelligence Tier
-    API -->|Health Vitals| AI_Engine[Python AI Microservice - Render]
-    AI_Engine -->|LSTM Anomaly Detection| API
+    %% Intelligence Tier
+    Services -->|Vitals| Monitor[ML Monitor - JS]
+    Services -->|Anomaly| PyAI[LSTM Microservice - Python]
+    Services -->|LLM Engine| Groq[Groq / Gemini / OpenAI]
+    Services -->|Chiron RAG| Pinecone[(Pinecone Vector DB)]
     
-    API -->|Primary LLM| Groq[Groq / Qwen Engine]
-    API -->|Fallback LLM| Gemini[Google Gemini Fallback]
-    API -->|Chiron RAG| Pinecone[(Pinecone Vector DB)]
-    
-    %% Admin Config
-    API -->|AI Config| AdminPortal[Admin Portal - ai_config_v2]
-    
-    %% Storage Tier
-    API -->|Persistence| DB[(MongoDB Atlas)]
-    API -->|Cloud Media| IMG[ImageKit CDN]
-    
-    %% Payment & Communication
-    API -->|Payments| PAY[Razorpay Gateway]
-    API -->|Notifications| SMS[Twilio SMS / Nodemailer]
+    %% Data & Infrastructure
+    Services -->|Persistence| DB[(MongoDB Atlas)]
+    Services -->|Media| IMG[ImageKit / Cloudinary]
+    Services -->|Weather| OWM[OpenWeatherMap API]
 ```
 
 ---
@@ -54,14 +46,14 @@ Our LSTM Autoencoder model analyzes temperature, heart rate, and activity patter
 ### 🔬 Chiron Intelligence (RAG)
 A professional-grade veterinary knowledge engine. Upload clinical documents, embed them into a Pinecone vector database, and get AI-grounded answers backed by your own verified medical data — not hallucinated internet content.
 
-### 💬 Arion — The AI Companion
-A multi-engine conversational assistant that understands veterinary context. Powered by configurable LLM engines (Groq/Qwen primary, Gemini fallback) managed entirely from the Admin Portal.
+### 💬 Arion — Advanced Chat
+A multi-engine conversational assistant with **Global Search**, secure **Message Pinning**, and user-specific **Reaction Toggling**.
 
 ### 🛡️ Admin Portal
-A powerful control center for managing AI engine configuration, system prompts, subscription plans, document ingestion, user management, and platform analytics — all from a single dashboard.
+A powerful control center for managing AI engine configuration, system prompts, user management, and platform analytics. Includes **Herd Intelligence** for batch-reanalyzing health status.
 
-### 📊 Real-time Dashboard
-A sleek, glassmorphic dashboard providing a single source of truth for your farm's health, revenue, and animal profiles with interactive charts and live vital monitoring.
+### 📊 Real-time Dashboard & Weather
+A sleek dashboard with interactive charts and vital monitoring. Includes a backend **Weather Proxy** (OpenWeatherMap) for integrated environmental context.
 
 ### 🔐 Enterprise-Grade Security
 Professional Google Cloud Branding for trusted login, multi-channel OTP (Email & SMS), forgot password recovery, JWT-based session management, and dynamic CORS protection.
@@ -70,7 +62,7 @@ Professional Google Cloud Branding for trusted login, multi-channel OTP (Email &
 Integrated Razorpay payment gateway with configurable subscription plans managed from the Admin Portal.
 
 ### 📱 Medical Vault & Health Records
-Secure, encrypted archive for every lab report, prescription, vaccination record, and diagnostic scan. Access full health history instantly from any device.
+Secure archive for health records. Supports **Bulk Health Logging** for rapid ingestion of historical diagnostic data.
 
 ---
 
@@ -122,36 +114,44 @@ AranyaAi/
 │   │   ├── vite.config.js         # Build & Proxy Configuration
 │   │   └── package.json
 │   └── server/                    # Node.js Backend
-│       ├── routes/                # API Endpoints
-│       │   ├── auth.js                # Authentication (Login, Register, OTP, Google SSO)
-│       │   ├── animals.js             # Animal CRUD & Vital Logging
-│       │   ├── chat.js                # AI Chat Engine (Multi-LLM + RAG)
-│       │   ├── chiron.js              # Chiron RAG: Pinecone Embedding & Search
-│       │   ├── admin.js               # Admin Portal: Config, Users, Plans, Analytics
-│       │   ├── docs.js                # Document & Article Management
-│       │   ├── plans.js               # Subscription Plan Management
-│       │   └── settings.js            # System Settings API
-│       ├── models/                # Mongoose Schemas
-│       │   ├── User.js                # User accounts & roles
-│       │   ├── Animal.js              # Animal profiles & vitals
-│       │   ├── ChatMessage.js         # Conversation messages
-│       │   ├── Conversation.js        # Chat sessions
-│       │   ├── ChironDocument.js      # RAG document metadata
-│       │   ├── MedicalRecord.js       # Health records & reports
-│       │   ├── HealthLog.js           # Vital sign history
-│       │   ├── Plan.js                # Subscription plans
-│       │   ├── DocArticle.js          # Knowledge base articles
-│       │   ├── ActivityLog.js         # System activity tracking
-│       │   ├── SystemSettings.js      # Platform configuration
-│       │   ├── SystemMetrics.js       # Performance metrics
-│       │   └── Faq.js                 # FAQ entries
-│       ├── utils/                 # Utilities & Services
-│       ├── ai_model/              # Python AI Microservice
-│       │   ├── ai_server.py           # Flask server for LSTM inference
-│       │   └── requirements.txt       # Python dependencies
-│       └── server.js              # Express application entry point
-├── start_all.py                   # One-Click Dev Launcher (Backend + Frontend + AI)
-└── vercel.json                    # Vercel Deployment Configuration
+│       ├── routes/                # Route Definitions (Express)
+│       │   ├── auth.js
+│       │   ├── animals.js
+│       │   ├── chat.js
+│       │   ├── admin.js
+│       │   ├── plans.js
+│       │   ├── docs.js
+│       │   └── chiron.js
+│       ├── controllers/           # Route Handlers (REST Logic)
+│       │   ├── auth.controller.js
+│       │   ├── animals.controller.js
+│       │   └── chat.controller.js
+│       ├── services/              # Pure Business Logic & AI
+│       │   ├── auth.service.js
+│       │   ├── animals.service.js
+│       │   └── chat.service.js
+│       ├── models/                # Mongoose Schemas (Data)
+│       │   ├── User.js
+│       │   ├── Animal.js
+│       │   ├── ChatMessage.js
+│       │   ├── Conversation.js
+│       │   ├── ChironDocument.js
+│       │   ├── MedicalRecord.js
+│       │   ├── HealthLog.js
+│       │   ├── Plan.js
+│       │   ├── DocArticle.js
+│       │   ├── ActivityLog.js
+│       │   └── SystemSettings.js
+│       ├── utils/                 # VitalMonitor, Notifications, Cloudinary
+│       ├── ai_model/              # Python AI Microservice (LSTM)
+│       └── server.js              # Entry Point
+├── scripts/                    # Utility Scripts
+│   ├── kill_all.ps1               # Stop all services (Windows)
+│   ├── kill_all.sh                # Stop all services (Linux/macOS)
+│   ├── push.sh                    # Git push helper
+│   └── push.ps1                   # Git push helper (Windows)
+├── start_all.py                   # One-Click Dev Launcher
+└── vercel.json                    # Deployment Configuration
 ```
 
 ---
