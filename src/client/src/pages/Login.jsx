@@ -335,7 +335,7 @@ export default function Login() {
                                     className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${styles.audioWidgetClickable}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    transition={{ duration: 1, delay: 0.7, ease: [0.25, 0.8, 0.25, 1] }}
+                                    transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
                                     onClick={toggleAudio}
                                     role="button"
                                     tabIndex={0}
@@ -374,7 +374,7 @@ export default function Login() {
 
                                             <div className={styles.audioCenter}>
                                                 <div className={styles.audioWaveform}>
-                                                    {[...Array(24)].map((_, i) => (
+                                                    {[...Array(32)].map((_, i) => (
                                                         <span key={i} className={styles.audioBar} style={{ animationDelay: `${i * 0.05}s` }} />
                                                     ))}
                                                 </div>
@@ -402,7 +402,7 @@ export default function Login() {
                                                 <div className={styles.audioIdleSub}>Every life deserves care</div>
                                             </div>
 
-                                            {/* Frozen waveform preview - denser and wider */}
+                                            {/* Frozen waveform preview - synced to 32 bars */}
                                             <div className={styles.audioFrozenWave}>
                                                 {[...Array(32)].map((_, i) => {
                                                     const waveHeight = 15 + Math.sin(i * 0.4) * 35 + Math.random() * 20;
