@@ -7,7 +7,7 @@ import {
     RefreshCw, CheckCircle, AlertCircle, Loader2,
     Crown, TrendingUp, Globe, Clock, UserCheck, UserX,
     ShieldAlert, Zap, MousePointer2, BookOpen, Settings as SettingsIcon,
-    Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload,
+    Megaphone, FolderOpen, Menu, Video, Calendar, User, Upload, Music,
     ShieldCheck, ShieldOff, Key, UserCog, Mail, AtSign, Network, Shapes, Shield,
     ZoomIn, ZoomOut, Check, Info, Rocket, Gem, Briefcase, Zap as ZapIcon, Terminal, Share2, Database,
     MessageSquare, Server, PlusCircle, RefreshCcw, Brain
@@ -496,6 +496,70 @@ export default function AdminPortal() {
     const [uploadSuccess, setUploadSuccess] = useState(false);
     const [videoPreview, setVideoPreview] = useState(null);
 
+    // ── Login Audio Branding ──────────────────
+    const [loginAudio, setLoginAudio] = useState(null);
+    const [loginAudioLoading, setLoginAudioLoading] = useState(false);
+    const [audioFile, setAudioFile] = useState(null);
+    const [audioTitle, setAudioTitle] = useState('');
+    const [audioUploading, setAudioUploading] = useState(false);
+    const [audioUploadProgress, setAudioUploadProgress] = useState(0);
+    const audioInputRef = React.useRef(null);
+
+    const fetchLoginAudio = useCallback(async () => {
+        try {
+            const r = await axios.get(`${API}/settings`, authH());
+            if (r.data?.login_audio) setLoginAudio(r.data.login_audio);
+            else setLoginAudio(null);
+        } catch { /* ignore */ }
+    }, []);
+
+    const handleAudioUpload = async () => {
+        if (!audioFile) return;
+        setAudioUploading(true);
+        setAudioUploadProgress(0);
+        try {
+            const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+            const preset = import.meta.env.VITE_CLOUDINARY_PRESET;
+            const fd = new FormData();
+            fd.append('file', audioFile);
+            fd.append('upload_preset', preset);
+            fd.append('resource_type', 'video'); // Cloudinary treats audio as video
+
+            const cloudUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+            const uploadR = await axios.post(cloudUrl, fd, {
+                onUploadProgress: (pe) => {
+                    setAudioUploadProgress(Math.round((pe.loaded * 100) / pe.total));
+                }
+            });
+
+            const url = uploadR.data.secure_url;
+            const cloudFileId = uploadR.data.public_id;
+            const title = audioTitle || audioFile.name.replace(/\.[^/.]+$/, '');
+
+            await axios.post(`${API}/admin/config/login-audio`, { url, title, cloudFileId }, authH());
+            push('Login audio uploaded successfully!');
+            setAudioFile(null);
+            setAudioTitle('');
+            if (audioInputRef.current) audioInputRef.current.value = '';
+            fetchLoginAudio();
+        } catch (err) {
+            push(`Audio upload failed: ${err.response?.data?.message || err.message}`, 'err');
+        } finally {
+            setAudioUploading(false);
+            setAudioUploadProgress(0);
+        }
+    };
+
+    const handleDeleteAudio = async () => {
+        try {
+            await axios.delete(`${API}/admin/config/login-audio`, authH());
+            push('Login audio removed');
+            setLoginAudio(null);
+        } catch (err) {
+            push(`Failed to remove audio: ${err.message}`, 'err');
+        }
+    };
+
     const [pricingLoading, setPricingLoading] = useState(false);
     const [plans, setPlans] = useState([]);
     const [planModal, setPlanModal] = useState(null);
@@ -983,6 +1047,7 @@ export default function AdminPortal() {
     useEffect(() => { if (activeTab === 'adminaccess') fetchAdminAccess(); }, [activeTab, fetchAdminAccess]);
     useEffect(() => { if (activeTab === 'infrastructure') fetchAiConfig(); }, [activeTab, fetchAiConfig]);
     useEffect(() => { if (activeTab === 'taxonomy') fetchTaxonomy(); }, [activeTab, fetchTaxonomy]);
+    useEffect(() => { if (activeTab === 'branding') fetchLoginAudio(); }, [activeTab, fetchLoginAudio]);
     useEffect(() => { if (activeTab === 'overview') { fetchOverview(); fetchAiEngine(); } }, [activeTab, fetchOverview, fetchAiEngine]);
 
     useEffect(() => { if (activeTab === 'pricing' || activeTab === 'users') fetchPlans(); }, [activeTab, fetchPlans]);
@@ -1195,6 +1260,7 @@ export default function AdminPortal() {
         { id: 'taxonomy', label: 'Aranya Taxonomy', icon: Shapes },
         { id: 'infrastructure', label: 'Arion Configuration', icon: SettingsIcon },
         { id: 'chiron', label: 'Chiron Intelligence', icon: Brain },
+        { id: 'branding', label: 'Branding & Media', icon: Megaphone },
         { id: 'adminaccess', label: 'Admin Access', icon: ShieldCheck },
     ];
 
@@ -1214,6 +1280,7 @@ export default function AdminPortal() {
         infrastructure: { title: 'ARION', subtitle: 'CONFIGURATION', desc: 'Configure platform-wide security and infrastructure', icon: SettingsIcon },
         chiron: { title: 'CHIRON', subtitle: 'INTELLIGENCE', desc: 'Document management and vector knowledge extraction', icon: Brain },
         adminaccess: { title: 'ADMIN', subtitle: 'ACCESS', desc: 'Grant & revoke administrator privileges — handle with care', icon: ShieldCheck },
+        branding: { title: 'BRANDING', subtitle: '& MEDIA', desc: 'Manage login page audio, visuals, and brand assets', icon: Megaphone },
     };
     const currentBanner = bannerInfo[activeTab] || bannerInfo.overview;
     const BannerIcon = currentBanner.icon;
@@ -3726,6 +3793,220 @@ export default function AdminPortal() {
                                         )}
                                     </div>
 
+
+                                </motion.div>
+                            )}
+
+                            {/* ── BRANDING & MEDIA ── */}
+                            {activeTab === 'branding' && (
+                                <motion.div key="br" className={s.section}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3 }}>
+
+                                    {/* ── Login Audio Section ── */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                                        borderRadius: '24px',
+                                        padding: '2rem 2.5rem',
+                                        marginBottom: '2rem',
+                                        border: '1px solid #e2e8f0',
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+                                    }}>
+                                        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(34, 197, 94, 0.05)', pointerEvents: 'none' }} />
+                                        <div style={{ position: 'absolute', bottom: -40, left: 30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(34, 197, 94, 0.03)', pointerEvents: 'none' }} />
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', position: 'relative', zIndex: 1 }}>
+                                            <div style={{ width: 52, height: 52, borderRadius: '16px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(34, 197, 94, 0.25)' }}>
+                                                <Music size={24} color="#ffffff" />
+                                            </div>
+                                            <div>
+                                                <h2 style={{ color: '#0f172a', fontWeight: 800, fontSize: '1.2rem', margin: 0 }}>Login Page Audio</h2>
+                                                <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>Upload an ambient brand intro or song that plays on the login page</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Current Audio Preview */}
+                                        {loginAudio && (
+                                            <div style={{
+                                                background: '#ffffff',
+                                                borderRadius: '16px',
+                                                padding: '1.25rem',
+                                                marginBottom: '1.5rem',
+                                                border: '1px solid #e2e8f0',
+                                                boxShadow: '0 4px 15px rgba(0,0,0,0.02)',
+                                                position: 'relative',
+                                                zIndex: 1,
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                        <div style={{ width: 40, height: 40, borderRadius: '12px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <CheckCircle size={20} color="#fff" />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ color: '#0f172a', fontWeight: 700, fontSize: '0.95rem' }}>{loginAudio.title || 'Login Audio'}</div>
+                                                            <div style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                                                                Active · {loginAudio.updatedAt ? new Date(loginAudio.updatedAt).toLocaleDateString() : 'Uploaded'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleDeleteAudio}
+                                                        style={{
+                                                            background: 'rgba(239, 68, 68, 0.08)',
+                                                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                            color: '#ef4444',
+                                                            padding: '0.5rem 1rem',
+                                                            borderRadius: '10px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.4rem',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.8rem',
+                                                            fontFamily: 'inherit',
+                                                            transition: '0.2s',
+                                                        }}
+                                                    >
+                                                        <Trash2 size={14} /> Remove
+                                                    </button>
+                                                </div>
+                                                <audio
+                                                    controls
+                                                    src={loginAudio.url}
+                                                    style={{ width: '100%', height: '40px', borderRadius: '8px', outline: 'none' }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Upload Section */}
+                                        <div style={{ position: 'relative', zIndex: 1 }}>
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <label style={{ display: 'block', color: '#64748b', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Audio Title (optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={audioTitle}
+                                                    onChange={e => setAudioTitle(e.target.value)}
+                                                    placeholder="e.g. Aranya AI Brand Intro"
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.8rem 1rem',
+                                                        borderRadius: '12px',
+                                                        border: '1.5px solid #e2e8f0',
+                                                        background: '#ffffff',
+                                                        color: '#0f172a',
+                                                        fontSize: '0.9rem',
+                                                        outline: 'none',
+                                                        fontFamily: 'inherit',
+                                                        boxSizing: 'border-box',
+                                                        transition: 'border-color 0.2s'
+                                                    }}
+                                                    onFocus={(e) => e.target.style.borderColor = '#22c55e'}
+                                                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ display: 'block', color: '#64748b', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Audio File (.mp3, .wav, .ogg — max 10MB)
+                                                    </label>
+                                                    <input
+                                                        ref={audioInputRef}
+                                                        type="file"
+                                                        accept="audio/*"
+                                                        onChange={e => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                if (file.size > 10 * 1024 * 1024) {
+                                                                    push('File too large. Maximum 10MB.', 'err');
+                                                                    e.target.value = '';
+                                                                    return;
+                                                                }
+                                                                setAudioFile(file);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '0.65rem 1rem',
+                                                            borderRadius: '12px',
+                                                            border: '1.5px dashed #cbd5e1',
+                                                            background: '#f8fafc',
+                                                            color: '#64748b',
+                                                            fontSize: '0.85rem',
+                                                            cursor: 'pointer',
+                                                            fontFamily: 'inherit',
+                                                            boxSizing: 'border-box',
+                                                            transition: 'border-color 0.2s'
+                                                        }}
+                                                    />
+                                                </div>
+                                                <motion.button
+                                                    onClick={handleAudioUpload}
+                                                    disabled={!audioFile || audioUploading}
+                                                    whileHover={{ scale: 1.03 }}
+                                                    whileTap={{ scale: 0.97 }}
+                                                    style={{
+                                                        padding: '0.8rem 1.75rem',
+                                                        borderRadius: '12px',
+                                                        border: '1px solid',
+                                                        borderColor: audioFile ? 'transparent' : '#e2e8f0',
+                                                        background: audioFile ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#f8fafc',
+                                                        color: audioFile ? '#ffffff' : '#94a3b8',
+                                                        fontWeight: 800,
+                                                        fontSize: '0.88rem',
+                                                        cursor: (!audioFile || audioUploading) ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.5rem',
+                                                        whiteSpace: 'nowrap',
+                                                        opacity: (!audioFile || audioUploading) ? 0.7 : 1,
+                                                        boxShadow: audioFile ? '0 4px 15px rgba(34,197,94,0.3)' : 'none',
+                                                        fontFamily: 'inherit',
+                                                        flexShrink: 0,
+                                                    }}
+                                                >
+                                                    {audioUploading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
+                                                    {audioUploading ? 'Uploading…' : loginAudio ? 'Replace Audio' : 'Upload Audio'}
+                                                </motion.button>
+                                            </div>
+
+                                            {/* Upload Progress */}
+                                            {audioUploading && (
+                                                <div style={{ marginTop: '1rem' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.4rem' }}>
+                                                        <span>Uploading to cloud…</span>
+                                                        <span style={{ fontWeight: 800, color: '#16a34a' }}>{audioUploadProgress}%</span>
+                                                    </div>
+                                                    <div style={{ height: '6px', borderRadius: '99px', background: '#e2e8f0', overflow: 'hidden' }}>
+                                                        <motion.div
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${audioUploadProgress}%` }}
+                                                            style={{ height: '100%', borderRadius: '99px', background: 'linear-gradient(90deg, #22c55e, #16a34a)' }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {audioFile && !audioUploading && (
+                                                <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#64748b', fontSize: '0.78rem' }}>
+                                                    <Music size={14} color="#16a34a" />
+                                                    <span>{audioFile.name} — {(audioFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div style={{ marginTop: '1.25rem', background: '#f8fafc', borderRadius: '12px', padding: '0.75rem 1rem', border: '1px solid #f1f5f9', position: 'relative', zIndex: 1 }}>
+                                            <p style={{ margin: 0, color: '#64748b', fontSize: '0.75rem', lineHeight: 1.6 }}>
+                                                <strong style={{ color: '#0f172a' }}>💡 How it works:</strong> The audio will appear as a glassmorphic player on the login page. Browsers block autoplay, so visitors see a "Tap to Listen" prompt. Keep files under 5MB for best performance.
+                                            </p>
+                                        </div>
+                                    </div>
 
                                 </motion.div>
                             )}

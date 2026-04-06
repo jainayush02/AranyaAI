@@ -888,5 +888,48 @@ router.post('/config/ai-engine', authenticate, adminOnly, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// ── Login Audio Manager ────────────────────────────────
+router.post('/config/login-audio', authenticate, adminOnly, async (req, res) => {
+    try {
+        const { url, title, cloudFileId } = req.body;
+        
+        // Find existing to cleanup old file in Cloudinary if replacing
+        const existing = await SystemSettings.findOne({ key: 'login_audio' });
+        if (existing?.value?.cloudFileId && existing.value.cloudFileId !== cloudFileId) {
+            try {
+                const cloudinary = require('cloudinary').v2;
+                await cloudinary.uploader.destroy(existing.value.cloudFileId, { resource_type: 'video' });
+            } catch (err) { console.warn('Failed to cleanup old audio:', err.message); }
+        }
+
+        const settings = await SystemSettings.findOneAndUpdate(
+            { key: 'login_audio' },
+            { value: { url, title, cloudFileId, updatedAt: new Date() } },
+            { upsert: true, returnDocument: 'after' }
+        );
+        
+        await log(req, 'admin', `Updated Login Page Audio`);
+        clearCache();
+        res.json(settings.value);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.delete('/config/login-audio', authenticate, adminOnly, async (req, res) => {
+    try {
+        const existing = await SystemSettings.findOne({ key: 'login_audio' });
+        if (existing?.value?.cloudFileId) {
+            try {
+                const cloudinary = require('cloudinary').v2;
+                await cloudinary.uploader.destroy(existing.value.cloudFileId, { resource_type: 'video' });
+            } catch (err) { console.warn('Failed to cleanup audio:', err.message); }
+        }
+
+        await SystemSettings.findOneAndDelete({ key: 'login_audio' });
+        await log(req, 'admin', `Removed Login Page Audio`);
+        clearCache();
+        res.json({ message: 'Audio removed' });
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 module.exports = router;
 

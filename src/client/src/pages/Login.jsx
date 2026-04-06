@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Mail, Lock, User, Phone,
+    Mail, Phone,
     Twitter, Linkedin, Facebook, Youtube, Github,
-    ChevronRight, ArrowRight, ShieldCheck, Scan, MessageSquare,
-    Activity, Shield, Eye, EyeOff, CheckCircle, Sparkles, Zap,
-    Clock, Star, HardDrive, Syringe, Bot, Globe, FileText
+    ChevronRight, ArrowRight,
+    Activity, Shield, Eye, EyeOff, Sparkles,
+    Clock, Star, HardDrive, Syringe, Bot, FileText,
+    Volume2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -75,6 +76,12 @@ export default function Login() {
     const [isAdminForgot, setIsAdminForgot] = useState(false);
     const [adminResetStep, setAdminResetStep] = useState(1);
 
+    // Audio player
+    const [loginAudio, setLoginAudio] = useState(null);
+    const [audioPlaying, setAudioPlaying] = useState(false);
+    const [audioReady, setAudioReady] = useState(false);
+    const audioRef = useRef(null);
+
     const navigate = useNavigate();
 
     /* Timer logic */
@@ -108,6 +115,26 @@ export default function Login() {
             setError('Your session has expired or is invalid. Please log in again to continue.');
         }
     }, []);
+
+    // Fetch login audio from system settings
+    useEffect(() => {
+        (async () => {
+            try {
+                const r = await axios.get('/api/settings');
+                if (r.data?.login_audio?.url) setLoginAudio(r.data.login_audio);
+            } catch { /* silently ignore */ }
+        })();
+    }, []);
+
+    const toggleAudio = () => {
+        if (!audioRef.current) return;
+        if (audioPlaying) {
+            audioRef.current.pause();
+            setAudioPlaying(false);
+        } else {
+            audioRef.current.play().then(() => setAudioPlaying(true)).catch(() => setAudioPlaying(false));
+        }
+    };
 
     /* Google Login — User */
     const handleGoogleLogin = useGoogleLogin({
@@ -277,10 +304,6 @@ export default function Login() {
                                     <span className={styles.heroLine1}>Because Instinct is Hidden.</span>
                                     <span className={styles.heroLine2}>Protect Every Life, Before it Fails.</span>
                                 </h1>
-                                <p className={styles.heroP}>
-                                    Predict health risks before they manifest.
-                                    Expert care for every pet and farm.
-                                </p>
                             </div>
 
                             <motion.div className={styles.bentoGrid} variants={stagger} initial="hidden" animate="show">
@@ -306,11 +329,100 @@ export default function Login() {
                                 </motion.div>
                             </motion.div>
 
-                            <div className={styles.trustRow}>
-                                <div className={styles.trustBadge}><span className={styles.trustDot} /> All systems online</div>
-                                <div className={styles.trustBadge}>SOC2 Compliant</div>
-                                <div className={styles.trustBadge}>256-bit Encrypted</div>
-                            </div>
+                            {/* ── Audio Player Widget ── */}
+                            {loginAudio && (
+                                <motion.div
+                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${styles.audioWidgetClickable}`}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 1, delay: 0.7, ease: [0.25, 0.8, 0.25, 1] }}
+                                    onClick={toggleAudio}
+                                    role="button"
+                                    tabIndex={0}
+                                >
+                                    <audio
+                                        ref={audioRef}
+                                        src={loginAudio.url}
+                                        loop
+                                        preload="metadata"
+                                        onEnded={() => setAudioPlaying(false)}
+                                    />
+
+                                    {/* Animated background waveform */}
+                                    <div className={styles.audioBgWave}>
+                                        {[...Array(12)].map((_, i) => (
+                                            <span key={i} className={`${styles.audioBgBar} ${audioPlaying ? styles.audioBgBarActive : ''}`} style={{ animationDelay: `${i * 0.08}s` }} />
+                                        ))}
+                                    </div>
+
+                                    {audioPlaying ? (
+                                        /* ── PLAYING STATE ── */
+                                        <>
+                                            <div className={styles.audioLeft}>
+                                                <div className={`${styles.audioIconCircle} ${styles.audioIconCircleActive}`}>
+                                                    <div className={styles.audioEqualizer}>
+                                                        <span /><span /><span /><span />
+                                                    </div>
+                                                </div>
+                                                <div className={styles.audioMeta}>
+                                                    <div className={styles.audioNowPlaying}>
+                                                        <span className={styles.audioLiveDot} /> NOW PLAYING
+                                                    </div>
+                                                    <div className={styles.audioTrackName}>{loginAudio.title || 'Aranya AI'}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className={styles.audioCenter}>
+                                                <div className={styles.audioWaveform}>
+                                                    {[...Array(24)].map((_, i) => (
+                                                        <span key={i} className={styles.audioBar} style={{ animationDelay: `${i * 0.05}s` }} />
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                className={`${styles.audioStopBtn}`}
+                                                onClick={(e) => { e.stopPropagation(); toggleAudio(); }}
+                                                aria-label="Turn off ambient audio"
+                                            >
+                                                <Volume2 size={14} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        /* ── IDLE STATE — Designed to trigger curiosity ── */
+                                        <>
+                                            {/* Big Play Button */}
+                                            <div className={styles.audioPlayCircle}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                                            </div>
+
+                                            {/* Info */}
+                                            <div className={styles.audioMeta}>
+                                                <div className={styles.audioIdleCta}>Sounds of the Aranya</div>
+                                                <div className={styles.audioIdleSub}>Every life deserves care</div>
+                                            </div>
+
+                                            {/* Frozen waveform preview - denser and wider */}
+                                            <div className={styles.audioFrozenWave}>
+                                                {[...Array(32)].map((_, i) => {
+                                                    const waveHeight = 15 + Math.sin(i * 0.4) * 35 + Math.random() * 20;
+                                                    return (
+                                                        <span key={i} className={styles.audioFrozenBar} style={{ height: `${waveHeight}%` }} />
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Ready state indicator */}
+                                            <div className={styles.audioReadyBadge}>
+                                                <span className={styles.audioReadyDot} />
+                                                <span>LISTEN NOW</span>
+                                            </div>
+
+
+                                        </>
+                                    )}
+                                </motion.div>
+                            )}
                         </motion.div>
                     </div>
 
@@ -570,39 +682,39 @@ export default function Login() {
                     </div>
                 </div>
 
-                {/* ─── NEW INFO SECTION ─── */}
+                {/* ─── INFO SECTION ─── */}
                 <section className={styles.infoSection}>
                     <motion.div
                         className={styles.infoContent}
-                        initial={{ opacity: 0, scale: 0.98, filter: "blur(12px)" }}
-                        whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                        viewport={{ margin: "-50px" }}
-                        transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true, amount: 0.1 }}
+                        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     >
                         <motion.div
                             className={styles.infoBadge}
                             initial={{ opacity: 0, y: 15 }}
                             whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ margin: "0px" }}
-                            transition={{ duration: 0.8 }}
+                            viewport={{ once: true, amount: 0.5 }}
+                            transition={{ duration: 0.6 }}
                         >
                             The Professional Standard
                         </motion.div>
                         <motion.h2
                             className={styles.infoTitle}
-                            initial={{ opacity: 0, scale: 0.98, y: 15, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ margin: "0px" }}
-                            transition={{ duration: 1, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 15 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.5 }}
+                            transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
                         >
                             Expert Intelligence at Scale.
                         </motion.h2>
                         <motion.p
                             className={styles.infoSummary}
-                            initial={{ opacity: 0, scale: 0.98, y: 15, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ margin: "0px" }}
-                            transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 15 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.5 }}
+                            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
                         >
                             Aranya AI provides the specialized infrastructure required for modern animal care.
                             From individual pets to enterprise-scale herds, we ensure every life is protected.
@@ -611,11 +723,11 @@ export default function Login() {
                         <div className={styles.infoGrid}>
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><HardDrive size={22} /></div>
                                 <h3>Medical Vault</h3>
@@ -624,11 +736,11 @@ export default function Login() {
 
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><Syringe size={22} /></div>
                                 <h3>Arion CareCycle</h3>
@@ -637,11 +749,11 @@ export default function Login() {
 
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><Shield size={22} /></div>
                                 <h3>Smart Health Guard</h3>
@@ -650,11 +762,11 @@ export default function Login() {
 
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><Bot size={22} /></div>
                                 <h3>Chiron Mode</h3>
@@ -663,11 +775,11 @@ export default function Login() {
 
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 1.0, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><Activity size={22} /></div>
                                 <h3>Smart Meal Planner</h3>
@@ -676,11 +788,11 @@ export default function Login() {
 
                             <motion.div
                                 className={styles.infoCard}
-                                whileHover={{ y: -10 }}
-                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                                whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                viewport={{ amount: 0.2 }}
-                                transition={{ duration: 0.9, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                                whileHover={{ y: -6 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.2 }}
+                                transition={{ duration: 0.6, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
                             >
                                 <div className={styles.infoCardIcon}><FileText size={22} /></div>
                                 <h3>Rapid Health Reports</h3>
@@ -690,17 +802,15 @@ export default function Login() {
                     </motion.div>
                 </section>
 
-                {/* ══════════════════════════════════════════
-                    MEGA FOOTER
-                ══════════════════════════════════════════ */}
+                {/* ══ MEGA FOOTER ══ */}
                 <footer className={styles.megaFooter}>
                     <div className={styles.footerGrid}>
                         <motion.div
                             className={styles.footerBrandCol}
-                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ amount: 0.05 }}
-                            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.1 }}
+                            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                         >
                             <div className={styles.footerLogoWrap}>
                                 <span className={styles.footerBrandText}>
@@ -721,10 +831,10 @@ export default function Login() {
                         </motion.div>
 
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ amount: 0.05 }}
-                            transition={{ duration: 1, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.1 }}
+                            transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
                         >
                             <h4 className={styles.footerColTitle}>Platform</h4>
                             <ul className={styles.footerList}>
@@ -738,10 +848,10 @@ export default function Login() {
                         </motion.div>
 
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ amount: 0.05 }}
-                            transition={{ duration: 1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.1 }}
+                            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
                         >
                             <h4 className={styles.footerColTitle}>Industry</h4>
                             <ul className={styles.footerList}>
@@ -755,10 +865,10 @@ export default function Login() {
                         </motion.div>
 
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.98, y: 40, filter: "blur(12px)" }}
-                            whileInView={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-                            viewport={{ amount: 0.05 }}
-                            transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, amount: 0.1 }}
+                            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                         >
                             <h4 className={styles.footerColTitle}>Developers</h4>
                             <ul className={styles.footerList}>
@@ -776,8 +886,8 @@ export default function Login() {
                         className={styles.footerBottom}
                         initial={{ opacity: 0 }}
                         whileInView={{ opacity: 1 }}
-                        viewport={{ amount: 0.05 }}
-                        transition={{ duration: 1, delay: 0.5 }}
+                        viewport={{ once: true, amount: 0.1 }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
                     >
                         <div className={styles.footerBottomLinks}>
                             <span>Privacy Policy</span>

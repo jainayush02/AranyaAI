@@ -31,6 +31,7 @@
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
+    contain: strict;
 }
 
 .blob1,
@@ -43,6 +44,7 @@
     filter: blur(90px);
     opacity: 0.5;
     will-change: transform;
+    transform: translateZ(0);
 }
 
 .blob1 {
@@ -181,6 +183,8 @@
     border-radius: 50%;
     opacity: 0;
     animation: sparkle 5s infinite ease-in-out;
+    will-change: transform, opacity;
+    transform: translateZ(0);
 }
 
 .particle:nth-child(1) {
@@ -247,20 +251,23 @@
 
 .scanLine {
     position: absolute;
+    top: 0;
     width: 100%;
     height: 2px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
     z-index: 4;
     animation: scanMove 7s linear infinite;
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 @keyframes scanMove {
     0% {
-        top: -2px;
+        transform: translateY(-2px);
     }
 
     100% {
-        top: 100%;
+        transform: translateY(100vh);
     }
 }
 
@@ -269,6 +276,7 @@
    ══════════════════════════════════════ */
 .splitRow {
     display: flex;
+    align-items: stretch;
     flex: 1;
     min-height: 100vh;
     position: relative;
@@ -282,10 +290,11 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem 4rem;
+    min-height: 100vh;
 }
 
 .visualContent {
-    max-width: 780px;
+    width: 620px; /* Fixed width to match the bento grid perfectly */
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -484,43 +493,7 @@
     letter-spacing: 0.02em;
 }
 
-/* Trust badges */
-.trustRow {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    padding-top: 0.5rem;
-}
 
-.trustBadge {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.82rem;
-    color: #94a3b8;
-    font-weight: 600;
-}
-
-.trustDot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 12px rgba(34, 197, 94, 0.7);
-    animation: blink 2s infinite;
-}
-
-@keyframes blink {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.25;
-    }
-}
 
 /* ── RIGHT PANEL ── */
 .rightPanel {
@@ -541,6 +514,8 @@
     animation: borderGlow 8s ease infinite;
     width: 100%;
     max-width: 480px;
+    transform: translateZ(0);
+    will-change: background-position;
 }
 
 @keyframes borderGlow {
@@ -565,11 +540,13 @@
 
 .glassCard {
     background: rgba(2, 26, 14, 0.92);
-    backdrop-filter: blur(40px) saturate(170%);
+    backdrop-filter: blur(30px) saturate(170%);
     border-radius: calc(2rem - 2px);
     padding: 2rem;
     position: relative;
     overflow: hidden;
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .glassCard::before {
@@ -1395,8 +1372,587 @@
         flex-direction: column;
     }
 
-    .trustRow {
-        flex-wrap: wrap;
-        gap: 1rem;
+
+    .audioWidget {
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.9rem 1rem;
     }
+
+    .audioCenter {
+        display: none;
+    }
+}
+
+/* ══════════════════════════════════════
+   AUDIO PLAYER WIDGET
+   ══════════════════════════════════════ */
+.audioWidget {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    width: 100%;
+    height: 86px;
+    min-height: 86px;
+    padding: 0 1.5rem;
+    margin-top: 1.25rem;
+    border-radius: 1.25rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    overflow: hidden;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+    box-sizing: border-box;
+}
+
+.audioWidgetActive {
+    background: rgba(141, 198, 115, 0.08);
+    border-color: rgba(141, 198, 63, 0.25);
+    box-shadow:
+        0 0 40px rgba(141, 198, 63, 0.12),
+        0 8px 32px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── Entire card clickable when OFF ── */
+.audioWidgetClickable {
+    cursor: pointer;
+}
+
+.audioWidgetClickable:hover {
+    background: rgba(141, 198, 63, 0.06);
+    border-color: rgba(141, 198, 63, 0.25);
+    transform: translateY(-2px);
+    box-shadow:
+        0 0 25px rgba(141, 198, 63, 0.1),
+        0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Play Circle — Theme-matched glass style ── */
+.audioPlayCircle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(141, 198, 63, 0.1);
+    border: 1.5px solid rgba(141, 198, 63, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8dc63f;
+    flex-shrink: 0;
+    z-index: 1;
+    animation: playBreath 2.5s ease-in-out infinite;
+    box-shadow: 0 0 15px rgba(141, 198, 63, 0.1);
+    padding-left: 2px;
+    backdrop-filter: blur(10px);
+    transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+
+.audioWidgetClickable:hover .audioPlayCircle {
+    background: rgba(141, 198, 63, 0.18);
+    border-color: rgba(141, 198, 63, 0.5);
+    box-shadow: 0 0 20px rgba(141, 198, 63, 0.2);
+    transform: scale(1.08);
+}
+
+@keyframes playBreath {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(141, 198, 63, 0.2);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(141, 198, 63, 0.5);
+        transform: scale(1.06);
+    }
+}
+
+/* ── CTA text ── */
+.audioIdleCta {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+.audioIdleSub {
+    font-size: 0.70rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+/* ── Frozen Waveform Preview ── */
+.audioFrozenWave {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 38px;
+    justify-content: center;
+    z-index: 1;
+    min-width: 0;
+    opacity: 0.35;
+    transition: opacity 0.4s;
+}
+
+.audioWidgetClickable:hover .audioFrozenWave {
+    opacity: 0.8;
+}
+
+.audioFrozenBar {
+    width: 2.5px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #8dc63f, rgba(141, 198, 63, 0.2));
+    transition: transform 0.4s ease, opacity 0.3s;
+}
+
+/* On hover, bars gently pulse — gives a "preview" of the experience */
+.audioWidgetClickable:hover .audioFrozenBar {
+    animation: frozenTease 1.2s ease-in-out infinite;
+}
+
+.audioWidgetClickable:hover .audioFrozenBar:nth-child(odd) {
+    animation-delay: 0.15s;
+}
+
+.audioWidgetClickable:hover .audioFrozenBar:nth-child(3n) {
+    animation-delay: 0.3s;
+}
+
+@keyframes frozenTease {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(1.4); }
+}
+
+/* ── Ready State Indicator ── */
+.audioReadyBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    z-index: 1;
+    flex-shrink: 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.08em;
+    transition: all 0.3s;
+}
+
+.audioWidgetClickable:hover .audioReadyBadge {
+    border-color: rgba(141, 198, 63, 0.3);
+    color: #8dc63f;
+    background: rgba(141, 198, 63, 0.05);
+}
+
+.audioReadyDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #8dc63f;
+    animation: readyPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes readyPulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 8px rgba(141, 198, 63, 0.5); }
+}
+
+/* ── Social proof counter ── */
+.audioListeners {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    z-index: 1;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.02em;
+}
+
+.audioListenerDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #8dc63f;
+    animation: listenerPulse 2s infinite;
+}
+
+@keyframes listenerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ── Stop button (when playing) ── */
+.audioStopBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8dc63f;
+    cursor: pointer;
+    z-index: 1;
+    flex-shrink: 0;
+    transition: all 0.25s;
+    font-family: inherit;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.audioStopBtn:hover {
+    background: rgba(141, 198, 63, 0.15);
+    border-color: rgba(141, 198, 63, 0.3);
+    transform: scale(1.1);
+}
+
+.audioHifiBadge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #8dc63f;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    background: rgba(141, 198, 63, 0.12);
+    border-radius: 4px;
+    border: 1px solid rgba(141, 198, 63, 0.3);
+}
+
+/* ── Background Wave Bars ── */
+.audioBgWave {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 10%;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.08;
+}
+
+.audioBgBar {
+    width: 4px;
+    height: 30%;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
+    transition: height 0.3s ease;
+}
+
+.audioBgBarActive {
+    animation: bgWaveAnim 1.2s ease-in-out infinite;
+    background: rgba(141, 198, 63, 0.6);
+}
+
+@keyframes bgWaveAnim {
+
+    0%,
+    100% {
+        height: 20%;
+    }
+
+    25% {
+        height: 65%;
+    }
+
+    50% {
+        height: 35%;
+    }
+
+    75% {
+        height: 80%;
+    }
+}
+
+/* ── Left Section (Icon + Meta) ── */
+.audioLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 1;
+    flex-shrink: 0;
+}
+
+.audioIconCircle {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    transition: all 0.4s ease;
+    flex-shrink: 0;
+}
+
+.audioIconCircleActive {
+    background: linear-gradient(135deg, rgba(141, 198, 63, 0.2), rgba(34, 197, 94, 0.15));
+    border-color: rgba(141, 198, 63, 0.35);
+    color: #8dc63f;
+    box-shadow: 0 0 20px rgba(141, 198, 63, 0.15);
+}
+
+/* ── Equalizer Animation ── */
+.audioEqualizer {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 18px;
+}
+
+.audioEqualizer span {
+    width: 3px;
+    border-radius: 2px;
+    background: #8dc63f;
+    animation: eqBounce 0.8s ease-in-out infinite;
+}
+
+.audioEqualizer span:nth-child(1) {
+    height: 30%;
+    animation-delay: 0s;
+}
+
+.audioEqualizer span:nth-child(2) {
+    height: 60%;
+    animation-delay: 0.15s;
+}
+
+.audioEqualizer span:nth-child(3) {
+    height: 45%;
+    animation-delay: 0.3s;
+}
+
+.audioEqualizer span:nth-child(4) {
+    height: 75%;
+    animation-delay: 0.45s;
+}
+
+@keyframes eqBounce {
+
+    0%,
+    100% {
+        height: 25%;
+    }
+
+    50% {
+        height: 90%;
+    }
+}
+
+/* ── Meta Text ── */
+.audioMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.audioNowPlaying {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.audioLiveDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+    animation: livePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(0.7);
+    }
+}
+
+.audioTrackName {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+/* ── Center Waveform ── */
+.audioCenter {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.audioIdleText {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 0.03em;
+}
+
+.audioWaveform {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 28px;
+    width: 100%;
+    justify-content: center;
+}
+
+.audioBar {
+    width: 2.5px;
+    height: 40%;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #8dc63f, #22c55e);
+    animation: waveAnim 0.9s ease-in-out infinite;
+    opacity: 0.7;
+}
+
+@keyframes waveAnim {
+
+    0%,
+    100% {
+        height: 15%;
+        opacity: 0.4;
+    }
+
+    25% {
+        height: 55%;
+        opacity: 0.8;
+    }
+
+    50% {
+        height: 30%;
+        opacity: 0.6;
+    }
+
+    75% {
+        height: 75%;
+        opacity: 1;
+    }
+}
+
+/* ── Toggle Switch ── */
+.audioToggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 1;
+    flex-shrink: 0;
+    font-family: inherit;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Breathing Pulse when OFF ── */
+.audioToggle:not(.audioToggleOn) .audioToggleTrack {
+    animation: toggleSyncPulse 3s infinite ease-in-out;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes toggleSyncPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(141, 198, 63, 0);
+        transform: scale(1);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 15px 4px rgba(141, 198, 63, 0.35);
+        transform: scale(1.08);
+        border-color: rgba(141, 198, 63, 0.6);
+    }
+}
+
+.audioToggleTrack {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+
+.audioToggleOn .audioToggleTrack {
+    background: linear-gradient(135deg, rgba(141, 198, 63, 0.25), rgba(34, 197, 94, 0.2));
+    border-color: rgba(141, 198, 63, 0.5);
+    box-shadow: 0 0 12px rgba(141, 198, 63, 0.2);
+}
+
+.audioToggleThumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(0px);
+}
+
+.audioToggleOn .audioToggleThumb {
+    transform: translateX(18px);
+    background: #8dc63f;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(141, 198, 63, 0.5);
+}
+
+.audioToggleLabel {
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: rgba(255, 255, 255, 0.25);
+    transition: color 0.3s;
+    min-width: 20px;
+}
+
+.audioToggleOn .audioToggleLabel {
+    color: #8dc63f;
 }
