@@ -40,28 +40,28 @@ graph TD
 
 ## ✨ Core Features
 
-### Predictive Health Intelligence
+### 1. Predictive Health Intelligence
 Our LSTM Autoencoder model analyzes temperature, heart rate, and activity patterns to detect subtle anomalies that the human eye might miss. Get real-time alerts before symptoms even surface.
 
-### Chiron Intelligence (RAG)
+### 2. Chiron Intelligence (RAG)
 A professional-grade veterinary knowledge engine. Upload clinical documents, embed them into a Pinecone vector database, and get AI-grounded answers backed by your own verified medical data — not hallucinated internet content.
 
-### Arion — Advanced Chat
+### 3. Arion — Advanced Chat
 A multi-engine conversational assistant with **Global Search**, secure **Message Pinning**, and user-specific **Reaction Toggling**.
 
-### Admin Portal
+### 4. Admin Portal
 A powerful control center for managing AI engine configuration, system prompts, user management, and platform analytics. Includes **Herd Intelligence** for batch-reanalyzing health status.
 
-### Real-time Dashboard & Weather
+### 5. Real-time Dashboard & Weather
 A sleek dashboard with interactive charts and vital monitoring. Includes a backend **Weather Proxy** (OpenWeatherMap) for integrated environmental context.
 
-### 🔐 Enterprise-Grade Security
+### 6. Enterprise-Grade Security
 Professional Google Cloud Branding for trusted login, multi-channel OTP (Email & SMS), forgot password recovery, JWT-based session management, and dynamic CORS protection.
 
-### Subscription & Billing
+### 7. Subscription & Billing
 Integrated Razorpay payment gateway with configurable subscription plans managed from the Admin Portal.
 
-### Medical Vault & Health Records
+### 8. Medical Vault & Health Records
 Secure archive for health records. Supports **Bulk Health Logging** for rapid ingestion of historical diagnostic data.
 
 ---
@@ -230,7 +230,7 @@ This will automatically start:
 
 ---
 
-## 🔧 AI Engine Configuration
+## ⚙️AI Engine Configuration
 
 AranyaAi uses a **configuration-first** approach. All AI engine settings are managed through the **Admin Portal** — no code changes required.
 
