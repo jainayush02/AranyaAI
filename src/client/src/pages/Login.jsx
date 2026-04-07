@@ -398,8 +398,8 @@ export default function Login() {
 
                                             {/* Info */}
                                             <div className={styles.audioMeta}>
-                                                <div className={styles.audioIdleCta}>Sounds of the Aranya</div>
-                                                <div className={styles.audioIdleSub}>Every life deserves care</div>
+                                                <div className={styles.audioIdleCta}>Listen to AranyaAI’s Inspiration</div>
+                                                <div className={styles.audioIdleSub}>By Ayush, Anu, Keya & Ankit</div>
                                             </div>
 
                                             {/* Frozen waveform preview - synced to 32 bars */}
