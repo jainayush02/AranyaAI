@@ -523,9 +523,9 @@ export default function AdminPortal() {
             const fd = new FormData();
             fd.append('file', audioFile);
             fd.append('upload_preset', preset);
-            fd.append('resource_type', 'video'); // Cloudinary treats audio as video
+            fd.append('resource_type', 'auto'); 
 
-            const cloudUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+            const cloudUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
             const uploadR = await axios.post(cloudUrl, fd, {
                 onUploadProgress: (pe) => {
                     setAudioUploadProgress(Math.round((pe.loaded * 100) / pe.total));
@@ -3972,7 +3972,7 @@ export default function AdminPortal() {
                                                     }}
                                                 >
                                                     {audioUploading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={16} />}
-                                                    {audioUploading ? 'Uploading…' : loginAudio ? 'Replace Audio' : 'Upload Audio'}
+                                                    {audioUploading ? 'Uploading…' : 'Upload Audio'}
                                                 </motion.button>
                                             </div>
 

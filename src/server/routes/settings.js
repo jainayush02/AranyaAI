@@ -29,7 +29,14 @@ router.get('/', async (req, res) => {
     try {
         const settings = await SystemSettings.find();
         const settingsMap = {};
-        settings.forEach(s => settingsMap[s.key] = s.value);
+        settings.forEach(s => {
+            let val = s.value;
+            // Fix: if DB has the experimental array format, extract the first song to restore the UI.
+            if (s.key === 'login_audio' && val && val.songs && val.songs.length > 0) {
+                val = val.songs[0];
+            }
+            settingsMap[s.key] = val;
+        });
         res.json(settingsMap);
     } catch (error) {
         console.error('GET /api/settings - ERROR:', error);

@@ -899,6 +899,8 @@ router.post('/config/login-audio', authenticate, adminOnly, async (req, res) => 
             try {
                 const cloudinary = require('cloudinary').v2;
                 await cloudinary.uploader.destroy(existing.value.cloudFileId, { resource_type: 'video' });
+                // Cloudinary might fail if it was uploaded as auto/raw, we can try to destroy without resource_type or as raw.
+                await cloudinary.uploader.destroy(existing.value.cloudFileId).catch(() => {});
             } catch (err) { console.warn('Failed to cleanup old audio:', err.message); }
         }
 
