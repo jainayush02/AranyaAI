@@ -40,33 +40,33 @@ graph TD
 
 ## ✨ Core Features
 
-### 🧠 Predictive Health Intelligence
+### Predictive Health Intelligence
 Our LSTM Autoencoder model analyzes temperature, heart rate, and activity patterns to detect subtle anomalies that the human eye might miss. Get real-time alerts before symptoms even surface.
 
-### 🔬 Chiron Intelligence (RAG)
+### Chiron Intelligence (RAG)
 A professional-grade veterinary knowledge engine. Upload clinical documents, embed them into a Pinecone vector database, and get AI-grounded answers backed by your own verified medical data — not hallucinated internet content.
 
-### 💬 Arion — Advanced Chat
+### Arion — Advanced Chat
 A multi-engine conversational assistant with **Global Search**, secure **Message Pinning**, and user-specific **Reaction Toggling**.
 
-### 🛡️ Admin Portal
+### Admin Portal
 A powerful control center for managing AI engine configuration, system prompts, user management, and platform analytics. Includes **Herd Intelligence** for batch-reanalyzing health status.
 
-### 📊 Real-time Dashboard & Weather
+### Real-time Dashboard & Weather
 A sleek dashboard with interactive charts and vital monitoring. Includes a backend **Weather Proxy** (OpenWeatherMap) for integrated environmental context.
 
 ### 🔐 Enterprise-Grade Security
 Professional Google Cloud Branding for trusted login, multi-channel OTP (Email & SMS), forgot password recovery, JWT-based session management, and dynamic CORS protection.
 
-### 💳 Subscription & Billing
+### Subscription & Billing
 Integrated Razorpay payment gateway with configurable subscription plans managed from the Admin Portal.
 
-### 📱 Medical Vault & Health Records
+### Medical Vault & Health Records
 Secure archive for health records. Supports **Bulk Health Logging** for rapid ingestion of historical diagnostic data.
 
 ---
 
-## 🏗️ Modern Tech Stack
+## Modern Tech Stack
 
 | Layer | Technology |
 | :--- | :--- |
@@ -83,7 +83,7 @@ Secure archive for health records. Supports **Bulk Health Logging** for rapid in
 
 ---
 
-## 📂 Repository Architecture
+## Repository Architecture
 
 ```text
 AranyaAi/
