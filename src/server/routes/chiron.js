@@ -133,12 +133,29 @@ async function searchKnowledge(query, topK = 5) {
             includeMetadata: true
         });
 
-        return results.matches.map(m => ({
+        const matches = results.matches.map(m => ({
             text: m.metadata.text,
             source: m.metadata.source,
             score: m.score,
             document_id: m.metadata.document_id
         }));
+
+        // Enrich with file_type and source_url from MongoDB
+        const docIds = [...new Set(matches.map(m => m.document_id).filter(Boolean))];
+        if (docIds.length > 0) {
+            const dbDocs = await ChironDocument.find({ _id: { $in: docIds } }).select('file_type source_url').lean();
+            const docMap = {};
+            dbDocs.forEach(d => { docMap[d._id.toString()] = d; });
+            matches.forEach(m => {
+                const dbDoc = docMap[m.document_id];
+                if (dbDoc) {
+                    m.file_type = dbDoc.file_type || null;
+                    m.source_url = dbDoc.source_url || null;
+                }
+            });
+        }
+
+        return matches;
     } catch (err) {
         console.error('[Chiron Search] Failure:', err.message);
         return [];
@@ -249,7 +266,7 @@ router.post('/ingest-url', auth, async (req, res) => {
         });
         const buf = Buffer.from(fetch.data);
         const fname = name || url.split('/').pop() || 'web_resource';
-        const doc = new ChironDocument({ user_id: req.user.id, document_name: fname, original_filename: fname, file_type: url.includes('.pdf') ? 'pdf' : 'txt', file_size_kb: Math.ceil(buf.length / 1024), status: 'pending' });
+        const doc = new ChironDocument({ user_id: req.user.id, document_name: fname, original_filename: fname, file_type: url.includes('.pdf') ? 'pdf' : 'txt', file_size_kb: Math.ceil(buf.length / 1024), status: 'pending', source_url: url });
         await doc.save();
         // File saving disabled
         res.setHeader('Content-Type', 'text/event-stream');

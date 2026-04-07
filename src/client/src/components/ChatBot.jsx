@@ -233,10 +233,13 @@ const ChironSourcesPanel = ({ sources }) => {
     };
 
     const handleClick = (src) => {
-        const isUrl = !!src.source_url || (!src.file_type || src.file_type === 'url');
-        if (isUrl && src.source_url) {
-            window.open(src.source_url, '_blank', 'noopener,noreferrer');
-        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc' || (src.title && (src.title.endsWith('.pdf') || src.title.endsWith('.docx')))) {
+        const label = src.title || src.source || '';
+        const lowerLabel = label.toLowerCase();
+        const isUrl = src.file_type === 'url' || !!src.source_url || (!src.file_type && (lowerLabel.startsWith('http') || lowerLabel.startsWith('www')));
+        if (isUrl) {
+            const url = src.source_url || (lowerLabel.startsWith('http') ? label : `https://${label}`);
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc' || lowerLabel.endsWith('.pdf') || lowerLabel.endsWith('.docx') || lowerLabel.endsWith('.doc')) {
             const link = document.createElement('a');
             link.href = `/api/chiron/download?name=${encodeURIComponent(src.title || src.source)}`;
             link.download = src.title || src.source;
@@ -251,12 +254,14 @@ const ChironSourcesPanel = ({ sources }) => {
                 const lowerLabel = label.toLowerCase();
                 const isPdf = src.file_type === 'pdf' || lowerLabel.endsWith('.pdf');
                 const isWord = src.file_type === 'doc' || src.file_type === 'docx' || lowerLabel.endsWith('.doc') || lowerLabel.endsWith('.docx');
-                
-                const typeLabel = isPdf ? 'PDF Ref' : isWord ? 'Doc Ref' : 'Clinical Record';
+                const isUrl = src.file_type === 'url' || !!src.source_url || (!isPdf && !isWord && (lowerLabel.startsWith('http') || lowerLabel.startsWith('www')));
+
+                const typeLabel = isPdf ? 'PDF Ref' : isWord ? 'Doc Ref' : isUrl ? 'URL Ref' : 'Grounding Source';
 
                 return (
                     <div
                         key={idx}
+                        onClick={() => handleClick(src)}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -267,6 +272,7 @@ const ChironSourcesPanel = ({ sources }) => {
                             border: '1px solid #e2e8f0',
                             maxWidth: 'max-content',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
+                            cursor: (isPdf || isWord || isUrl) ? 'pointer' : 'default',
                         }}
                     >
                         <div style={{
@@ -279,13 +285,14 @@ const ChironSourcesPanel = ({ sources }) => {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{
-                                fontSize: '0.72rem', fontWeight: 700, color: '#1e293b',
+                                fontSize: '0.72rem', fontWeight: 700, color: isUrl ? '#10b981' : '#1e293b',
                                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                textDecoration: isUrl ? 'underline' : 'none',
                             }}>
                                 {label}
                             </div>
                             <div style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ color: isPdf ? '#ef4444' : isWord ? '#2563eb' : '#64748b' }}>{typeLabel}</span>
+                                <span style={{ color: isPdf ? '#ef4444' : isWord ? '#2563eb' : isUrl ? '#10b981' : '#64748b' }}>{typeLabel}</span>
                                 <span>•</span>
                                 <span>Grounding Source</span>
                             </div>
