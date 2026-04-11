@@ -294,9 +294,15 @@ export default function Login() {
                             className={styles.visualContent}
                         >
                             <div className={styles.brandMark}>
-                                <span className={styles.brandMarkText}>
-                                    Aranya<span className={styles.brandMarkAi}>Ai</span>
-                                </span>
+                                <div className={styles.brandMarkBlock}>
+                                    <span className={styles.brandMarkText}>
+                                        Aranya<span className={styles.brandMarkAi}>Ai</span>
+                                    </span>
+                                    <span className={styles.brandMarkCredit}>
+                                        <span className={styles.brandMarkFrom}>by </span>
+                                        <span className={styles.brandMarkStudio}>Kryonex Studio</span>
+                                    </span>
+                                </div>
                             </div>
 
                             <div className={styles.heroBlock}>
@@ -813,9 +819,15 @@ export default function Login() {
                             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                         >
                             <div className={styles.footerLogoWrap}>
-                                <span className={styles.footerBrandText}>
-                                    Aranya<span className={styles.brandMarkAi}>Ai</span>
-                                </span>
+                                <div className={styles.footerBrandWrap}>
+                                    <span className={styles.footerBrandText}>
+                                        Aranya<span className={styles.brandMarkAi}>Ai</span>
+                                    </span>
+                                    <div className={styles.footerBrandCredit}>
+                                        <span className={styles.brandMarkFrom}>by </span>
+                                        <span className={styles.brandMarkStudio}>Kryonex Studio</span>
+                                    </div>
+                                </div>
                             </div>
                             <p className={styles.footerTagline}>
                                 Caring for every animal, from farm to home.
