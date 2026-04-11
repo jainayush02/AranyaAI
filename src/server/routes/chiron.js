@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
-// Dynamic Alignment State
+
 let pineconeIndex = null;
 let pineconeClient = null;
 let DETECTED_DIMENSION = 1536;
@@ -117,7 +117,6 @@ function chunkText(text, sz = 500, ov = 50) {
     return c.filter(x => x).map(x => x.trim()).filter(x => x.length > 0);
 }
 
-// ── UTILITY: KNOWLEDGE SEARCH (USED BY chat.js) ──
 async function searchKnowledge(query, topK = 5) {
     try {
         if (!pineconeIndex) await initPinecone();
@@ -140,10 +139,10 @@ async function searchKnowledge(query, topK = 5) {
             document_id: m.metadata.document_id
         }));
 
-        // Enrich with file_type and source_url from MongoDB
+      
         const docIds = [...new Set(matches.map(m => m.document_id).filter(Boolean))];
         if (docIds.length > 0) {
-            const dbDocs = await ChironDocument.find({ _id: { $in: docIds } }).select('file_type source_url').lean();
+            const dbDocs = await ChironDocument.find({ _id: { $in: docIds } }).select('file_type source_url original_filename').lean();
             const docMap = {};
             dbDocs.forEach(d => { docMap[d._id.toString()] = d; });
             matches.forEach(m => {
@@ -151,6 +150,8 @@ async function searchKnowledge(query, topK = 5) {
                 if (dbDoc) {
                     m.file_type = dbDoc.file_type || null;
                     m.source_url = dbDoc.source_url || null;
+                 
+                    m.document_id = m.document_id;
                 }
             });
         }
@@ -165,6 +166,23 @@ async function searchKnowledge(query, topK = 5) {
 async function runIngestStream(res, doc, buf, displayName) {
     const pulse = (d) => { res.write(`data: ${JSON.stringify(d)}\n\n`); if (res.flush) res.flush(); };
     pulse({ status: 'Processing File...', percent: 5 });
+
+    try {
+        const savePath = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type.toLowerCase()}`);
+        if (!fs.existsSync(RECOVERY_DIR)) fs.mkdirSync(RECOVERY_DIR, { recursive: true });
+        fs.writeFileSync(savePath, buf);
+    } catch (saveErr) {
+        console.warn('[Chiron] Could not save file to disk:', saveErr.message);
+    }
+
+    try {
+        await ChironDocument.findByIdAndUpdate(doc._id, {
+            file_data: buf.toString('base64')
+        });
+        console.log(`[Chiron] File buffer persisted to MongoDB for doc ${doc._id} (${buf.length} bytes)`);
+    } catch (dbSaveErr) {
+        console.warn('[Chiron] WARNING: Could not persist file buffer to MongoDB:', dbSaveErr.message);
+    }
 
     let aborted = false;
     res.on('close', () => {
@@ -190,7 +208,7 @@ async function runIngestStream(res, doc, buf, displayName) {
             text = str;
         }
 
-        // FORCE ALIGNMENT CHECK
+ 
         pulse({ status: `Synchronizing with ${DETECTED_DIMENSION}d Index...`, percent: 10 });
         const ready = await initPinecone();
         if (!ready) throw new Error('Vector Engine (Pinecone) Handshake Rejection');
@@ -306,10 +324,10 @@ router.delete('/purge', auth, async (req, res) => {
             for (const file of files) fs.unlinkSync(path.join(RECOVERY_DIR, file));
         }
 
-        console.log('✅ Chiron: Memory and Database Cleared');
+        console.log('Chiron: Memory and Database Cleared');
         res.json({ msg: 'Purged' });
     } catch (err) {
-        console.error('❌ Purge Failed:', err.message);
+        console.error('Purge Failed:', err.message);
         res.status(500).json({ msg: 'Purge Failed', error: err.message });
     }
 });
@@ -335,19 +353,170 @@ router.delete('/documents/:id', auth, async (req, res) => {
         const doc = await ChironDocument.findById(req.params.id);
         if (!doc) return res.status(404).json({ msg: 'Doc not found' });
 
-        // CLEAN VECTORS
+       
         if (doc.vector_db_refs?.length > 0 && pineconeIndex) {
             console.log(`[Chiron] Purging ${doc.vector_db_refs.length} vectors for ${doc.document_name}`);
             try { await pineconeIndex.deleteMany(doc.vector_db_refs); } catch (e) { console.warn('Vector Delete Fail', e.message); }
         }
 
-        // CLEAN FILES
+       
         const fPath = path.join(RECOVERY_DIR, `${doc._id}.${doc.file_type}`);
         if (fs.existsSync(RECOVERY_DIR) && fs.existsSync(fPath)) fs.unlinkSync(fPath);
 
         await ChironDocument.findByIdAndDelete(req.params.id);
         res.json({ msg: 'Deleted' });
     } catch (e) { res.status(500).json({ msg: 'Delet Failed' }); }
+});
+
+
+const MIME_TYPES = {
+    pdf:  'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc:  'application/msword',
+    txt:  'text/plain',
+    png:  'image/png',
+    jpg:  'image/jpeg',
+    jpeg: 'image/jpeg',
+};
+
+
+async function resolveFileBuffer(docId, fileType) {
+    const fresh = await ChironDocument.findById(docId).select('file_data file_type').lean();
+    if (fresh && fresh.file_data) {
+        return { buf: Buffer.from(fresh.file_data, 'base64'), ext: (fileType || fresh.file_type || 'pdf').toLowerCase() };
+    }
+    const ext = (fileType || 'pdf').toLowerCase();
+    const fPath = path.join(RECOVERY_DIR, `${docId}.${ext}`);
+    if (fs.existsSync(RECOVERY_DIR) && fs.existsSync(fPath)) {
+        return { buf: fs.readFileSync(fPath), ext };
+    }
+    return null;
+}
+
+
+const jwt = require('jsonwebtoken');
+function resolveUserId(req) {
+    const headerAuth = req.header('Authorization');
+    const rawToken = headerAuth
+        ? headerAuth.replace(/^Bearer\s+/i, '').trim()
+        : (req.query.token || '').trim();
+    if (!rawToken) return null;
+    try {
+        const decoded = jwt.verify(rawToken, process.env.JWT_SECRET);
+        return decoded.user?.id || decoded.id || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+
+router.get('/file/:id', async (req, res) => {
+    try {
+        const userId = resolveUserId(req);
+        if (!userId) return res.status(401).json({ msg: 'Unauthorized' });
+
+     
+        const doc = await ChironDocument.findById(req.params.id)
+            .select('file_type original_filename document_name file_data')
+            .lean();
+        if (!doc) return res.status(404).json({ msg: 'Document not found' });
+
+        const result = await resolveFileBuffer(req.params.id, doc.file_type);
+        if (!result) {
+            return res.status(404).json({ msg: 'File data not available — please re-upload in the admin panel.' });
+        }
+
+        const { buf, ext } = result;
+        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+        const rawName = doc.original_filename || doc.document_name || `file.${ext}`;
+        const safeFilename = rawName.toLowerCase().endsWith(`.${ext}`) ? rawName : `${rawName}.${ext}`;
+
+        const isDownload = req.query.dl === '1';
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="${safeFilename}"`);
+        res.setHeader('Content-Length', buf.length);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.send(buf);
+    } catch (e) {
+        console.error('[Chiron File]', e.message);
+        res.status(500).json({ msg: 'Could not serve file' });
+    }
+});
+
+
+async function findDocByName(name) {
+    let doc = await ChironDocument.findOne({ document_name: name }).lean();
+    if (doc) return doc;
+    const regex = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    doc = await ChironDocument.findOne({ document_name: regex }).lean();
+    if (doc) return doc;
+    doc = await ChironDocument.findOne({ original_filename: regex }).lean();
+    if (doc) return doc;
+    const partial = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    doc = await ChironDocument.findOne({ $or: [{ document_name: partial }, { original_filename: partial }]}).lean();
+    return doc || null;
+}
+
+
+router.get('/view', async (req, res) => {
+    try {
+        const userId = resolveUserId(req);
+        if (!userId) return res.status(401).json({ msg: 'Unauthorized' });
+
+        const { name } = req.query;
+        if (!name) return res.status(400).json({ msg: 'Missing name param' });
+
+        const doc = await findDocByName(name);
+        if (!doc) {
+            const all = await ChironDocument.find({}).select('document_name original_filename').lean();
+            console.error(`[Chiron View] "${name}" not found. DB has: ${all.map(d => d.document_name).join(', ')}`);
+            return res.status(404).json({ msg: 'Document not found in database' });
+        }
+
+        const result = await resolveFileBuffer(doc._id, doc.file_type);
+        if (!result) return res.status(404).json({ msg: 'File not available — please re-upload.' });
+
+        const { buf, ext } = result;
+        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+        const rawName = doc.original_filename || doc.document_name || name;
+        const safeFilename = rawName.toLowerCase().endsWith(`.${ext}`) ? rawName : `${rawName}.${ext}`;
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+        res.setHeader('Content-Length', buf.length);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.send(buf);
+    } catch (e) {
+        console.error('[Chiron View]', e.message);
+        res.status(500).json({ msg: 'Could not open file' });
+    }
+});
+
+
+router.get('/download', auth, async (req, res) => {
+    try {
+        const { name } = req.query;
+        if (!name) return res.status(400).json({ msg: 'Missing name param' });
+
+        const doc = await findDocByName(name);
+        if (!doc) return res.status(404).json({ msg: 'Document not found' });
+
+        const result = await resolveFileBuffer(doc._id, doc.file_type);
+        if (!result) return res.status(404).json({ msg: 'File not available — please re-upload.' });
+
+        const { buf, ext } = result;
+        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+        const rawName = doc.original_filename || doc.document_name || name;
+        const safeFilename = rawName.toLowerCase().endsWith(`.${ext}`) ? rawName : `${rawName}.${ext}`;
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Length', buf.length);
+        res.send(buf);
+    } catch (e) {
+        console.error('[Chiron Download]', e.message);
+        res.status(500).json({ msg: 'Download failed' });
+    }
 });
 
 

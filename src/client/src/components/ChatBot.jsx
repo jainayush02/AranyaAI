@@ -5,7 +5,7 @@ import {
     Plus, History, Trash2, Edit3,
     Check, ChevronRight, ChevronLeft, Copy,
     CheckSquare, Square, StopCircle, Sparkles, CornerDownRight,
-    MoreVertical, Search, Pin, Smile, ThumbsUp, // Added Pin, Smile, ThumbsUp
+    MoreVertical, Search, Pin, Smile, ThumbsUp, 
     Globe, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,40 +53,28 @@ const AILogo = ({ size = 24, className }) => (
     </svg>
 );
 
-// Typewriter component removed in favor of direct high-speed streaming renderer
 
 const parseMessage = (content, isStreaming = false) => {
     if (typeof content !== 'string') return { cleanContent: '' };
     
-    // 1. Standard cleaning for attachments
     let clean = content.replace(/<aranya-attachment name="([^"]+)">[\s\S]*?<\/aranya-attachment>/g, '📎 **$1**\n\n');
 
-    // 2. (Removed custom table buffering/streaming logic to prevent performance slowdowns and glitches. 
-    // ReactMarkdown will natively render the table perfectly once the separator row completes.)
-
-    // 3. Aranya Mode Tag Strip: Hide technical search tag from the UI (including partial tags during streaming)
     clean = clean
-        .replace(/\[SEARCH_NEEDED:[\s\S]*?\]/gi, '') // Full tag
-        .replace(/\[SEARCH_NEEDED:[\s\S]*$/gi, '')  // Partial tag at end of current stream
-        .replace(/\[SEARCH_NEEDED:?$/gi, '');       // Just the start of the tag
-
-    // 4. Smooth Markdown Rendering: Fix partial syntax during streaming
+        .replace(/\[SEARCH_NEEDED:[\s\S]*?\]/gi, '') 
+        .replace(/\[SEARCH_NEEDED:[\s\S]*$/gi, '')  
+        .replace(/\[SEARCH_NEEDED:?$/gi, '');       
     if (isStreaming) {
-        // Auto-close unclosed bold tags, but don't double-close if the AI has already typed the first asterisk '*'
+        
         const boldCount = (clean.match(/\*\*/g) || []).length;
         if (boldCount % 2 !== 0) {
             clean += clean.endsWith('*') && !clean.endsWith('**') ? '*' : '**';
         }
-
-        // Auto-close unclosed code blocks, handling partial backticks
         const codeBlockCount = (clean.match(/```/g) || []).length;
         if (codeBlockCount % 2 !== 0) {
             if (clean.endsWith('``') && !clean.endsWith('```')) clean += '\n`';
             else if (clean.endsWith('`') && !clean.endsWith('``')) clean += '\n``';
             else clean += '\n```';
         }
-
-        // Auto-close unclosed inline code (ignoring block backticks)
         const inlineCodeCount = (clean.replace(/```/g, '').match(/`/g) || []).length;
         if (inlineCodeCount % 2 !== 0) {
             clean += '`';
@@ -211,11 +199,10 @@ const SourceBadges = ({ sources }) => {
         </div>
     );
 };
-// ── NEW: Chiron Sources Panel ──────────────────────────────────────────────
+
 const ChironSourcesPanel = ({ sources }) => {
     if (!sources || sources.length === 0) return null;
 
-    // Deduplicate by title/source name
     const seen = new Set();
     const unique = sources.filter(s => {
         const key = s.title || s.source;
@@ -232,18 +219,65 @@ const ChironSourcesPanel = ({ sources }) => {
         return <FileText size={14} color="#94a3b8" />;
     };
 
-    const handleClick = (src) => {
+    const handleClick = async (src) => {
         const label = src.title || src.source || '';
         const lowerLabel = label.toLowerCase();
-        const isUrl = src.file_type === 'url' || !!src.source_url || (!src.file_type && (lowerLabel.startsWith('http') || lowerLabel.startsWith('www')));
+        const isUrl = src.file_type === 'url' || !!src.source_url ||
+            (!src.file_type && (lowerLabel.startsWith('http') || lowerLabel.startsWith('www')));
+        const isPdf = src.file_type === 'pdf' || lowerLabel.endsWith('.pdf');
+        const isWord = src.file_type === 'docx' || src.file_type === 'doc' ||
+            lowerLabel.endsWith('.docx') || lowerLabel.endsWith('.doc');
+        const isTxt = src.file_type === 'txt' || lowerLabel.endsWith('.txt');
+
+        
         if (isUrl) {
             const url = src.source_url || (lowerLabel.startsWith('http') ? label : `https://${label}`);
             window.open(url, '_blank', 'noopener,noreferrer');
-        } else if (src.file_type === 'pdf' || src.file_type === 'docx' || src.file_type === 'doc' || lowerLabel.endsWith('.pdf') || lowerLabel.endsWith('.docx') || lowerLabel.endsWith('.doc')) {
-            const link = document.createElement('a');
-            link.href = `/api/chiron/download?name=${encodeURIComponent(src.title || src.source)}`;
-            link.download = src.title || src.source;
-            link.click();
+            return;
+        }
+
+       
+        if (isPdf || isWord || isTxt) {
+            const token = localStorage.getItem('token');
+            const docId = src.document_id || null;
+
+            try {
+                let downloadRes;
+                if (docId) {
+                   
+                    downloadRes = await fetch(`/api/chiron/file/${docId}?dl=1&token=${encodeURIComponent(token)}`);
+                } else {
+                    
+                    const rawName = label.replace(/^.*[\\/]/, '').trim();
+                    downloadRes = await fetch(`/api/chiron/download?name=${encodeURIComponent(rawName)}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                }
+
+                if (!downloadRes.ok) {
+                    const errJson = await downloadRes.json().catch(() => ({}));
+                    throw new Error(errJson.msg || `Server error ${downloadRes.status}`);
+                }
+
+                const blob = await downloadRes.blob();
+                const ext = isPdf ? 'pdf' : isWord ? (lowerLabel.endsWith('.doc') ? 'doc' : 'docx') : 'txt';
+                const rawName = label.replace(/^.*[\\/]/, '').trim();
+                const filename = lowerLabel.endsWith(`.${ext}`) ? rawName : `${rawName}.${ext}`;
+
+                // Trigger browser download
+                const dlUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = dlUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(dlUrl), 15000);
+
+            } catch (err) {
+                console.error('[Chiron Source Error]', err);
+                alert(`Could not open file: ${err.message}`);
+            }
         }
     };
 
@@ -303,14 +337,12 @@ const ChironSourcesPanel = ({ sources }) => {
         </div>
     );
 };
-// ── END ChironSourcesPanel ─────────────────────────────────────────────────
 
-// ── ThinkingPanel: Live Chain of Thought ────────────────────────────────────
 const ThinkingPanel = React.memo(({ steps, reasoningText, isThinking, isGenerating, thinkingDuration }) => {
     const [isExpanded, setIsExpanded] = React.useState(true);
     const durationText = thinkingDuration ? `${(thinkingDuration / 1000).toFixed(1)}s` : null;
 
-    // Auto-collapse when answer is fully generated
+  
     React.useEffect(() => {
         if (!isThinking && !isGenerating && steps.length > 0) {
             const timer = setTimeout(() => setIsExpanded(false), 1500);
@@ -389,10 +421,10 @@ const ThinkingPanel = React.memo(({ steps, reasoningText, isThinking, isGenerati
         </div>
     );
 });
-// ── END ThinkingPanel ──────────────────────────────────────────────────────
+
 
 const IntelligenceBadge = ({ type, mode }) => {
-    // Only show badge for web intelligence (search augmented answers)
+
     if (!type || type === 'arion') return null;
 
     const config = {
@@ -439,7 +471,6 @@ export default function ChatBot() {
     const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     
-    // NEW: Auto-New Chat when mode changes
     useEffect(() => {
         if (messages.length > 0 || activeChatId) {
             setActiveChatId(null);
@@ -451,33 +482,25 @@ export default function ChatBot() {
     const recognitionRef = useRef(null);
     const silenceTimeoutRef = useRef(null);
 
-    // Global Search State
     const [isGlobalSearch, setIsGlobalSearch] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
 
-    // Reaction Picker State
+  
     const [activeReactionId, setActiveReactionId] = useState(null);
 
-    // Document File Upload State
     const documentInputRef = useRef(null);
     const cameraInputRef = useRef(null);
     const [isExtractingText, setIsExtractingText] = useState(false);
     const [fileAttachments, setFileAttachments] = useState([]);
-
-    // Input Menu State
     const [isInputMenuOpen, setIsInputMenuOpen] = useState(false);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
             setMenuOpenId(null);
-
-            // Close input menu when clicking outside
             if (isInputMenuOpen && !e.target.closest(`.${styles.inputMenuContainer}`)) {
                 setIsInputMenuOpen(false);
             }
-
-            // Close mode selector when clicking outside
             if (isModeSelectorOpen && !e.target.closest(`.${styles.modeSelectorContainer}`)) {
                 setIsModeSelectorOpen(false);
             }
@@ -525,13 +548,11 @@ export default function ChatBot() {
 
         recognition.onstart = () => {
             setIsRecording(true);
-            // 4 seconds delay if no sound detected at all
             if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
             silenceTimeoutRef.current = setTimeout(stopRecording, 4000);
         };
 
         recognition.onspeechstart = () => {
-            // Clear the timeout once they start speaking
             if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
         };
 
@@ -556,8 +577,6 @@ export default function ChatBot() {
 
         recognition.start();
     };
-
-    // Header Animation States
     const [headerVisible, setHeaderVisible] = useState(true);
     const isAtBottomRef = useRef(true);
     const lastChatScrollRef = useRef(0);
@@ -609,7 +628,6 @@ export default function ChatBot() {
     }, [activeChatId]);
 
     useEffect(() => {
-        // Skip auto-scroll during active generation — processQueue handles it
         if (isGenerating) return;
         const timeoutId = setTimeout(() => {
             scrollToBottom();
@@ -641,7 +659,6 @@ export default function ChatBot() {
         }
     };
 
-    // Global Search Function
     const handleGlobalSearch = async (query) => {
         setSearchQuery(query);
         if (query.trim().length < 2) {
@@ -659,15 +676,13 @@ export default function ChatBot() {
         }
     };
 
-    // Message Actions Functions
+
     const handleTogglePin = async (msgId) => {
         try {
             const token = localStorage.getItem('token');
             await axios.put(`/api/chat/messages/${msgId}/pin`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
-            // Update local state without re-fetching
             setMessages(prev => prev.map(m =>
                 m._id === msgId ? { ...m, isPinned: !m.isPinned } : m
             ));
@@ -679,14 +694,11 @@ export default function ChatBot() {
     const handleToggleReaction = async (msgId, emoji) => {
         try {
             const token = localStorage.getItem('token');
-            // Decode the hardcoded user ID logic for simple visual feedback (we simulate backend response)
             await axios.put(`/api/chat/messages/${msgId}/react`, { emoji }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
-            // Actually, best to fetch the exact new msg or manually toggle locally
             setActiveReactionId(null);
-            fetchMessages(activeChatId); // Safest route to get correct user reaction mapping
+            fetchMessages(activeChatId); 
         } catch (err) {
             console.error('Reaction toggle failed', err);
         }
@@ -711,7 +723,7 @@ export default function ChatBot() {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
-        // Limit to 4 images total
+
         const remainingSlots = 4 - imagePreviews.length;
         const filesToProcess = files.slice(0, remainingSlots);
 
@@ -778,13 +790,11 @@ export default function ChatBot() {
         }
     };
 
-    // Document/PDF parsing logic
     const handleDocumentSelect = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
         setIsExtractingText(true);
-        // We use isUploadingImage here just to show the loading spinner in the UI
         setIsUploadingImage(true);
         setIsInputMenuOpen(false);
 
@@ -925,16 +935,14 @@ export default function ChatBot() {
 
     const handleDownloadPDF = (content, title = 'Arion-Report') => {
         const doc = new jsPDF();
-
-        // Engineer's Sanitizer: Strips Unicode, Brackets, and MD artifacts
         const sanitize = (text) => {
             if (!text) return '';
             return text
-                .replace(/<br\s*\/?>/gi, '\n') // Newlines
-                .replace(/[\u200B-\u200D\uFEFF]/g, '') // Zero-width spaces
-                .replace(/[^\x00-\x7F]/g, '') // Force Standard ASCII (Removes AI hidden bold chars)
-                .replace(/\*|_|`|~|#|\[|\]/g, '') // Strip MD symbols
-                .replace(/\s+/g, ' ') // Collapse extra spaces
+                .replace(/<br\s*\/?>/gi, '\n') 
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') 
+                .replace(/[^\x00-\x7F]/g, '') 
+                .replace(/\*|_|`|~|#|\[|\]/g, '')
+                .replace(/\s+/g, ' ') 
                 .trim();
         };
 
@@ -964,11 +972,7 @@ export default function ChatBot() {
             showToast('No table found to export.', 'info');
             return;
         }
-
-        // Global Font Setup
         doc.setFont('helvetica', 'normal');
-
-        // Header Core
         doc.setFontSize(22);
         doc.setTextColor(26, 74, 56);
         doc.text('Arion Health Assistant Report', 14, 22);
@@ -1076,7 +1080,7 @@ export default function ChatBot() {
 
         let chatId = activeChatId;
 
-        // Auto-create chat if none exists
+        
         if (!chatId) {
             console.log("No active chat, attempting to create a new one.");
             chatId = await handleNewChat();
@@ -1098,8 +1102,8 @@ export default function ChatBot() {
         const userMsg = {
             role: 'user',
             content: finalContent || 'Image Analysis',
-            image_url: imagePreviews.length > 0 ? imagePreviews[0] : null, // Fallback for single image_url
-            image_urls: imagePreviews, // New field for multiple images
+            image_url: imagePreviews.length > 0 ? imagePreviews[0] : null, 
+            image_urls: imagePreviews, 
             tempId: tempMsgId,
             createdAt: new Date()
         };
@@ -1116,8 +1120,6 @@ export default function ChatBot() {
         let isProcessingQueue = false;
         const signal = abortControllerRef.current.signal;
         const isAborted = () => signal.aborted;
-
-        // NEW: Hard kill for UI generation - empty the queue immediately on abort
         const handleAbort = () => {
             tokenQueue.length = 0;
             setMessages(prev => {
@@ -1143,30 +1145,22 @@ export default function ChatBot() {
                 displayContent += char;
                 
                 const now = Date.now();
-                // Check if a complete table row just finished (ends with newline after pipe)
                 const isTableRowComplete = char === '\n' && displayContent.includes('|') && 
-                                           displayContent.split('\n').slice(-2)[0]?.includes('|');
-                
-                // Standard Framerate Update (40ms): Prevents state-flooding and UI flickering
-                // Accelerated update for table rows: Force immediate render when row completes
+                                           displayContent.split('\n').slice(-2)[0]?.includes('|');        
                 if (isTableRowComplete || now - lastUpdate > 40 || tokenQueue.length === 0) {
                     setMessages(prev => {
                         const next = [...prev];
                         const idx = next.length - 1;
-                        if (idx >= 0 && next[idx].isStreaming) {
-                            // Only update content — preserve thinkingSteps reference to avoid ThinkingPanel re-render
+                        if (idx >= 0 && next[idx].isStreaming) {                           
                             next[idx] = { ...next[idx], content: displayContent };
                         }
                         return next;
-                    });
-                    // Only auto-scroll if user hasn't scrolled up
+                    });                   
                     if (isAtBottomRef.current) {
                         chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
                     }
                     lastUpdate = now;
-                }
-                
-                // Elite Brisk Speed: Set to 2ms for ultra-smooth rendering (especially for tables)
+                }                
                 await new Promise(r => setTimeout(r, 2));
             }
             isProcessingQueue = false;
@@ -1614,11 +1608,6 @@ export default function ChatBot() {
                                                     <ImageGrid images={msg.image_urls || (msg.image_url ? [msg.image_url] : [])} />
                                                     {(() => {
                                                         const { cleanContent } = parseMessage(msg.content, msg.isStreaming);
-                                                        
-                                                        // "Fluid Renderer" logic:
-                                                        // 1. If streaming, render directly for 100% smoothness (no stuttering)
-                                                        // 2. If finished and first view (isNew), use the smooth typewriter
-                                                        // 3. Otherwise, use standard Markdown
                                                         return (
                                                             <div className={styles.markdownContent}>
                                                                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{cleanContent}</ReactMarkdown>

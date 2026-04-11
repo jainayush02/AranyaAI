@@ -6,6 +6,7 @@ const ChironDocumentSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    file_data: { type: String, default: null },
     document_name: {
         type: String,
         required: true

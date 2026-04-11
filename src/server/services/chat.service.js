@@ -160,7 +160,7 @@ class ChatService {
                 if (relevantDocs.length > 0) {
                     console.log(`[Chiron Grounding] Found ${relevantDocs.length} segments. Top Score: ${relevantDocs[0].score.toFixed(2)}`);
                     intelligenceType = 'chiron';
-                    chironSources = relevantDocs.map(doc => ({ title: doc.source, snippet: doc.text?.substring(0, 150), source: doc.source, score: doc.score, file_type: doc.file_type || null, source_url: doc.source_url || null }));
+                    chironSources = relevantDocs.map(doc => ({ title: doc.source, snippet: doc.text?.substring(0, 150), source: doc.source, score: doc.score, file_type: doc.file_type || null, source_url: doc.source_url || null, document_id: doc.document_id || null }));
                     const knowledgeBlock = relevantDocs.map((doc, i) => `[Doc ID: CH_DOC_${i + 1}] (Source: ${doc.source}) ${doc.text}`).join('\n\n');
                     systemPrompt += `\n\n[CHIRON_KNOWLEDGE_BASE]\n${knowledgeBlock}\n[CHIRON_KNOWLEDGE_BASE_END]`;
                 } else {
@@ -208,7 +208,7 @@ class ChatService {
             .limit(30)
             .lean();
             
-        // Attach conversation title
+        
         const convMap = {};
         const convData = await Conversation.find({ _id: { $in: convIds } }).select('title').lean();
         convData.forEach(c => { convMap[c._id.toString()] = c.title; });
