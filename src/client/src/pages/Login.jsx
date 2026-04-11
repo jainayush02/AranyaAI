@@ -80,6 +80,7 @@ export default function Login() {
     const [loginAudio, setLoginAudio] = useState(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
     const [audioReady, setAudioReady] = useState(false);
+    const [audioLoading, setAudioLoading] = useState(true);
     const audioRef = useRef(null);
 
     const navigate = useNavigate();
@@ -123,6 +124,9 @@ export default function Login() {
                 const r = await axios.get('/api/settings');
                 if (r.data?.login_audio?.url) setLoginAudio(r.data.login_audio);
             } catch { /* silently ignore */ }
+            finally {
+                setAudioLoading(false);
+            }
         })();
     }, []);
 
@@ -336,13 +340,13 @@ export default function Login() {
                             </motion.div>
 
                             {/* ── Audio Player Widget ── */}
-                            {loginAudio && (
+                            {(audioLoading || loginAudio) && (
                                 <motion.div
-                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${styles.audioWidgetClickable}`}
+                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${audioLoading ? styles.audioWidgetLoading : styles.audioWidgetClickable}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                                    onClick={toggleAudio}
+                                    onClick={!audioLoading ? toggleAudio : null}
                                     role="button"
                                     tabIndex={0}
                                 >
@@ -404,7 +408,9 @@ export default function Login() {
 
                                             {/* Info */}
                                             <div className={styles.audioMeta}>
-                                                <div className={styles.audioIdleCta}>Listen to AranyaAI’s Inspiration</div>
+                                                <div className={styles.audioIdleCta}>
+                                                    {audioLoading ? 'Trying to load music...' : 'Listen to AranyaAI\'s Inspiration'}
+                                                </div>
                                                 <div className={styles.audioIdleSub}>By Ayush, Anu, Keya & Ankit</div>
                                             </div>
 
