@@ -342,7 +342,7 @@ export default function Login() {
                             {/* ── Audio Player Widget ── */}
                             {(audioLoading || loginAudio) && (
                                 <motion.div
-                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${audioLoading ? styles.audioWidgetLoading : styles.audioWidgetClickable}`}
+                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${audioLoading ? '' : styles.audioWidgetClickable}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
@@ -350,13 +350,15 @@ export default function Login() {
                                     role="button"
                                     tabIndex={0}
                                 >
-                                    <audio
-                                        ref={audioRef}
-                                        src={loginAudio.url}
-                                        loop
-                                        preload="metadata"
-                                        onEnded={() => setAudioPlaying(false)}
-                                    />
+                                    {loginAudio && (
+                                        <audio
+                                            ref={audioRef}
+                                            src={loginAudio.url}
+                                            loop
+                                            preload="metadata"
+                                            onEnded={() => setAudioPlaying(false)}
+                                        />
+                                    )}
 
                                     {/* Animated background waveform */}
                                     <div className={styles.audioBgWave}>
@@ -365,7 +367,14 @@ export default function Login() {
                                         ))}
                                     </div>
 
-                                    {audioPlaying ? (
+                                    {audioLoading ? (
+                                        // Loading placeholder - maintains height
+                                        <div className={styles.audioLoadingPlaceholder}>
+                                            <div className={styles.audioLoadingText}>Trying to load music...</div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {audioPlaying ? (
                                         /* ── PLAYING STATE ── */
                                         <>
                                             <div className={styles.audioLeft}>
@@ -408,9 +417,7 @@ export default function Login() {
 
                                             {/* Info */}
                                             <div className={styles.audioMeta}>
-                                                <div className={styles.audioIdleCta}>
-                                                    {audioLoading ? 'Trying to load music...' : 'Listen to AranyaAI\'s Inspiration'}
-                                                </div>
+                                                <div className={styles.audioIdleCta}>Listen to AranyaAI's Inspiration</div>
                                                 <div className={styles.audioIdleSub}>By Ayush, Anu, Keya & Ankit</div>
                                             </div>
 
@@ -431,6 +438,8 @@ export default function Login() {
                                             </div>
 
 
+                                        </>
+                                    )}
                                         </>
                                     )}
                                 </motion.div>
