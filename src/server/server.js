@@ -43,7 +43,9 @@ const allowedOrigins = new Set([
     'http://127.0.0.1:5000',
     'https://aranya-ai-five.vercel.app',
     'https://aranyaai.vercel.app',
-    'https://aranya.ai'
+    'https://aranya.ai',
+    'https://aranyaai.kryonex.dev',
+    'https://www.aranyaai.kryonex.dev'
 ]);
 
 if (process.env.CLIENT_URL) {
