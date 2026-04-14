@@ -1587,7 +1587,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2000;
+    z-index: 1100000; /* Higher than application header (3000) */
     padding: 1.5rem;
 }
 

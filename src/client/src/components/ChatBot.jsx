@@ -452,6 +452,15 @@ const IntelligenceBadge = ({ type, mode }) => {
 export default function ChatBot() {
     const { showToast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+    const isMobile = windowWidth <= 992;
+
+    useEffect(() => {
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const [conversations, setConversations] = useState([]);
 
     const [activeChatId, setActiveChatId] = useState(null);
@@ -613,10 +622,14 @@ export default function ChatBot() {
 
     useEffect(() => {
         if (isOpen) {
+            document.body.style.overflow = 'hidden';
             fetchConversations();
             setActiveChatId(null);
             setMessages([]);
+        } else {
+            document.body.style.overflow = '';
         }
+        return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
 
     useEffect(() => {
@@ -1357,11 +1370,29 @@ export default function ChatBot() {
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
                         >
-
+                            {/* Backdrop for mobile history - Animated via AnimatePresence */}
+                            <AnimatePresence>
+                                {isMobile && isMobileHistoryOpen && (
+                                    <motion.div 
+                                        key="mobile-backdrop"
+                                        className={styles.sidebarBackdrop} 
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        onClick={() => setIsMobileHistoryOpen(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
 
                             {/* Sidebar */}
-                            <aside
+                            <motion.aside
                                 className={`${styles.sidebar} ${(!isSidebarOpen && !isMobileHistoryOpen) ? styles.sidebarCollapsed : ''} ${isMobileHistoryOpen ? styles.sidebarMobileOpen : ''}`}
+                                initial={false}
+                                animate={isMobile 
+                                    ? (isMobileHistoryOpen ? { x: 0, opacity: 1, visibility: 'visible' } : { x: '-100%', opacity: 1, visibility: 'visible' })
+                                    : { x: 0, opacity: 1, visibility: 'visible' }
+                                }
+                                transition={{ type: 'spring', damping: 28, stiffness: 240 }}
                             >
                                 <div className={styles.sidebarHeader} style={isMobileHistoryOpen ? { display: 'flex', gap: '8px' } : {}}>
                                     <button
@@ -1488,7 +1519,7 @@ export default function ChatBot() {
                                             ))}
                                         </div>
                                     </div>
-                            </aside>
+                            </motion.aside>
                             <button
                                 className={`${styles.toggleSidebarBtn} ${!isSidebarOpen ? styles.toggleSidebarBtnCollapsed : ''} ${styles.hideOnMobile}`}
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}

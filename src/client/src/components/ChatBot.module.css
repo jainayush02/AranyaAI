@@ -5,7 +5,42 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 99999;
+}
+
+/* Premium Scrollbar Styling - Targeted containers */
+.chatMessages::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.conversationsList::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.chatMessages::-webkit-scrollbar-track,
+.sidebar::-webkit-scrollbar-track,
+.conversationsList::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chatMessages::-webkit-scrollbar-thumb,
+.sidebar::-webkit-scrollbar-thumb,
+.conversationsList::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.2);
+    border-radius: 10px;
+}
+
+.chatMessages::-webkit-scrollbar-thumb:hover,
+.sidebar::-webkit-scrollbar-thumb:hover,
+.conversationsList::-webkit-scrollbar-thumb:hover {
+    background: rgba(16, 185, 129, 0.4);
+}
+
+/* Firefox support */
+.chatMessages,
+.sidebar,
+.conversationsList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(16, 185, 129, 0.2) transparent;
 }
 
 .chatWrapper {
@@ -18,7 +53,7 @@
     overflow: hidden;
     position: relative;
     box-shadow: 0 40px 100px rgba(0, 0, 0, 0.25);
-    z-index: 1001;
+    z-index: 100000;
     pointer-events: auto;
     border: 1px solid rgba(45, 95, 63, 0.15);
 }
@@ -2625,36 +2660,51 @@
         padding: 0;
         align-items: stretch;
         justify-content: stretch;
+        overscroll-behavior: contain;
     }
 
     .chatWrapper {
         width: 100%;
         height: 100%;
+        height: 100dvh;
         max-width: 100%;
         border-radius: 0;
         border: none;
         box-shadow: none;
         margin: 0;
         box-sizing: border-box;
-        overflow: hidden;
+        overflow: visible;
+        /* Prevent clipping of fixed/transformed sidebar */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
     }
 
-    /* Sidebar: hidden off-screen by default, slides in via .mobileHistoryOpen */
+    /* Backdrop for mobile sidebar - Now handled by Framer Motion in JS */
+    .sidebarBackdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(4px);
+        z-index: 1000005;
+    }
+
+    /* Sidebar: Now handled by Framer Motion in JS */
     .sidebar,
     .sidebarCollapsed {
         position: fixed !important;
-        left: -320px;
+        left: 0 !important;
         top: 0;
         bottom: 0;
-        width: 250px !important;
+        width: 280px !important;
         height: 100vh;
-        z-index: 2000;
-        transition: left 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s;
+        z-index: 1000010;
         box-shadow: none;
         background: #ffffff;
-        border-right: 1px solid rgba(0, 0, 0, 0.06);
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
         padding: 0.5rem 0.4rem !important;
         align-items: stretch !important;
+        display: flex !important;
+        flex-direction: column !important;
     }
 
     .sidebarHeader {
@@ -2664,7 +2714,7 @@
     .chatTitle {
         font-size: 0.8rem !important;
     }
-    
+
     .sidebarHeader h2 {
         font-size: 0.95rem !important;
     }
@@ -2687,8 +2737,7 @@
 
     /* The root class is overridden here */
     .sidebarMobileOpen {
-        left: 0 !important;
-        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.15) !important;
+        box-shadow: 15px 0 50px rgba(0, 0, 0, 0.15) !important;
     }
 
     /* Keep individual chat action menu button visible since mobile has no hover */
@@ -2711,7 +2760,17 @@
         border-radius: 0;
         box-sizing: border-box;
         width: 100%;
-        padding: 0.5rem 0.75rem;
+        padding: 0.6rem 0.85rem;
+        background: #ffffff !important;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        z-index: 10;
+    }
+
+    .closeMainBtn {
+        background: rgba(0, 0, 0, 0.04) !important;
+        padding: 10px !important;
+        border-radius: 12px !important;
+        color: #0f172a !important;
     }
 
     .chatHeader h2 {
@@ -2787,6 +2846,10 @@
     /* Disclaimer text smaller on mobile */
     .disclaimerText {
         font-size: 0.6rem;
+    }
+
+    .pingEffect {
+        display: none;
     }
 
     .chatToggle {

@@ -11,12 +11,14 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-icon.png'],
       manifest: {
-        name: 'AranyaAI Management',
+        name: 'AranyaAI',
         short_name: 'AranyaAI',
-        description: 'Advanced AI Infrastructure Management Portal',
+        description: 'Specialized AI infrastructure for modern animal care, from individual pets to enterprise herds.',
         theme_color: '#2d5f3f',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'pwa-icon.png',

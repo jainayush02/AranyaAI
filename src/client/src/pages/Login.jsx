@@ -272,6 +272,160 @@ export default function Login() {
         } finally { setIsLoading(false); }
     };
 
+    const brandMark = (
+        <div className={styles.brandMark}>
+            <img src="/Aranya.png" alt="Aranya AI Logo" className={styles.brandLogo} />
+            <div className={styles.brandMarkBlock}>
+                <span className={styles.brandMarkText}>
+                    Aranya<span className={styles.brandMarkAi}>Ai</span>
+                </span>
+                <span className={styles.brandMarkCredit}>
+                    <span className={styles.brandMarkFrom}>by </span>
+                    <span className={styles.brandMarkStudio}>Kryonex Studio</span>
+                </span>
+            </div>
+        </div>
+    );
+
+    const heroBlock = (
+        <div className={styles.heroBlock}>
+            <h1>
+                <span className={styles.heroLine1}>Because Instinct is Hidden.</span>
+                <span className={styles.heroLine2}>Protect Every Life, Before it Fails.</span>
+            </h1>
+        </div>
+    );
+
+    const bentoGrid = (
+        <motion.div className={styles.bentoGrid} variants={stagger} initial="hidden" animate="show">
+            <motion.div variants={fadeUp} className={styles.bentoItem}>
+                <div className={`${styles.bentoIcon} ${styles.bentoIcon1}`}><Clock size={20} strokeWidth={2.5} /></div>
+                <span className={styles.bentoVal}>Advanced</span>
+                <span className={styles.bentoLbl}>Predictive Warning System</span>
+            </motion.div>
+            <motion.div variants={fadeUp} className={styles.bentoItem}>
+                <div className={`${styles.bentoIcon} ${styles.bentoIcon2}`}><Sparkles size={20} strokeWidth={2.5} /></div>
+                <span className={styles.bentoVal}>Arion</span>
+                <span className={styles.bentoLbl}>24/7 Personalised Health Assistant</span>
+            </motion.div>
+            <motion.div variants={fadeUp} className={styles.bentoItem}>
+                <div className={`${styles.bentoIcon} ${styles.bentoIcon3}`}><Eye size={20} strokeWidth={2.5} /></div>
+                <span className={styles.bentoVal}>Visual Scan</span>
+                <span className={styles.bentoLbl}>Advanced Symptom Checker</span>
+            </motion.div>
+            <motion.div variants={fadeUp} className={styles.bentoItem}>
+                <div className={`${styles.bentoIcon} ${styles.bentoIcon4}`}><Star size={20} strokeWidth={2.5} /></div>
+                <span className={styles.bentoVal}>99.2%</span>
+                <span className={styles.bentoLbl}>Diagnostic Rating</span>
+            </motion.div>
+        </motion.div>
+    );
+
+    const audioWidget = (audioLoading || loginAudio) && (
+        <motion.div
+            className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${audioLoading ? '' : styles.audioWidgetClickable}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+            onClick={!audioLoading ? toggleAudio : null}
+            role="button"
+            tabIndex={0}
+        >
+            {loginAudio && (
+                <audio
+                    ref={audioRef}
+                    src={loginAudio.url}
+                    loop
+                    preload="metadata"
+                    onEnded={() => setAudioPlaying(false)}
+                />
+            )}
+
+            {/* Animated background waveform */}
+            <div className={styles.audioBgWave}>
+                {[...Array(12)].map((_, i) => (
+                    <span key={i} className={`${styles.audioBgBar} ${audioPlaying ? styles.audioBgBarActive : ''}`} style={{ animationDelay: `${i * 0.08}s` }} />
+                ))}
+            </div>
+
+            {audioLoading ? (
+                // Loading placeholder - maintains height
+                <div className={styles.audioLoadingPlaceholder}>
+                    <div className={styles.audioLoadingText}>Trying to load music...</div>
+                </div>
+            ) : (
+                <>
+                    {audioPlaying ? (
+                        /* ── PLAYING STATE ── */
+                        <>
+                            <div className={styles.audioLeft}>
+                                <div className={`${styles.audioIconCircle} ${styles.audioIconCircleActive}`}>
+                                    <div className={styles.audioEqualizer}>
+                                        <span /><span /><span /><span />
+                                    </div>
+                                </div>
+                                <div className={styles.audioMeta}>
+                                    <div className={styles.audioNowPlaying}>
+                                        <span className={styles.audioLiveDot} /> NOW PLAYING
+                                    </div>
+                                    <div className={styles.audioTrackName}>{loginAudio.title || 'Aranya AI'}</div>
+                                </div>
+                            </div>
+
+                            <div className={styles.audioCenter}>
+                                <div className={styles.audioWaveform}>
+                                    {[...Array(32)].map((_, i) => (
+                                        <span key={i} className={styles.audioBar} style={{ animationDelay: `${i * 0.05}s` }} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                className={`${styles.audioStopBtn}`}
+                                onClick={(e) => { e.stopPropagation(); toggleAudio(); }}
+                                aria-label="Turn off ambient audio"
+                            >
+                                <Volume2 size={14} />
+                            </button>
+                        </>
+                    ) : (
+                        /* ── IDLE STATE — Designed to trigger curiosity ── */
+                        <>
+                            {/* Big Play Button */}
+                            <div className={styles.audioPlayCircle}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                            </div>
+
+                            {/* Info */}
+                            <div className={styles.audioMeta}>
+                                <div className={styles.audioIdleCta}>Listen to AranyaAI's Inspiration</div>
+                                <div className={styles.audioIdleSub}>By Ayush, Anu, Keya & Ankit</div>
+                            </div>
+
+                            {/* Frozen waveform preview - synced to 32 bars */}
+                            <div className={styles.audioFrozenWave}>
+                                {[...Array(32)].map((_, i) => {
+                                    const waveHeight = 15 + Math.sin(i * 0.4) * 35 + Math.random() * 20;
+                                    return (
+                                        <span key={i} className={styles.audioFrozenBar} style={{ height: `${waveHeight}%` }} />
+                                    );
+                                })}
+                            </div>
+
+                            {/* Ready state indicator */}
+                            <div className={styles.audioReadyBadge}>
+                                <span className={styles.audioReadyDot} />
+                                <span>LISTEN NOW</span>
+                            </div>
+
+
+                        </>
+                    )}
+                </>
+            )}
+        </motion.div>
+    );
+
     return (
         <div className={styles.page}>
             {/* ══ AURORA BACKGROUND ══ */}
@@ -297,159 +451,23 @@ export default function Login() {
                             transition={{ duration: 0.9, ease: [0.25, 0.8, 0.25, 1] }}
                             className={styles.visualContent}
                         >
-                            <div className={styles.brandMark}>
-                                <img src="/Aranya.png" alt="Aranya AI Logo" className={styles.brandLogo} />
-                                <div className={styles.brandMarkBlock}>
-                                    <span className={styles.brandMarkText}>
-                                        Aranya<span className={styles.brandMarkAi}>Ai</span>
-                                    </span>
-                                    <span className={styles.brandMarkCredit}>
-                                        <span className={styles.brandMarkFrom}>by </span>
-                                        <span className={styles.brandMarkStudio}>Kryonex Studio</span>
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className={styles.heroBlock}>
-                                <h1>
-                                    <span className={styles.heroLine1}>Because Instinct is Hidden.</span>
-                                    <span className={styles.heroLine2}>Protect Every Life, Before it Fails.</span>
-                                </h1>
-                            </div>
-
-                            <motion.div className={styles.bentoGrid} variants={stagger} initial="hidden" animate="show">
-                                <motion.div variants={fadeUp} className={styles.bentoItem}>
-                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon1}`}><Clock size={20} strokeWidth={2.5} /></div>
-                                    <span className={styles.bentoVal}>Advanced</span>
-                                    <span className={styles.bentoLbl}>Predictive Warning System</span>
-                                </motion.div>
-                                <motion.div variants={fadeUp} className={styles.bentoItem}>
-                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon2}`}><Sparkles size={20} strokeWidth={2.5} /></div>
-                                    <span className={styles.bentoVal}>Arion</span>
-                                    <span className={styles.bentoLbl}>24/7 Personalised Health Assistant</span>
-                                </motion.div>
-                                <motion.div variants={fadeUp} className={styles.bentoItem}>
-                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon3}`}><Eye size={20} strokeWidth={2.5} /></div>
-                                    <span className={styles.bentoVal}>Visual Scan</span>
-                                    <span className={styles.bentoLbl}>Advanced Symptom Checker</span>
-                                </motion.div>
-                                <motion.div variants={fadeUp} className={styles.bentoItem}>
-                                    <div className={`${styles.bentoIcon} ${styles.bentoIcon4}`}><Star size={20} strokeWidth={2.5} /></div>
-                                    <span className={styles.bentoVal}>99.2%</span>
-                                    <span className={styles.bentoLbl}>Diagnostic Rating</span>
-                                </motion.div>
-                            </motion.div>
-
-                            {/* ── Audio Player Widget ── */}
-                            {(audioLoading || loginAudio) && (
-                                <motion.div
-                                    className={`${styles.audioWidget} ${audioPlaying ? styles.audioWidgetActive : ''} ${audioLoading ? '' : styles.audioWidgetClickable}`}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-                                    onClick={!audioLoading ? toggleAudio : null}
-                                    role="button"
-                                    tabIndex={0}
-                                >
-                                    {loginAudio && (
-                                        <audio
-                                            ref={audioRef}
-                                            src={loginAudio.url}
-                                            loop
-                                            preload="metadata"
-                                            onEnded={() => setAudioPlaying(false)}
-                                        />
-                                    )}
-
-                                    {/* Animated background waveform */}
-                                    <div className={styles.audioBgWave}>
-                                        {[...Array(12)].map((_, i) => (
-                                            <span key={i} className={`${styles.audioBgBar} ${audioPlaying ? styles.audioBgBarActive : ''}`} style={{ animationDelay: `${i * 0.08}s` }} />
-                                        ))}
-                                    </div>
-
-                                    {audioLoading ? (
-                                        // Loading placeholder - maintains height
-                                        <div className={styles.audioLoadingPlaceholder}>
-                                            <div className={styles.audioLoadingText}>Trying to load music...</div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {audioPlaying ? (
-                                        /* ── PLAYING STATE ── */
-                                        <>
-                                            <div className={styles.audioLeft}>
-                                                <div className={`${styles.audioIconCircle} ${styles.audioIconCircleActive}`}>
-                                                    <div className={styles.audioEqualizer}>
-                                                        <span /><span /><span /><span />
-                                                    </div>
-                                                </div>
-                                                <div className={styles.audioMeta}>
-                                                    <div className={styles.audioNowPlaying}>
-                                                        <span className={styles.audioLiveDot} /> NOW PLAYING
-                                                    </div>
-                                                    <div className={styles.audioTrackName}>{loginAudio.title || 'Aranya AI'}</div>
-                                                </div>
-                                            </div>
-
-                                            <div className={styles.audioCenter}>
-                                                <div className={styles.audioWaveform}>
-                                                    {[...Array(32)].map((_, i) => (
-                                                        <span key={i} className={styles.audioBar} style={{ animationDelay: `${i * 0.05}s` }} />
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                className={`${styles.audioStopBtn}`}
-                                                onClick={(e) => { e.stopPropagation(); toggleAudio(); }}
-                                                aria-label="Turn off ambient audio"
-                                            >
-                                                <Volume2 size={14} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        /* ── IDLE STATE — Designed to trigger curiosity ── */
-                                        <>
-                                            {/* Big Play Button */}
-                                            <div className={styles.audioPlayCircle}>
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                                            </div>
-
-                                            {/* Info */}
-                                            <div className={styles.audioMeta}>
-                                                <div className={styles.audioIdleCta}>Listen to AranyaAI's Inspiration</div>
-                                                <div className={styles.audioIdleSub}>By Ayush, Anu, Keya & Ankit</div>
-                                            </div>
-
-                                            {/* Frozen waveform preview - synced to 32 bars */}
-                                            <div className={styles.audioFrozenWave}>
-                                                {[...Array(32)].map((_, i) => {
-                                                    const waveHeight = 15 + Math.sin(i * 0.4) * 35 + Math.random() * 20;
-                                                    return (
-                                                        <span key={i} className={styles.audioFrozenBar} style={{ height: `${waveHeight}%` }} />
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* Ready state indicator */}
-                                            <div className={styles.audioReadyBadge}>
-                                                <span className={styles.audioReadyDot} />
-                                                <span>LISTEN NOW</span>
-                                            </div>
-
-
-                                        </>
-                                    )}
-                                        </>
-                                    )}
-                                </motion.div>
-                            )}
+                            {brandMark}
+                            {heroBlock}
+                            {bentoGrid}
+                            {audioWidget}
                         </motion.div>
                     </div>
 
                     {/* ─── RIGHT — AUTH PANEL ─── */}
                     <div className={styles.rightPanel}>
+                        <div className={styles.mobileHeader}>
+                            {brandMark}
+                            <div className={styles.heroTextMobile}>
+                                <div className={styles.mobileLine1}>Because Instinct is Hidden.</div>
+                                <div className={styles.mobileLine2}>Protect Every Life, Before it Fails.</div>
+                            </div>
+                        </div>
+
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -701,8 +719,16 @@ export default function Login() {
                                 </div>
                             </div>
                         </motion.div>
+
+                        {/* Mobile Only Footer */}
+                        <div className={styles.mobileFooter}>
+                            <h3 className={styles.mobileFooterTitle}>Advanced Ecosystem</h3>
+                            {bentoGrid}
+                            {audioWidget}
+                        </div>
                     </div>
                 </div>
+
 
                 {/* ─── INFO SECTION ─── */}
                 <section className={styles.infoSection}>

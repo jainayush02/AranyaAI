@@ -9,7 +9,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 3000;
+    z-index: 2000000; /* Extremely high to stay on top of all overlays including ChatBot */
     padding: 1rem;
 }
 
