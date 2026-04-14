@@ -27,7 +27,7 @@
             "destination": "/src/client/assets/$1"
         },
         {
-            "source": "/(.*\\.(?:png|jpg|jpeg|svg|gif|ico|json|txt|md))",
+            "source": "/(.*\\.(?:png|jpg|jpeg|svg|gif|ico|json|txt|md|webmanifest|js))",
             "destination": "/src/client/$1"
         },
         {
