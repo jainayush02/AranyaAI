@@ -13,14 +13,22 @@ const mongoose = require('mongoose');
 // Initialize Google OAuth Client
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Initialize Nodemailer Transporter
-let transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GOOGLE_EMAIL_USER,
-        pass: process.env.GOOGLE_EMAIL_PASS
-    }
-});
+const createTransporter = () => {
+    return nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+            user: process.env.GOOGLE_EMAIL_USER,
+            pass: process.env.GOOGLE_EMAIL_PASS
+        },
+        tls: {
+            rejectUnauthorized: false
+        }
+    });
+};
+
+let transporter = createTransporter();
 
 // Initialize Twilio
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
@@ -107,6 +115,7 @@ class AuthService {
                 await transporter.sendMail(mailOptions);
             } catch (mailErr) {
                 console.error('[OTP] Mail Error:', mailErr.message);
+                throw new Error('Could not send verification email. Please try again later or use mobile login.');
             }
         }
         return { message: 'OTP sent successfully', identifier };
@@ -450,7 +459,12 @@ class AuthService {
     static async forgotPasswordRequest(email) {
         if (!email) throw new Error('Email is required.');
         const user = await User.findOne({ email });
-        if (!user || user.role === 'admin') return { success: true };
+        
+        // Admin accounts must use the admin-forgot-password flow for security
+        if (!user || user.role === 'admin') {
+            console.log(`[FORGOT-PASSWORD] Skip: ${email} (Found: ${!!user}, Role: ${user?.role})`);
+            return { success: true };
+        }
 
         if (user.lastOtpSentAt) {
             const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
@@ -477,7 +491,14 @@ class AuthService {
                     <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>. If you didn't request a password reset, please ignore this email.</p>
                 </div>`
         };
-        await transporter.sendMail(mailOptions);
+        
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`[FORGOT-PASSWORD] Reset OTP sent to ${email}`);
+        } catch (err) {
+            console.error('[FORGOT-PASSWORD] Mail Error:', err.message);
+            throw new Error('Failed to send reset email. Please try again later.');
+        }
         return { success: true };
     }
 
@@ -496,7 +517,10 @@ class AuthService {
     static async adminForgotPasswordRequest(email) {
         if (!email) throw new Error('Email is required.');
         const user = await User.findOne({ email, role: 'admin' });
-        if (!user) return { success: true };
+        if (!user) {
+            console.log(`[ADMIN-FORGOT] Skip: ${email} (Admin not found)`);
+            return { success: true };
+        }
 
         if (user.lastOtpSentAt) {
             const timePassed = (Date.now() - user.lastOtpSentAt.getTime()) / 1000;
@@ -523,7 +547,14 @@ class AuthService {
                     <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>. If you didn't request this code, please secure your account immediately.</p>
                 </div>`
         };
-        await transporter.sendMail(mailOptions);
+        
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`[ADMIN-FORGOT] Reset OTP sent to ${email}`);
+        } catch (err) {
+            console.error('[ADMIN-FORGOT] Mail Error:', err.message);
+            throw new Error('Failed to send admin reset email.');
+        }
         return { success: true };
     }
 
@@ -613,24 +644,26 @@ class AuthService {
         user.lastOtpSentAt = new Date();
         await user.save();
 
+        const mailOptions = {
+            from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+            to: email,
+            subject: 'Email Verification - Aranya AI',
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #2D6A4F; text-align: center;">Verify Your Email</h2>
+                    <p>Hello${user.full_name ? ` ${user.full_name}` : ''},</p>
+                    <p>Use the code below to verify your email address:</p>
+                    <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #2D6A4F;">
+                        ${otp}
+                    </div>
+                    <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>.</p>
+                </div>`
+        };
+
         try {
-            const mailOptions = {
-                from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
-                to: email,
-                subject: 'Email Verification - Aranya AI',
-                html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                        <h2 style="color: #2D6A4F; text-align: center;">Verify Your Email</h2>
-                        <p>Hello${user.full_name ? ` ${user.full_name}` : ''},</p>
-                        <p>Use the code below to verify your email address:</p>
-                        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #2D6A4F;">
-                            ${otp}
-                        </div>
-                        <p style="color: #666; font-size: 14px; margin-top: 20px;">This code is valid for <strong>90 seconds</strong>.</p>
-                    </div>`
-            };
             await transporter.sendMail(mailOptions);
         } catch (mailErr) {
             console.error('[EMAIL-VERIFY] Mail Error:', mailErr.message);
+            throw new Error('Failed to send verification email.');
         }
 
         return { message: 'Verification code sent to your email.' };
@@ -702,24 +735,25 @@ class AuthService {
 
         // Send invitation email if email provided
         if (email) {
+            const mailOptions = {
+                from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
+                to: email,
+                subject: `Welcome to the Care Circle - Aranya AI`,
+                html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #2D6A4F; font-size: 26px; margin: 0;">Aranya AI Collaboration</h2>
+                        <p>Hello ${full_name},</p>
+                        <p>You have been invited to join the Care Circle by ${owner.full_name || 'your team lead'}.</p>
+                        <p>You can now sign in to Aranya AI to start managing animals and health records.</p>
+                        <a href="${process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || 'http://localhost:5173'}/login" style="display:inline-block; background: #2D6A4F; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 16px;">Sign In Now</a>
+                        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;">
+                        <p style="color: #cbd5e1; font-size: 11px;">&copy; 2026 Aranya AI. All rights reserved.</p>
+                    </div>`
+            };
             try {
-                const mailOptions = {
-                    from: `"Aranya AI" <${process.env.GOOGLE_EMAIL_USER}>`,
-                    to: email,
-                    subject: `Welcome to the Care Circle - Aranya AI`,
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                            <h2 style="color: #2D6A4F; font-size: 26px; margin: 0;">Aranya AI Collaboration</h2>
-                            <p>Hello ${full_name},</p>
-                            <p>You have been invited to join the Care Circle by ${owner.full_name || 'your team lead'}.</p>
-                            <p>You can now sign in to Aranya AI to start managing animals and health records.</p>
-                            <a href="${process.env.CLIENT_URL || process.env.VITE_CLIENT_URL || 'http://localhost:5173'}/login" style="display:inline-block; background: #2D6A4F; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 16px;">Sign In Now</a>
-                            <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;">
-                            <p style="color: #cbd5e1; font-size: 11px;">&copy; 2026 Aranya AI. All rights reserved.</p>
-                        </div>`
-                };
                 await transporter.sendMail(mailOptions);
             } catch (mailErr) {
                 console.error('[INVITE] Nodemailer execution failed:', mailErr.message);
+                throw new Error('Invite created but welcome email failed to send.');
             }
         }
 

@@ -9,7 +9,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'pwa-icon.png'],
+      includeAssets: ['pwa-icon.png'],
+      devOptions: {
+        enabled: true
+      },
       manifest: {
         name: 'AranyaAI',
         short_name: 'AranyaAI',
