@@ -274,14 +274,40 @@
     }
 
     .hero h1 {
-        font-size: 1.6rem;
+        font-size: 1.5rem;
+    }
+
+    .hero p {
+        font-size: 0.85rem;
+    }
+
+    .sectionTitle {
+        font-size: 0.95rem;
+    }
+
+    .faqQ {
+        font-size: 0.85rem;
+    }
+
+    .faqAnswer {
+        font-size: 0.8rem;
+        padding-left: 1.25rem;
     }
 
     .ctaGrid {
         grid-template-columns: 1fr;
     }
 
-    .faqAnswer {
-        padding-left: 1.25rem;
+    .ctaCard strong {
+        font-size: 0.85rem;
+    }
+
+    .ctaCard p {
+        font-size: 0.75rem;
+    }
+    
+    .catTab {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.85rem;
     }
 }

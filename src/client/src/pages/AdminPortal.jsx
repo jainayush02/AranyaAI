@@ -292,17 +292,7 @@ function AiGatewayConfig({
                 </div>
             </div>
 
-            <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', 
-                gap: '0.75rem',
-                marginBottom: '1rem',
-                width: '100%',
-                padding: '0.5rem',
-                background: '#f8fafc',
-                borderRadius: '16px',
-                border: '1px solid #f1f5f9'
-            }}>
+            <div className={s.gatewayParamsGrid} style={{ marginBottom: '1rem' }}>
                 <div className={s.aiConfigGroup} style={{ gap: '0.35rem' }}>
                     <label className={s.inputLabel} style={{ fontSize: '0.7rem', margin: 0, opacity: 0.8 }}>Temperature</label>
                     <input
@@ -371,7 +361,7 @@ function AiGatewayConfig({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {(config.models || []).map(m => (
                         <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#fff', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: isEditing ? 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto auto' : 'minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto', gap: '0.4rem', alignItems: 'center' }}>
+                            <div className={isEditing ? s.gatewayModelsGrid : `${s.gatewayModelsGrid} ${s.gatewayModelsGridRead}`} style={{ gap: '0.4rem' }}>
                                 <select className={s.configInput} disabled={!isEditing} value={m.type} onChange={e => updateModel(engineKey, m.id, 'type', e.target.value)} style={{ padding: '0.35rem 0.2rem', minWidth: 0, fontSize: '0.75rem' }}>
                                     <option value="text">Text Only</option>
                                     <option value="vision">Vision Only</option>
@@ -425,7 +415,7 @@ export default function AdminPortal() {
     // To avoid flicker, we use the values from URL directly for UI rendering
     const activeTab = queryParams.get('tab') || 'overview';
     const activeSubTab = queryParams.get('sub') || '';
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 992);
     const [toasts, setToasts] = useState([]);
     const push = useCallback((msg, type = 'ok') => { const id = Date.now(); setToasts(p => [...p, { id, msg, type }]); }, []);
     const pop = id => setToasts(p => p.filter(t => t.id !== id));
@@ -1266,6 +1256,9 @@ export default function AdminPortal() {
 
     const handleTabClick = (t) => {
         navigate(`?tab=${t.id}`, { replace: true });
+        if (window.innerWidth <= 992) {
+            setIsSidebarOpen(false);
+        }
     };
 
     // Banner info based on tab
@@ -1502,13 +1495,28 @@ export default function AdminPortal() {
                 )}
             </AnimatePresence>
 
+            <AnimatePresence>
+                {isSidebarOpen && window.innerWidth <= 992 && (
+                    <motion.div 
+                        className={s.sidebarOverlay}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsSidebarOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* ══ LAYOUT: Left Sidebar + Center ══ */}
             <div className={s.layout}>
                 {/* ── Left Sidebar (ONLY navigation) ── */}
                 <motion.aside
-                    className={`${s.sidebar} ${!isSidebarOpen ? s.sidebarCollapsed : ''}`}
+                    className={`${s.sidebar} ${!isSidebarOpen ? s.sidebarCollapsed : ''} ${isSidebarOpen ? s.sidebarOpen : ''}`}
                     initial={false}
-                    animate={{ width: isSidebarOpen ? 260 : 68 }}
+                    animate={{ 
+                        width: window.innerWidth > 992 ? (isSidebarOpen ? 260 : 68) : 260,
+                        x: window.innerWidth <= 992 ? (isSidebarOpen ? 260 : 0) : 0
+                    }}
                     transition={{ type: 'spring', damping: 22, stiffness: 220, mass: 0.8 }}
                 >
                     <div className={s.sideHead}>
@@ -1582,6 +1590,9 @@ export default function AdminPortal() {
                 <main className={s.main}>
                     {/* Top Banner */}
                     <div className={s.topBanner}>
+                        <button className={s.mobileMenuBtn} onClick={() => setIsSidebarOpen(true)}>
+                            <Menu size={20} />
+                        </button>
                         <div className={s.bannerIcon}>
                             <BannerIcon size={28} />
                         </div>
@@ -1689,7 +1700,7 @@ export default function AdminPortal() {
                                                 {llmStats.length === 0 ? (
                                                     <p className={s.emptyMsg} style={{ padding: '2rem', textAlign: 'center' }}>No LLM configuration found.</p>
                                                 ) : (
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem' }}>
+                                                    <div className={s.graphGrid} style={{ marginTop: '1.5rem' }}>
                                                         {llmStats.map((st, i) => (
                                                             <div key={i} style={{
                                                                 background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
@@ -1791,10 +1802,10 @@ export default function AdminPortal() {
 
                                             {/* ── PERFORMANCE TRENDS (GRAPHS) ── */}
                                             {!overviewLoading && llmStats.length > 0 && (
-                                                <div style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                                                <div className={s.graphGrid}>
 
                                                     {/* Latency History Graph */}
-                                                    <div style={{ background: '#fff', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                                    <div className={s.graphCard}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                                             <div>
                                                                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -1869,7 +1880,7 @@ export default function AdminPortal() {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div style={{ height: '240px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                                        <div className={s.chartContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             {llmHistory.length === 0 ? (
                                                                 <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
                                                                     <Activity size={24} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
@@ -1925,7 +1936,7 @@ export default function AdminPortal() {
                                                                 STABLE
                                                             </div>
                                                         </div>
-                                                        <div style={{ height: '240px', width: '100%' }}>
+                                                        <div className={s.chartContainer}>
                                                             <ResponsiveContainer>
                                                                 <BarChart data={[...Array(7)].map((_, i) => {
                                                                     const d = new Date();
@@ -1973,8 +1984,8 @@ export default function AdminPortal() {
                                             {focusLoading ? (
                                                 <AdvancedLoader type="profile" compact={false} fullScreen={false} />
                                             ) : (
-                                                <div className={s.userDetailGrid} style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.35fr) 1fr', gap: '1rem', alignItems: 'stretch' }}>
-                                                    <div className={s.userCard} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', height: '100%', minHeight: '650px' }}>
+                                                <div className={s.userDetailGrid}>
+                                                    <div className={s.userCard}>
                                                         <div className={s.bigAvatar} style={{ background: '#2d5f3f', color: '#fff', borderRadius: '16px', width: '64px', height: '64px', fontSize: '1.5rem' }}>{(focusedUser.user?.full_name || focusedUser.user?.email || '?')[0].toUpperCase()}</div>
                                                         <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '1rem', color: '#0f172a' }}>{focusedUser.user?.full_name || '(no name)'}</h2>
                                                         <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>{focusedUser.user?.email || focusedUser.user?.mobile}</p>
@@ -2061,7 +2072,7 @@ export default function AdminPortal() {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className={s.userDetailRight} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '2.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px' }}>
+                                                    <div className={s.userDetailRight}>
                                                         {/* Animated Tab Section */}
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                                                             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', gap: '4px', position: 'relative' }}>
@@ -2134,7 +2145,7 @@ export default function AdminPortal() {
                                                                                     initial={{ opacity: 0, y: 15 }}
                                                                                     animate={{ opacity: 1, y: 0 }}
                                                                                     transition={{ delay: idx * 0.03 }}
-                                                                                    style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '1.25rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 1fr auto', alignItems: 'center', gap: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', transition: 'all 0.3s ease' }}
+                                                                                    className={s.userLogCard}
                                                                                     whileHover={{ scale: 1.01, borderColor: '#10b981', boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.05)' }}
                                                                                 >
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -2176,20 +2187,20 @@ export default function AdminPortal() {
                                                                                     initial={{ opacity: 0, y: 15 }}
                                                                                     animate={{ opacity: 1, y: 0 }}
                                                                                     transition={{ delay: idx * 0.03 }}
-                                                                                    style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '1.25rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) 100px 120px', alignItems: 'center', gap: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', transition: 'all 0.3s ease' }}
+                                                                                    className={s.activityMiniRow}
                                                                                     whileHover={{ scale: 1.01, borderColor: '#2d5f3f', boxShadow: '0 10px 15px -3px rgba(45, 95, 63, 0.05)' }}
                                                                                 >
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                                                                         <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: log.type === 'admin' ? '#f59e0b' : log.type === 'animal_registry' ? '#10b981' : '#3b82f6', flexShrink: 0, boxShadow: `0 0 10px ${log.type === 'admin' ? 'rgba(245,158,11,0.3)' : log.type === 'animal_registry' ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}` }} />
-                                                                                        <span style={{ fontSize: '0.95rem', color: '#0f172a', fontWeight: 600, lineHeight: 1.5 }}>{log.detail}</span>
+                                                                                        <span className={s.logTitle}>{log.detail}</span>
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'center' }}>
                                                                                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Type</span>
-                                                                                        <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 800, background: '#f1f5f9', padding: '3px 10px', borderRadius: '8px', display: 'inline-block' }}>{log.type.replace('_', ' ')}</span>
+                                                                                        <span className={s.logBadge}>{log.type.replace('_', ' ')}</span>
                                                                                     </div>
                                                                                     <div style={{ textAlign: 'right' }}>
                                                                                         <span style={{ display: 'block', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Time</span>
-                                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>{ago(log.createdAt)}<br /><span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{fmtTime(log.createdAt)}</span></span>
+                                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>{ago(log.createdAt)}<br /><span className={s.logSub}>{fmtTime(log.createdAt)}</span></span>
                                                                                     </div>
                                                                                 </motion.div>
                                                                             ))}
@@ -2206,7 +2217,7 @@ export default function AdminPortal() {
                                                                 >
                                                                     {/* Plan Assignment Section */}
                                                                     <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '1rem 1.25rem', border: '1px solid #e2e8f0' }}>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                                                                        <div className={s.planGrid}>
                                                                             <Crown size={18} color="#2d5f3f" />
                                                                             <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Subscription Tier</h3>
                                                                         </div>
@@ -2498,7 +2509,7 @@ export default function AdminPortal() {
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ delay: idx * 0.03 }}
-                                                    style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: '1.25rem', marginBottom: '0.75rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
+                                                    className={s.logRowGrid}
                                                     onMouseEnter={e => e.currentTarget.style.borderColor = '#2d5f3f'}
                                                     onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                                                 >
@@ -2506,11 +2517,11 @@ export default function AdminPortal() {
                                                         {log.user?.[0].toUpperCase() || '?'}
                                                     </div>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 700 }}>{log.detail}</span>
-                                                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Action by {log.user}</span>
+                                                        <span className={s.logTitle}>{log.detail}</span>
+                                                        <span className={s.logSub}>Action by {log.user}</span>
                                                     </div>
                                                     <div style={{ textAlign: 'center' }}>
-                                                        <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, background: '#f1f5f9', padding: '4px 12px', borderRadius: '8px', textTransform: 'uppercase' }}>{log.type || 'system'}</span>
+                                                        <span className={s.logBadge}>{log.type || 'system'}</span>
                                                     </div>
                                                     <div style={{ textAlign: 'right', minWidth: '100px' }}>
                                                         <span style={{ display: 'block', fontSize: '0.8rem', color: '#475569', fontWeight: 700 }}>{fmtTime(log.createdAt)}</span>
@@ -2751,17 +2762,17 @@ export default function AdminPortal() {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '20px', border: '1.5px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <div className={s.contentCardInnerRow}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                                             <div className={`${s.badge} ${s.badgeSuccess}`}>Active Persona</div>
                                                             <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>Arion Multimodal Assistant V2</p>
                                                         </div>
                                                         <button
-                                                            className={`${s.premiumButton} ${s.btnPrimary}`}
+                                                            className={`${s.premiumButton} ${s.btnPrimary} ${s.symbolBtn}`}
                                                             onClick={() => setShowPromptModal(true)}
                                                             style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
                                                         >
-                                                            <Pencil size={15} /> Edit Instructions
+                                                            <Pencil size={15} /> <span>Edit Instructions</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2769,7 +2780,7 @@ export default function AdminPortal() {
 
                                             {aiConfig && (
                                                 <div className={s.contentCard} style={{ gridColumn: '1 / -1' }}>
-                                                    <div className={s.contentCardHead} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', width: '100%', gap: '1rem', position: 'relative' }}>
+                                                    <div className={s.aiRoutingHead}>
                                                         <div className={s.contentCardTitle}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                                 <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(45, 95, 63, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2780,7 +2791,7 @@ export default function AdminPortal() {
                                                         </div>
                                                         <div>
                                                             {/* ── CENTRAL SEGMENTED NAVIGATION ── */}
-                                                            <div className={s.pillTabs} style={{ padding: '3px', minWidth: '420px' }}>
+                                                            <div className={`${s.pillTabs} ${s.aiRoutingTabs}`}>
                                                                 <button
                                                                     className={`${s.pillTab} ${routingMode === 'chatbot' ? s.pillTabActive : ''}`}
                                                                     onClick={() => setRoutingMode('chatbot')}
@@ -2805,14 +2816,14 @@ export default function AdminPortal() {
                                                             </div>
                                                         </div>
 
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                                        <div className={s.aiRoutingAction}>
                                                             {!isEditingAi ? (
                                                                 <button
-                                                                    className={`${s.premiumButton} ${s.btnSecondary}`}
+                                                                    className={`${s.premiumButton} ${s.btnSecondary} ${s.symbolBtn}`}
                                                                     onClick={() => setIsEditingAi(true)}
                                                                     style={{ padding: '0.55rem 1.1rem', fontSize: '0.82rem' }}
                                                                 >
-                                                                    <Pencil size={14} /> Edit Routing
+                                                                    <Pencil size={14} /> <span>Edit Routing</span>
                                                                 </button>
                                                             ) : (
                                                                 <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -2840,7 +2851,7 @@ export default function AdminPortal() {
 
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '0.5rem' }}>
                                                         {/* ── FOCUSED ROUTING GRID ── */}
-                                                        <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+                                                        <div className={s.routingGrid}>
                                                             {routingMode === 'chatbot' ? (
                                                                 <>
                                                                     <AiGatewayConfig
@@ -2934,7 +2945,7 @@ export default function AdminPortal() {
                                                                         />
                                                                     </div>
 
-                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                                                                    <div className={s.vectorFormGrid}>
                                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                                                             <div className={s.aiConfigGroup}>
                                                                                 <label className={s.inputLabel}>Embedding Model Provider</label>
@@ -2997,7 +3008,7 @@ export default function AdminPortal() {
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-                                                                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: '1rem' }}>
+                                                                            <div className={s.dimensionRow}>
                                                                                 <div className={s.aiConfigGroup}>
                                                                                     <label className={s.inputLabel}>Dimensions</label>
                                                                                     <div style={{ position: 'relative' }}>
@@ -3015,7 +3026,7 @@ export default function AdminPortal() {
                                                                             </div>
 
                                                                             {/* Dimension Probe Tool */}
-                                                                            <div style={{ border: '1.5px dashed #e2e8f0', borderRadius: '16px', padding: '1rem', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                                                                            <div className={s.probeTool} style={{ marginTop: '0.5rem' }}>
                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                                                     <Zap size={18} color={probeResult?.success ? "#10b981" : "#3b82f6"} />
                                                                                     <div>
@@ -3028,10 +3039,10 @@ export default function AdminPortal() {
                                                                                 <button 
                                                                                     onClick={handleProbeModel}
                                                                                     disabled={probing}
-                                                                                    className={s.btnSecondary}
+                                                                                    className={`${s.btnSecondary} ${s.symbolBtn}`}
                                                                                     style={{ height: '32px', background: '#fff', padding: '0 0.75rem', fontSize: '0.75rem', borderRadius: '10px' }}
                                                                                 >
-                                                                                    {probing ? <RefreshCw className={s.spin} size={14} /> : 'Probe Model'}
+                                                                                    {probing ? <RefreshCw className={s.spin} size={14} /> : <Zap size={14} />} <span>Probe Model</span>
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -3154,7 +3165,7 @@ export default function AdminPortal() {
                                                         )}
                                                     </div>
 
-                                                    <div style={{ padding: '1rem 2rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                                                    <div className={s.modalFooter} style={{ padding: '0.75rem 1.25rem', background: '#f8fafc' }}>
                                                         <button className={`${s.premiumButton} ${s.btnSecondary}`} onClick={() => setShowPromptModal(false)}>
                                                             Discard Changes
                                                         </button>
@@ -3184,7 +3195,7 @@ export default function AdminPortal() {
                                     exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
 
                                     {/* Two-column layout */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                                    <div className={s.taxonomyGrid}>
 
                                         {/* ─── LEFT: Categories panel ─── */}
                                         <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.05)' }}>
@@ -3365,7 +3376,7 @@ export default function AdminPortal() {
                                                 </div>
 
                                                 <div className={s.modalContent}>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                                                    <div className={s.planFormGrid}>
                                                         <div style={{ gridColumn: 'span 2' }}>
                                                             <label className={s.inputLabel}>Display Name</label>
                                                             <input className={s.field} value={editingPlan.name} onChange={e => setEditingPlan(p => ({ ...p, name: e.target.value }))} placeholder="e.g. MaxPro Enterprise" style={{ fontSize: '1.1rem', fontWeight: 700, padding: '1rem' }} />
@@ -3384,7 +3395,7 @@ export default function AdminPortal() {
                                                         <h3 style={{ margin: '0 0 1.25rem', fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                             <Database size={16} color="#2d5f3f" /> Resource Limit Architecture
                                                         </h3>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                                        <div className={s.planFormGrid} style={{ marginBottom: 0 }}>
                                                             <div>
                                                                 <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                                     <Shapes size={12} color="#2d5f3f" /> SPECIES CAPACITY (MAX ANIMALS)

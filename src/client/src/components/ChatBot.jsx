@@ -17,7 +17,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ConfirmDialog from './ConfirmDialog';
 import styles from './ChatBot.module.css';
-import { Paperclip, FileText, ChevronDown } from 'lucide-react'; // Added Paperclip and FileText
+import { Paperclip, FileText, ChevronDown, Menu } from 'lucide-react'; // Added Paperclip and FileText
 import { useToast } from '../components/ToastProvider';
 
 const AILogo = ({ size = 24, className }) => (
@@ -1361,17 +1361,32 @@ export default function ChatBot() {
 
                             {/* Sidebar */}
                             <aside
-                                className={`${styles.sidebar} ${!isSidebarOpen ? styles.sidebarCollapsed : ''}`}
+                                className={`${styles.sidebar} ${(!isSidebarOpen && !isMobileHistoryOpen) ? styles.sidebarCollapsed : ''} ${isMobileHistoryOpen ? styles.sidebarMobileOpen : ''}`}
                             >
-                                <div className={styles.sidebarHeader}>
+                                <div className={styles.sidebarHeader} style={isMobileHistoryOpen ? { display: 'flex', gap: '8px' } : {}}>
                                     <button
                                         className={styles.newChatBtn}
+                                        style={isMobileHistoryOpen ? { flex: 1, width: 'auto' } : {}}
                                         onClick={handleNewChat}
                                         title="New Chat"
                                     >
                                         <Plus size={20} strokeWidth={2.5} />
                                         <span className={styles.newChatText}>New Chat</span>
                                     </button>
+                                    
+                                    {isMobileHistoryOpen && (
+                                        <button 
+                                            onClick={() => setIsMobileHistoryOpen(false)}
+                                            style={{
+                                                background: 'rgba(0,0,0,0.04)', border: 'none', color: '#0f172a', cursor: 'pointer',
+                                                padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                borderRadius: '12px', flexShrink: 0
+                                            }}
+                                            title="Close Menu"
+                                        >
+                                            <X size={20} strokeWidth={2} />
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className={styles.sidebarContent}>
@@ -1475,7 +1490,7 @@ export default function ChatBot() {
                                     </div>
                             </aside>
                             <button
-                                className={`${styles.toggleSidebarBtn} ${!isSidebarOpen ? styles.toggleSidebarBtnCollapsed : ''}`}
+                                className={`${styles.toggleSidebarBtn} ${!isSidebarOpen ? styles.toggleSidebarBtnCollapsed : ''} ${styles.hideOnMobile}`}
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -1490,17 +1505,10 @@ export default function ChatBot() {
                                     <div className={styles.headerInfo}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                             <button
-                                                className={styles.mobileOnly}
-                                                style={{
-                                                    display: 'none',
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    padding: '5px',
-                                                    color: '#64748b'
-                                                }}
+                                                className={styles.mobileMenuToggleBtn}
                                                 onClick={() => setIsMobileHistoryOpen(!isMobileHistoryOpen)}
                                             >
-                                                <History size={20} />
+                                                <Menu size={24} />
                                             </button>
                                             <h2>
                                                 {isGlobalSearch ? 'Search Results'
@@ -1958,7 +1966,7 @@ export default function ChatBot() {
                                                             transition={{ duration: 0.2 }}
                                                         >
                                                             {chatMode === 'aranya' ? <Sparkles size={16} /> : chatMode === 'chiron' ? <Bot size={16} /> : <Search size={16} />}
-                                                            <span>
+                                                            <span className={styles.modeLabelText}>
                                                                 {chatMode === 'aranya' ? 'Aranya AI' : chatMode === 'chiron' ? 'Chiron' : 'Search'}
                                                             </span>
                                                             <ChevronDown size={14} className={`${styles.dropdownChevron} ${isModeSelectorOpen ? styles.chevronRotated : ''}`} />
@@ -2041,7 +2049,6 @@ export default function ChatBot() {
                                                     title="Stop generating"
                                                 >
                                                     <StopCircle size={16} />
-                                                    <span>Stop</span>
                                                 </button>
                                             ) : (
                                                 <button

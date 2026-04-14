@@ -467,3 +467,65 @@
     font-size: 0.95rem;
     font-weight: 600;
 }
+
+@media (max-width: 600px) {
+    .page {
+        padding: 1.5rem 1rem;
+    }
+
+    .hero {
+        padding: 2.5rem 1.5rem;
+    }
+
+    .hero h1 {
+        font-size: 1.6rem;
+    }
+
+    .hero p {
+        font-size: 0.85rem;
+    }
+
+    .cardContent h3 {
+        font-size: 0.95rem;
+    }
+
+    .cardContent p {
+        font-size: 0.8rem;
+    }
+
+    .btnWrap {
+        font-size: 0.75rem;
+    }
+
+    .readerSection {
+        padding: 1.5rem;
+    }
+
+    .readerTitle {
+        font-size: 1.6rem;
+    }
+
+    .readerContent {
+        font-size: 0.9rem;
+    }
+
+    .stepTitle {
+        font-size: 1.05rem;
+    }
+
+    .stepText {
+        font-size: 0.85rem;
+    }
+
+    .articleRowContent h4 {
+        font-size: 0.95rem;
+    }
+
+    .dateTag {
+        font-size: 0.75rem;
+    }
+    
+    .backBtn, .feedbackBtn {
+        font-size: 0.85rem;
+    }
+}

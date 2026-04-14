@@ -273,7 +273,7 @@ select {
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 1.5rem;
 }
 
 .flex-center {
@@ -293,16 +293,45 @@ select {
   .container {
     padding: 0 1rem;
   }
+  body {
+    font-size: 0.9rem;
+  }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .logo-text {
-    font-size: 1.4rem;
+    font-size: 1.45rem;
   }
 
   .btn-primary,
   .btn-secondary {
     padding: 0.5rem 1rem;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
+
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1.1rem; }
+}
+
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 1.35rem;
+  }
+
+  body {
+    font-size: 0.85rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.35rem; }
+  h3 { font-size: 1.15rem; }
+  h4 { font-size: 1.05rem; }
 }

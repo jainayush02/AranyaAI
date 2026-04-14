@@ -298,6 +298,7 @@ export default function Login() {
                             className={styles.visualContent}
                         >
                             <div className={styles.brandMark}>
+                                <img src="/Aranya.png" alt="Aranya AI Logo" className={styles.brandLogo} />
                                 <div className={styles.brandMarkBlock}>
                                     <span className={styles.brandMarkText}>
                                         Aranya<span className={styles.brandMarkAi}>Ai</span>

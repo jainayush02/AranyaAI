@@ -217,7 +217,7 @@ export default function ChironIntelligence() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '4rem' }}>
             {/* Command Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem' }}>
+            <div className={s.statGridFour}>
                 <Stat icon={FileText} label="Total Sources" value={stats.documents || 0} color="#10b981" />
                 <Stat icon={Zap} label="Physical Vectors" value={stats.vectorDbStats?.vectors || 0} color="#f59e0b" />
                 <Stat icon={Brain} label="Active Precision" value={`${stats.dimensions || 768}d`} color="#3b82f6" badge={stats.dimensions === 1536 ? 'High fidelity' : 'Standard Alignment'} />
@@ -226,57 +226,57 @@ export default function ChironIntelligence() {
 
             {/* Controller */}
             <div style={{ background: '#fff', borderRadius: '32px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.03)' }}>
-                <div style={{ padding: '1.5rem 2rem', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ width: 44, height: 44, borderRadius: '14px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                <div className={s.controllerHead}>
+                    <div className={s.controllerTitleInfo}>
+                        <div className={s.controllerIcon}>
                             <ShieldCheck size={24} />
                         </div>
                         <div>
-                            <span style={{ fontWeight: 900, fontSize: '1.1rem', color: '#0f172a', display: 'block' }}>Chiron Intelligence Control</span>
-                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>Autonomous cross-dimension knowledge engine</span>
+                            <span className={s.controllerTitle}>Chiron Intelligence Control</span>
+                            <span className={s.controllerSub}>Autonomous cross-dimension knowledge engine</span>
                         </div>
                     </div>
-
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        {(uploading || (progress && progress.status !== 'Discovery Complete')) ? (
-                            <button onClick={handleStop} style={{ height: 42, background: '#fef2f2', color: '#ef4444', border: '1.5px solid #fee2e2', borderRadius: '14px', padding: '0 1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                <X size={18} /> Stop Command
-                            </button>
-                        ) : (
-                            <>
-                                <button onClick={() => fileInputRef.current?.click()} style={{ height: 42, background: '#2d5f3f', color: '#fff', border: 'none', borderRadius: '14px', padding: '0 1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <Plus size={18} /> Ingest Manual
-                                </button>
-                                <button onClick={() => setShowUrlForm(!showUrlForm)} style={{ height: 42, background: '#fff', color: '#10b981', border: '1.5px solid #d1fae5', borderRadius: '14px', padding: '0 1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <LinkIcon size={18} /> URL Ingest
-                                </button>
-                                <button onClick={openTuningModal} style={{ height: 42, background: '#fff', color: '#10b981', border: '1.5px solid #d1fae5', borderRadius: '14px', padding: '0 1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <Settings size={18} /> RAG Settings
-                                </button>
-                                <button onClick={() => setModal({ type: 'purge' })} disabled={purging} style={{ height: 42, background: '#fff', color: purging ? '#94a3b8' : '#ef4444', border: '1.5px solid #fee2e2', borderRadius: '14px', padding: '0 1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    {purging ? <Clock className={s.spin} size={18} /> : <RotateCw size={18} />}
-                                    Reset Index
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
+ 
+                     <div className={s.controllerActions}>
+                         {(uploading || (progress && progress.status !== 'Discovery Complete')) ? (
+                             <button onClick={handleStop} className={s.stopBtn}>
+                                 <X size={18} /> Stop Command
+                             </button>
+                         ) : (
+                             <>
+                                 <button onClick={() => fileInputRef.current?.click()} className={s.ingestBtn}>
+                                     <Plus size={18} /> Ingest Manual
+                                 </button>
+                                 <button onClick={() => setShowUrlForm(!showUrlForm)} className={s.urlBtn}>
+                                     <LinkIcon size={18} /> URL Ingest
+                                 </button>
+                                 <button onClick={openTuningModal} className={s.urlBtn}>
+                                     <Settings size={18} /> RAG Settings
+                                 </button>
+                                 <button onClick={() => setModal({ type: 'purge' })} disabled={purging} className={s.purgeBtn}>
+                                     {purging ? <Clock className={s.spin} size={18} /> : <RotateCw size={18} />}
+                                     Reset Index
+                                 </button>
+                             </>
+                         )}
+                     </div>
+                 </div>
 
                 <AnimatePresence>
                     {(showUrlForm || progress) && (
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                             <div style={{ padding: '2rem' }}>
                                 {showUrlForm && !uploading && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '1rem', alignItems: 'end', marginBottom: progress ? '2rem' : 0 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <label style={{ fontSize: '0.85rem', fontWeight: 800 }}>Clinical Link (PDF/DOCX)</label>
+                                    <div className={s.ingestFormGrid}>
+                                        <div className={s.ingestField}>
+                                            <label>Clinical Link (PDF/DOCX)</label>
                                             <input type="text" className={s.configInput} placeholder="https://..." value={urlInput} onChange={e => setUrlInput(e.target.value)} />
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <label style={{ fontSize: '0.85rem', fontWeight: 800 }}>Reference Label</label>
+                                        <div className={s.ingestField}>
+                                            <label>Reference Label</label>
                                             <input type="text" className={s.configInput} placeholder="e.g. Discovery Alpha" value={urlName} onChange={e => setUrlName(e.target.value)} />
                                         </div>
-                                        <button onClick={handleUrlIngest} style={{ height: 42, padding: '0 1.5rem', background: '#10b981', color: '#fff', borderRadius: '12px', border: 'none', fontWeight: 800 }}>Start URL Ingest</button>
+                                        <button onClick={handleUrlIngest} className={s.startIngestBtn}>Start URL Ingest</button>
                                     </div>
                                 )}
                                 {progress && (
@@ -302,12 +302,12 @@ export default function ChironIntelligence() {
 
                 {/* Vault View */}
                 <div className={s.tableWrap} style={{ padding: '0 1rem 1rem' }}>
-                    <div style={{ padding: '1.25rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ position: 'relative', width: '340px' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                            <input type="text" placeholder="Search knowledge vault..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', height: 40, padding: '0 1rem 0 2.5rem', borderRadius: '10px', border: '1.5px solid #f1f5f9', background: '#f8fafc', fontSize: '0.85rem', fontWeight: 600, outline: 'none' }} />
+                    <div className={s.vaultHead}>
+                        <div className={s.vaultSearch}>
+                            <Search size={16} />
+                            <input type="text" placeholder="Search knowledge vault..." value={search} onChange={e => setSearch(e.target.value)} />
                         </div>
-                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 800 }}>DISCOVERY AGENT ACTIVE</span>
+                        <span className={s.discoveryAgentLabel}>DISCOVERY AGENT ACTIVE</span>
                     </div>
                     <table className={s.modernTable}>
                         <thead>

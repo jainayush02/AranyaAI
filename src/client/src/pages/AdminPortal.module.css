@@ -176,8 +176,349 @@
     color: #92400e;
 }
 
+/* AI Routing Responsive Utils */
+.aiRoutingHead {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    width: 100%;
+    gap: 1.5rem;
+    position: relative;
+}
+
+.aiRoutingTabs {
+    padding: 3px;
+    min-width: 420px;
+    display: flex;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+.aiRoutingTabs::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+/* Vector Form Responsive Utils */
+.vectorFormGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.dimensionRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 1rem;
+}
+
+.probeTool {
+    border: 1.5px dashed #e2e8f0;
+    border-radius: 16px;
+    padding: 1rem;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.aiRoutingAction {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.routingGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.gatewayParamsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    background: #f8fafc;
+    border-radius: 16px;
+    border: 1px solid #f1f5f9;
+    padding: 1rem;
+}
+
+.gatewayModelsGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto auto;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.gatewayModelsGridRead {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 2.5fr) auto;
+}
+
+.taxonomyGrid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.planFormGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.aiConfigRow {
+    display: grid;
+    grid-template-columns: 1.5fr 3fr;
+    gap: 1.25rem;
+}
+
+.aiConfigGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.configInput {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    outline: none;
+    transition: 0.2s;
+}
+
+.configInput:focus {
+    border-color: #2d5f3f;
+    box-shadow: 0 0 0 3px rgba(45, 95, 63, 0.1);
+}
+
+.inputLabel {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .navItemAdminAccess:not(.navActive):hover {
     color: #d97706;
+}
+
+/* Chiron & General Responsive Utils */
+.statGridFour {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+.controllerHead {
+    padding: 1.5rem 2rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.controllerTitleInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.controllerIcon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #f0fdf4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #10b981;
+}
+
+.controllerTitle {
+    font-weight: 900;
+    font-size: 1.1rem;
+    color: #0f172a;
+    display: block;
+}
+
+.controllerSub {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.controllerActions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.statCard {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    transition: 0.3s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.statIcon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.statLabel {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.statVal {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.statSub {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+/* Symbol Button Utility */
+.symbolBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.symbolBtn span {
+    display: inline;
+}
+
+.ingestFormGrid {
+    display: grid;
+    grid-template-columns: 2fr 1fr auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+.ingestField {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ingestField label {
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.vaultHead {
+    padding: 1.25rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.vaultSearch {
+    position: relative;
+    width: 340px;
+}
+
+.vaultSearch svg {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+}
+
+.vaultSearch input {
+    width: 100%;
+    height: 40px;
+    padding: 0 1rem 0 2.5rem;
+    border-radius: 10px;
+    border: 1.5px solid #f1f5f9;
+    background: #f8fafc;
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+}
+
+.discoveryAgentLabel {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 800;
+}
+
+.stopBtn, .ingestBtn, .urlBtn, .purgeBtn, .startIngestBtn {
+    height: 42px;
+    border-radius: 14px;
+    padding: 0 1.25rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: 0.2s;
+}
+
+.stopBtn {
+    background: #fef2f2;
+    color: #ef4444;
+    border: 1.5px solid #fee2e2;
+}
+
+.ingestBtn {
+    background: #2d5f3f;
+    color: #fff;
+    border: none;
+}
+
+.urlBtn {
+    background: #fff;
+    color: #10b981;
+    border: 1.5px solid #d1fae5;
+}
+
+.purgeBtn {
+    background: #fff;
+    color: #ef4444;
+    border: 1.5px solid #fee2e2;
+}
+
+.startIngestBtn {
+    background: #10b981;
+    color: #fff;
+    border: none;
+    padding: 0 1.5rem !important;
 }
 
 /* ── MAIN CONTENT ── */
@@ -705,6 +1046,200 @@
     max-width: 500px;
     position: relative;
     z-index: 1;
+}
+
+.filterRow {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.searchWrap {
+    flex: 1;
+    min-width: 280px;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.searchWrap svg {
+    position: absolute;
+    left: 1rem;
+    color: #94a3b8;
+}
+
+.searchWrap input {
+    width: 100%;
+    padding: 0.65rem 1rem 0.65rem 2.5rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    transition: 0.2s;
+}
+
+.searchWrap input:focus {
+    border-color: #2d5f3f;
+    box-shadow: 0 0 0 3px rgba(45, 95, 63, 0.1);
+}
+
+.sel {
+    padding: 0.65rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #475569;
+    background: #fff;
+    cursor: pointer;
+    outline: none;
+    min-width: 140px;
+}
+
+.sel:focus {
+    border-color: #2d5f3f;
+}
+
+/* User Profile Classes */
+.userDetailGrid {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.35fr) 1fr;
+    gap: 1.5rem;
+    align-items: stretch;
+}
+
+.userCard {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.02);
+}
+
+.userDetailRight {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    padding: 2.5rem;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.02);
+    display: flex;
+    flex-direction: column;
+}
+
+.pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+.logRowGrid {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1rem 1.25rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.2s;
+}
+
+.logRowGrid:hover {
+    border-color: #2d5f3f;
+}
+
+.userLogCard {
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) 1fr auto;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+    transition: all 0.3s ease;
+}
+
+.activityMiniRow {
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) 100px 120px;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+    transition: all 0.3s ease;
+}
+
+.planGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.graphGrid {
+    margin-top: 2.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.graphCard {
+    background: #fff;
+    border-radius: 20px;
+    padding: 1.5rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.chartContainer {
+    height: 240px;
+    width: 100%;
+    min-width: 0;
+    position: relative;
+}
+
+/* Logging Font Utilities */
+.logTitle {
+    font-size: 0.95rem;
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.logSub {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.logBadge {
+    font-size: 0.65rem;
+    color: #475569;
+    font-weight: 800;
+    background: #f1f5f9;
+    padding: 4px 12px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    display: inline-block;
 }
 
 /* ── TABLE ── */
@@ -1406,7 +1941,7 @@
 /* ── DASHBOARD BLOCKS ── */
 .contentGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
     gap: 1.5rem;
 }
 
@@ -1716,6 +2251,12 @@
 }
 
 /* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  body {
+    font-size: 0.82rem;
+  }
+}
+
 @media (max-width: 1000px) {
     .sidebar {
         position: fixed;
@@ -2133,6 +2674,16 @@
     background: #cbd5e1;
 }
 
+.contentCardInnerRow {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 20px;
+    border: 1.5px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .premiumTextarea {
     width: 100%;
     min-height: 150px;
@@ -2155,6 +2706,15 @@
     box-shadow: 0 0 0 5px rgba(45, 95, 63, 0.1);
 }
 
+
+.modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #f1f5f9;
+}
 
 .premiumButton {
     display: flex;
@@ -2798,3 +3358,388 @@
     font-weight: 800;
     border: 1.5px solid #dcfce7;
 }
+
+/* ── RESPONSIVE OVERRIDES ── */
+@media (max-width: 992px) {
+    .layout {
+        position: relative;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: -260px; /* Hide offscreen */
+        width: 260px !important; /* Force full width on mobile drawer */
+        z-index: 4000;
+        transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+        background: #fff;
+    }
+
+    .sidebarOpen {
+        transform: translateX(260px);
+        box-shadow: 15px 0 35px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Hide collapsed state on mobile */
+    .sidebarCollapsed {
+        width: 260px; /* Reset so it doesn't try to be tiny */
+    }
+
+    .main {
+        width: 100%;
+        margin-left: 0;
+        padding-top: 0;
+    }
+
+    .topBanner {
+        padding: 1.35rem 1.25rem;
+        gap: 0.75rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .mobileMenuBtn {
+        display: flex !important;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 0.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        flex-shrink: 0;
+    }
+
+    .bannerIcon {
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+    }
+
+    .bannerText h1 {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .bannerText p {
+        font-size: 0.75rem;
+        margin: 0;
+    }
+
+    /* Minimize all fonts */
+    .navItem {
+        font-size: 0.8rem;
+        padding: 0.7rem 1.25rem;
+    }
+
+    .statVal {
+        font-size: 1.25rem;
+    }
+
+    .statLabel {
+        font-size: 0.55rem;
+    }
+
+    .statSub {
+        font-size: 0.6rem;
+    }
+
+    .sectionHead h1 {
+        font-size: 1.2rem;
+    }
+
+    .sectionHead p {
+        font-size: 0.75rem;
+    }
+
+    .table th, .modernTable th {
+        font-size: 0.6rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .table td, .modernTable td {
+        font-size: 0.8rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .uname {
+        font-size: 0.85rem;
+    }
+
+    .uemail {
+        font-size: 0.7rem;
+    }
+
+    .featureCardTitle {
+        font-size: 0.85rem;
+    }
+
+    .featureCardDesc {
+        font-size: 0.75rem;
+    }
+
+    .featureMetaValue {
+        font-size: 1rem;
+    }
+
+    .contentBody {
+        padding: 1rem 1.25rem;
+    }
+
+    .statsGrid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .statGridFour {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .controllerHead {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+        padding: 1.5rem;
+    }
+
+    .controllerActions {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .controllerActions button {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .ingestFormGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .vaultHead {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .vaultSearch {
+        width: 100%;
+    }
+
+    .userDetailGrid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .userDetailRight {
+        padding: 1.5rem !important;
+    }
+
+    .logRowGrid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .userLogCard, .activityMiniRow {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .userLogCard > div, .activityMiniRow > div {
+        text-align: center !important;
+        justify-content: center;
+    }
+
+    .planGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .graphGrid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .graphCard {
+        padding: 1.25rem 1rem !important;
+    }
+
+    .logTitle {
+        font-size: 0.8rem;
+    }
+
+    .logSub {
+        font-size: 0.65rem;
+    }
+
+    .logBadge {
+        font-size: 0.6rem;
+        padding: 3px 8px;
+    }
+
+    .aiRoutingHead {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .aiRoutingTabs {
+        min-width: 0;
+        width: 100%;
+        overflow-x: auto;
+        justify-content: flex-start;
+    }
+
+    .aiRoutingAction {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .taxonomyGrid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .planFormGrid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .aiConfigRow {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .routingGrid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .gatewayParamsGrid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    .gatewayModelsGrid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 12px;
+    }
+
+    .gatewayModelsGrid > * {
+        width: 100% !important;
+        margin: 2px 0;
+    }
+
+    .gatewayModelsGrid select, .gatewayModelsGrid input {
+        font-size: 0.85rem !important;
+        padding: 0.6rem !important;
+        height: auto !important;
+    }
+
+    .vectorFormGrid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .dimensionRow {
+        grid-template-columns: 1fr;
+    }
+
+    .probeTool {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .probeTool button {
+        width: 100%;
+    }
+
+    .contentCard {
+        padding: 1.5rem 1.25rem !important;
+    }
+
+    .contentCardInnerRow {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1.25rem;
+        padding: 1.25rem 1rem;
+    }
+
+    .modalContent {
+        padding: 1.25rem !important;
+    }
+
+    .premiumTextarea {
+        padding: 1rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    .modalFooter {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .modalFooter button {
+        width: 100%;
+    }
+
+    .sidebarOverlay {
+        display: block !important;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 3999;
+        backdrop-filter: blur(2px);
+    }
+
+    .tableWrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -0.5rem;
+        border-radius: 12px;
+    }
+
+    .statCard {
+        flex-direction: column;
+        text-align: center;
+        padding: 1.5rem 1rem;
+        aspect-ratio: 1 / 1.1; /* Square-ish */
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .statIcon {
+        margin: 0 auto;
+    }
+
+    .symbolBtn span {
+        display: none !important;
+    }
+
+    .symbolBtn {
+        padding: 0.65rem !important;
+        min-width: 40px;
+        min-height: 40px;
+        aspect-ratio: 1/1;
+        justify-content: center;
+        gap: 0;
+    }
+
+    .featureGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.mobileMenuBtn {
+    display: none;
+}
+
+.sidebarOverlay {
+    display: none;
+}

@@ -1255,10 +1255,10 @@ export default function AnimalProfile() {
                                 </div>
                                 <div className={styles.modalActions}>
                                     <button className={styles.resetBtn} onClick={handleResetCareCycle} disabled={isFetchingVaccines || isSavingVaccines}>
-                                        <RotateCcw size={12} /> Reset
+                                        <RotateCcw size={14} /> <span className={styles.btnText}>Reset</span>
                                     </button>
                                     <button className={styles.regenerateBtn} onClick={handleRegenerateCareCycle} disabled={isFetchingVaccines || isSavingVaccines}>
-                                        <RefreshCw size={12} /> Regenerate
+                                        <RefreshCw size={14} /> <span className={styles.btnText}>Regenerate</span>
                                     </button>
                                 </div>
                                 <button className={styles.closeModalBtn} onClick={() => setShowVaccineModal(false)}>

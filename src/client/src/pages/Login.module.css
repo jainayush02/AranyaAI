@@ -306,6 +306,14 @@
     gap: 1rem;
 }
 
+.brandLogo {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 20px rgba(141, 198, 63, 0.35));
+    flex-shrink: 0;
+}
+
 .brandMarkBlock {
     display: inline-flex;
     flex-direction: column;

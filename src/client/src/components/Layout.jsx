@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Settings, FileText, HelpCircle, LayoutDashboard, ArrowLeft } from 'lucide-react';
+import { Home, Settings, FileText, HelpCircle, LayoutDashboard, ArrowLeft, Menu, X } from 'lucide-react';
 import UserProfileMenu from './UserProfileMenu';
 import ChatBot from './ChatBot';
 import styles from './Layout.module.css';
@@ -11,6 +11,7 @@ export default function Layout() {
     const [user, setUser] = useState(null);
     const [isVisible, setIsVisible] = useState(true);
     const [lastScrollY, setLastScrollY] = useState(0);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -23,6 +24,10 @@ export default function Layout() {
 
     useEffect(() => {
         const handleScroll = () => {
+            if (isMobileMenuOpen) {
+                setIsVisible(true);
+                return;
+            }
             const currentScrollY = window.scrollY;
             if (currentScrollY > lastScrollY && currentScrollY > 80) {
                 setIsVisible(false);
@@ -34,7 +39,20 @@ export default function Layout() {
 
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
-    }, [lastScrollY]);
+    }, [lastScrollY, isMobileMenuOpen]);
+
+    // Body scroll lock
+    useEffect(() => {
+        if (isMobileMenuOpen) {
+            document.body.style.overflow = 'hidden';
+            setIsVisible(true);
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isMobileMenuOpen]);
 
     useEffect(() => {
         const syncUser = () => {
@@ -58,6 +76,11 @@ export default function Layout() {
             window.removeEventListener('userUpdated', syncUser);
         };
     }, []);
+
+    // Close mobile menu on route change
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [location.pathname]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -109,7 +132,7 @@ export default function Layout() {
                 <div className={`container ${styles.headerContainer}`}>
                     <div className={`${styles.leftGroup} ${!isHome ? styles.hasBackButton : ''}`}>
                         <Link to={role === 'admin' ? '/admin-portal' : '/'} className={styles.logoArea}>
-                            <img src="/logo.png" alt="AranyaAi" className={styles.logoImage} onError={(e) => {
+                            <img src="/new_logo.png" alt="AranyaAi" className={styles.logoImage} onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';
                             }} />
@@ -119,83 +142,92 @@ export default function Layout() {
                         </Link>
                     </div>
 
-                    <nav className={styles.nav}>
-                        <AnimatePresence mode="wait">
-                            {role === 'admin' ? (
-                                <motion.div
-                                    key="admin-nav"
-                                    initial={{ opacity: 0, y: -8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 8 }}
-                                    className={styles.navGroup}
-                                >
-                                    {adminNavItems.map(({ to, label, icon: Icon }) => {
-                                        const isActive = location.pathname + location.search === to ||
-                                            (to === '/admin-portal' && isOverviewTab);
-                                        return (
-                                            <Link
-                                                key={to}
-                                                to={to}
-                                                className={`${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                                            >
-                                                {isActive && (
-                                                    <motion.span
-                                                        className={styles.navPill}
-                                                        layoutId="admin-nav-pill"
-                                                        transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-                                                    />
-                                                )}
-                                                <Icon size={16} />
-                                                <span>{label}</span>
-                                            </Link>
-                                        );
-                                    })}
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="user-nav"
-                                    initial={{ opacity: 0, y: -8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 8 }}
-                                    className={styles.navGroup}
-                                >
-                                    {userNavItems.map(({ to, label, icon: Icon, hideOnHome }) => {
-                                        // Hide Home button on the home page
-                                        if (hideOnHome && isUserHome) return null;
-                                        const isActive = location.pathname === to;
-                                        return (
-                                            <AnimatePresence key={to}>
-                                                <motion.div
-                                                    initial={{ opacity: 0, x: -10, scale: 0.9 }}
-                                                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                                                    exit={{ opacity: 0, x: -10, scale: 0.9 }}
-                                                    transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                                                >
-                                                    <Link
-                                                        to={to}
-                                                        className={`${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                                                    >
-                                                        {isActive && (
-                                                            <motion.span
-                                                                className={styles.navPill}
-                                                                layoutId="user-nav-pill"
-                                                                transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-                                                            />
-                                                        )}
-                                                        <Icon size={16} />
-                                                        <span>{label}</span>
-                                                    </Link>
-                                                </motion.div>
-                                            </AnimatePresence>
-                                        );
-                                    })}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </nav>
+                    <button 
+                        className={styles.mobileMenuToggle} 
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    >
+                        {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                    </button>
 
-                    <div className={styles.actions}>
-                        <UserProfileMenu user={user} onLogout={handleLogout} />
+                    <div className={`${styles.rightGroup} ${isMobileMenuOpen ? styles.mobileMenuOpen : ''}`}>
+                        <nav className={styles.nav}>
+                            <AnimatePresence mode="wait">
+                                {role === 'admin' ? (
+                                    <motion.div
+                                        key="admin-nav"
+                                        initial={{ opacity: 0, y: -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 8 }}
+                                        className={styles.navGroup}
+                                    >
+                                        {adminNavItems.map(({ to, label, icon: Icon }) => {
+                                            const isActive = location.pathname + location.search === to ||
+                                                (to === '/admin-portal' && isOverviewTab);
+                                            return (
+                                                <Link
+                                                    key={to}
+                                                    to={to}
+                                                    className={`${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                                                >
+                                                    {isActive && (
+                                                        <motion.span
+                                                            className={styles.navPill}
+                                                            layoutId="admin-nav-pill"
+                                                            transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+                                                        />
+                                                    )}
+                                                    <Icon size={16} />
+                                                    <span>{label}</span>
+                                                </Link>
+                                            );
+                                        })}
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="user-nav"
+                                        initial={{ opacity: 0, y: -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 8 }}
+                                        className={styles.navGroup}
+                                    >
+                                        {userNavItems.map(({ to, label, icon: Icon, hideOnHome }) => {
+                                            const hideDesktop = hideOnHome && isUserHome;
+                                            const isActive = location.pathname === to;
+                                            return (
+                                                <AnimatePresence key={to}>
+                                                    <motion.div
+                                                        className={hideDesktop ? styles.desktopHidden : ''}
+                                                        initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                                                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                                                        exit={{ opacity: 0, x: -10, scale: 0.9 }}
+                                                        transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                                                    >
+                                                        <Link
+                                                            to={to}
+                                                            className={`${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                                                        >
+                                                            {isActive && (
+                                                                <motion.span
+                                                                    className={styles.navPill}
+                                                                    layoutId="user-nav-pill"
+                                                                    transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+                                                                />
+                                                            )}
+                                                            <Icon size={16} />
+                                                            <span>{label}</span>
+                                                        </Link>
+                                                    </motion.div>
+                                                </AnimatePresence>
+                                            );
+                                        })}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </nav>
+
+                        <div className={styles.actions}>
+                            <UserProfileMenu user={user} onLogout={handleLogout} />
+                        </div>
                     </div>
                 </div>
             </motion.header>
@@ -212,6 +244,18 @@ export default function Layout() {
 
             {/* Global AI Chatbot - Disabled for Admin */}
             {role !== 'admin' && <ChatBot />}
+
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className={styles.mobileOverlay} 
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
 
             <footer className={styles.footer}>
                 <div className="container">
