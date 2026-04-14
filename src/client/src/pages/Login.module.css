@@ -7,8 +7,8 @@
    ================================================================= */
 
 .page {
-    min-height: 100vh;
-    width: 100vw;
+    min-height: 100dvh;
+    width: 100%;
     font-family: 'Manrope', system-ui, sans-serif;
     overflow-x: hidden;
     background: #021a0e;
@@ -41,8 +41,8 @@
     position: absolute;
     border-radius: 50%;
     mix-blend-mode: screen;
-    filter: blur(90px);
-    opacity: 0.5;
+    filter: blur(60px); /* Reduced from 90px for performance */
+    opacity: 0.4;
     will-change: transform;
     transform: translateZ(0);
 }
@@ -604,9 +604,10 @@
     background: rgba(2, 26, 14, 0.92);
     backdrop-filter: blur(30px) saturate(170%);
     border-radius: calc(2rem - 2px);
-    padding: 2rem;
+    padding: 2.5rem;
     position: relative;
     overflow: hidden;
+    min-height: 520px;
     transform: translateZ(0);
     will-change: transform;
 }
@@ -1666,7 +1667,7 @@
     font-weight: 700;
     color: rgba(255, 255, 255, 0.5);
     letter-spacing: 0.08em;
-    transition: all 0.3s;
+    transition: background-color 0.3s, border-color 0.3s, color 0.3s, transform 0.3s;
 }
 
 .audioWidgetClickable:hover .audioReadyBadge {

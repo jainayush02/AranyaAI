@@ -11,7 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-icon.png'],
       devOptions: {
-        enabled: true
+        enabled: false
       },
       manifest: {
         name: 'AranyaAI',
@@ -24,17 +24,17 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'pwa-icon.png',
+            src: '/pwa-icon.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-icon.png',
+            src: '/pwa-icon.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'pwa-icon.png',
+            src: '/pwa-icon.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
