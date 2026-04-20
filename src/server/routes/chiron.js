@@ -31,10 +31,17 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 
+// --- Core Handshake ---
 async function initPinecone() {
     try {
-        const pineconeKey = process.env.PINECONE_API_KEY;
-        if (!pineconeKey) return false;
+        // Preference: Configured API Key in Settings or ENV
+        const s = await SystemSettings.findOne({ key: 'ai_config_v2' });
+        const pineconeKey = s?.value?.chiron?.pineconeApiKey || process.env.PINECONE_API_KEY;
+        
+        if (!pineconeKey) {
+            console.warn('[Chiron] Handshake Deferred: No Pinecone API Key found.');
+            return false;
+        }
 
         pineconeClient = new Pinecone({ apiKey: pineconeKey });
 
@@ -44,7 +51,7 @@ async function initPinecone() {
         PHYSICAL_HOST = meta.host;
 
         // 2. Target the physical host discovered by the SDK
-        console.log(`[Chiron] ALIGNED: Index "chiron" correctly found at ${PHYSICAL_HOST} (${DETECTED_DIMENSION}d)`);
+        console.log(`[Chiron] ALIGNED: Index "chiron" found at ${PHYSICAL_HOST} (${DETECTED_DIMENSION}d)`);
         pineconeIndex = pineconeClient.index('chiron', PHYSICAL_HOST);
 
         // 3. Final Verification (Internal Stats)
@@ -67,45 +74,77 @@ async function getEmbeddingConfig() {
         throw new Error('Vector Intelligence Engine is disabled. Please enable it in the Aranya Admin Portal.');
     }
 
-    if (!c.apiKey || !c.baseUrl || !c.model) {
-        throw new Error('Vector Networking Unconfigured! No hardcoded fallbacks are permitted. Please provide the Provider API Key, Base URL, and Model ID in the Admin Portal.');
+    if (!c.apiKey || !c.baseUrl || !c.model || !c.provider) {
+        throw new Error('Vector Networking Unconfigured! No hardcoded fallbacks are permitted. Please provide the Provider Name, API Key, Base URL, and Model ID in the Admin Portal.');
     }
+
+    // Alignment: Ensure Google Gemini URLs contain the /models collection
+    let baseUrl = c.baseUrl.trim();
+    if (c.provider.toLowerCase().includes('google') && !baseUrl.includes('/models')) {
+        baseUrl = baseUrl.endsWith('/') ? `${baseUrl}models` : `${baseUrl}/models`;
+    }
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+    // Sanitize Model Name (strip models/ if provided in the box to avoid dual-pathing)
+    const rawModel = c.model.trim();
+    const cleanModel = rawModel.startsWith('models/') ? rawModel.replace('models/', '') : rawModel;
 
     return {
         provider: c.provider.toLowerCase(),
-        baseUrl: c.baseUrl,
-        model: c.model,
+        baseUrl: baseUrl,
+        model: cleanModel,
+        fullModelPath: rawModel.startsWith('models/') ? rawModel : `models/${rawModel}`,
         apiKey: c.apiKey,
-        chunkSize: parseInt(c.chunkSize) || 450,
-        overlap: parseInt(c.overlap) || 70,
+        chunkSize: parseInt(c.chunkSize) || 500,
+        overlap: parseInt(c.overlap) || 50,
         dimensions: parseInt(c.dimensions) || DETECTED_DIMENSION
     };
 }
 
 async function generateEmbedding(text, config) {
     try {
-        const response = await axios.post(`${config.baseUrl}/${config.model}:embedContent?key=${config.apiKey}`, {
-            content: { parts: [{ text }] },
-            outputDimensionality: config.dimensions
-        });
-        return response.data.embedding.values;
+        if (config.provider.includes('google')) {
+            const response = await axios.post(`${config.baseUrl}/${config.model}:embedContent?key=${config.apiKey}`, {
+                content: { parts: [{ text }] },
+                outputDimensionality: config.dimensions
+            });
+            return response.data.embedding.values;
+        } else {
+            const response = await axios.post(`${config.baseUrl}/embeddings`, {
+                model: config.model,
+                input: text
+            }, {
+                headers: { 'Authorization': `Bearer ${config.apiKey}` }
+            });
+            return response.data.data[0].embedding;
+        }
     } catch (err) {
-        throw new Error(`Alignment Error: ${err.message}`);
+        throw new Error(`Alignment Error: ${err.response?.data?.error?.message || err.message}`);
     }
 }
 
 async function generateEmbeddingsBatch(chunks, config) {
     try {
-        const response = await axios.post(`${config.baseUrl}/${config.model}:batchEmbedContents?key=${config.apiKey}`, {
-            requests: chunks.map(text => ({
-                model: `models/${config.model}`,
-                content: { parts: [{ text }] },
-                outputDimensionality: config.dimensions
-            }))
-        });
-        return response.data.embeddings.map(e => e.values);
+        if (config.provider.includes('google')) {
+            const response = await axios.post(`${config.baseUrl}/${config.model}:batchEmbedContents?key=${config.apiKey}`, {
+                requests: chunks.map(text => ({
+                    model: config.fullModelPath,
+                    content: { parts: [{ text }] },
+                    outputDimensionality: config.dimensions
+                }))
+            });
+            return response.data.embeddings.map(e => e.values);
+        } else {
+            const response = await axios.post(`${config.baseUrl}/embeddings`, {
+                model: config.model,
+                input: chunks
+            }, {
+                headers: { 'Authorization': `Bearer ${config.apiKey}` }
+            });
+            return response.data.data.map(e => e.embedding);
+        }
     } catch (err) {
-        throw new Error(`Alignment Error: ${err.message}`);
+        throw new Error(`Alignment Error: ${err.response?.data?.error?.message || err.message}`);
     }
 }
 
@@ -520,7 +559,51 @@ router.get('/download', auth, async (req, res) => {
 });
 
 
+router.post('/probe-embedding', auth, async (req, res) => {
+    try {
+        let { provider, model, baseUrl, apiKey } = req.body;
+        if (!model || !baseUrl || !apiKey) {
+            return res.status(400).json({ ok: false, msg: 'Missing configuration fields for probe.' });
+        }
+
+        const testText = "Dimension Probe Handshake";
+        let dimension = 0;
+
+        if (provider?.toLowerCase().includes('google')) {
+            // Auto-align baseUrl if /models collection is missing for Gemini
+            if (!baseUrl.includes('/models')) {
+                baseUrl = baseUrl.endsWith('/') ? `${baseUrl}models` : `${baseUrl}/models`;
+            }
+
+            console.log(`[Chiron Probe] Handshaking with Google Gemini API: ${baseUrl}/${model}`);
+            const response = await axios.post(`${baseUrl}/${model}:embedContent?key=${apiKey}`, {
+                content: { parts: [{ text: testText }] }
+            });
+            dimension = response.data.embedding?.values?.length || 0;
+        } else {
+            // OpenAI or OAI-compatible
+            console.log(`[Chiron Probe] Handshaking with OAI-Compatible API: ${baseUrl}/embeddings`);
+            const response = await axios.post(`${baseUrl}/embeddings`, {
+                model: model,
+                input: testText
+            }, {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            dimension = response.data.data[0].embedding.length;
+        }
+
+        res.json({ ok: true, dimension });
+    } catch (err) {
+        const status = err.response?.status || 500;
+        const msg = err.response?.data?.error?.message || err.message;
+        console.error(`[Chiron Probe] Handshake Failed (${status}):`, msg);
+        res.status(status).json({ ok: false, msg: `Engine Unreachable: ${msg}` });
+    }
+});
+
+
 module.exports = {
     router,
-    searchKnowledge
+    searchKnowledge,
+    initPinecone
 };
