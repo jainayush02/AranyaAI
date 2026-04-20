@@ -836,8 +836,15 @@ router.post('/config/ai', authenticate, adminOnly, async (req, res) => {
         const currentSettings = await SystemSettings.findOne({ key: 'ai_config_v2' });
         const existingValue = currentSettings?.value || {};
 
-        // Merge existing values with the new values from req.body
-        const newValue = { ...existingValue, ...req.body };
+        // Deep merge sub-objects to prevent wiping out unprovided fields (e.g. provider disappearing when updating enabled toggle)
+        const newValue = { ...existingValue };
+        Object.keys(req.body).forEach(k => {
+            if (req.body[k] && typeof req.body[k] === 'object' && !Array.isArray(req.body[k]) && existingValue[k]) {
+                newValue[k] = { ...existingValue[k], ...req.body[k] };
+            } else {
+                newValue[k] = req.body[k];
+            }
+        });
 
         const settings = await SystemSettings.findOneAndUpdate(
             { key: 'ai_config_v2' },

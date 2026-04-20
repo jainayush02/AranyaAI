@@ -789,6 +789,24 @@ export default function AdminPortal() {
                 data.intelligence.duckduckgo.targetDomains = data.intelligence.duckduckgo.targetDomains.split(',').map(d => d.trim()).filter(d => !!d);
             }
 
+            // --- Ensure Chiron Defaults in State ---
+            if (!data.chiron) {
+                data.chiron = {
+                    enabled: true,
+                    provider: 'Google',
+                    model: 'gemini-embedding-001',
+                    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+                    apiKey: '',
+                    dimensions: 768,
+                    chunkSize: 500,
+                    overlap: 50
+                };
+            } else {
+                if (!data.chiron.provider) data.chiron.provider = 'Google';
+                if (!data.chiron.model) data.chiron.model = 'gemini-embedding-001';
+                if (!data.chiron.baseUrl) data.chiron.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+            }
+
             setAiConfig(data);
         } catch { push('Failed to load AI config', 'err'); }
         finally { setAiConfigLoading(false); }
@@ -2971,9 +2989,9 @@ export default function AdminPortal() {
                                                                                 <input 
                                                                                     type="text" 
                                                                                     className={s.configInput} 
-                                                                                    value={aiConfig.chiron?.model || (aiConfig.chiron?.provider === 'OpenAI' ? 'text-embedding-3-small' : 'gemini-embedding-001')} 
+                                                                                    value={aiConfig.chiron?.model || ''} 
                                                                                     disabled={!isEditingAi} 
-                                                                                    placeholder="e.g. text-embedding-3-small" 
+                                                                                    placeholder={aiConfig.chiron?.provider === 'OpenAI' ? 'text-embedding-3-small' : 'gemini-embedding-001'} 
                                                                                     onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, model: e.target.value } }))} 
                                                                                 />
                                                                             </div>
@@ -3015,9 +3033,10 @@ export default function AdminPortal() {
                                                                                         <input 
                                                                                             type="number" 
                                                                                             className={s.configInput} 
-                                                                                            value={aiConfig.chiron?.dimensions || 768} 
+                                                                                            value={aiConfig.chiron?.dimensions || ''} 
                                                                                             disabled={!isEditingAi} 
-                                                                                            onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, dimensions: parseInt(e.target.value) } }))} 
+                                                                                            placeholder="e.g. 768 or 1536"
+                                                                                            onChange={e => setAiConfig(p => ({ ...p, chiron: { ...p.chiron, dimensions: e.target.value ? parseInt(e.target.value) : '' } }))} 
                                                                                             style={{ border: probeResult?.success ? '1.5px solid #10b981' : '1px solid #e2e8f0' }}
                                                                                         />
                                                                                         {probeResult?.success && <CheckCircle size={14} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: '#10b981' }} />}
